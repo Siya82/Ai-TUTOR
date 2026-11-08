@@ -1002,10 +1002,16 @@ actually writes. Live-testing a new integration point as it's built
 (not only after every piece individually passes) is now a demonstrated,
 not just suspected, gap in this project's test strategy.
 
+**Confirmed 8 Nov 2026:** `pytest -v` -- 53 passed, no warnings. A
+third live `/tutor/message` call against the real database and a real
+Claude response came back fully clean for the first time in the whole
+rebuild: `"math_verified": true, "verification_warnings": []`. Step 6
+is complete -- real seed data, the full diagnosis/personalization/
+Claude/MathGuard pipeline, and both bugs this testing surfaced (the
+$$-delimiter wiring gap and the checkmark glyph) are fixed and covered
+by regression tests, not just patched and left unverified.
+
 **Not done yet:**
-- Full `pytest -v` re-run with both fixes in place (handed off).
-- A third live `/tutor/message` call to confirm `math_verified` now
-  comes back fully clean end-to-end.
 - Frontend (step 7), auth (step 8), everything in Section 8 (step 9).
 
 <!-- Entries after 2026-08-03 that are known only from later project
