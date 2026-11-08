@@ -1014,6 +1014,110 @@ by regression tests, not just patched and left unverified.
 **Not done yet:**
 - Frontend (step 7), auth (step 8), everything in Section 8 (step 9).
 
+## 2026-11-08 -- Step 7: frontend chat UI, all four modalities together
+
+**Goal:** rebuild `ChatScreen.jsx` (REBUILD_SPEC.md Section 3: never
+read into any session transcript, known only by its ~11KB size and a
+one-line description of each of its four teaching modalities). Siya
+explicitly chose to build Text, Audio, Animated, and Visual together in
+one pass rather than sequencing Text+Audio first as this document had
+suggested -- noted here as a deliberate deviation, not an oversight.
+
+**Decision resolved first (ADR-012):** ADR-008's own update note and
+`THUTOra_Project_Report.md` both explicitly flagged the Zynora-vs-
+THUTOra palette question as needing an explicit choice, not a guess.
+Confirmed with Siya: THUTOra brand-sheet palette (navy/teal/purple/
+green/orange/off-white) supersedes the original Zynora black/cyan
+tokens. `tokens.css` rewritten accordingly; `product-tokens.css` (the
+file `App.jsx` actually imports, never recovered under that name) is a
+one-line `@import` of it, so there's one source of truth, not two
+palettes to keep in sync. `demo/tokens-demo.html` updated to match.
+
+**Backend additions (small, but necessary first):**
+- `GET /topics` and `GET /learners` (new routers + schemas) -- added
+  specifically because REBUILD_SPEC.md Section 3 flagged that the
+  recovered `api.js` hardcoded a `DEV_LEARNER_ID` and a `TOPIC_IDS` map
+  of UUIDs from the now-gone original database, and recommended
+  fetching dynamically instead. No auth on either (step 8, not done) --
+  consistent with every other endpoint in this API today.
+
+**Frontend -- all genuine rebuilds, not recoveries, from one-line
+descriptions in REBUILD_SPEC.md Section 3:**
+- `src/api.js` -- rewritten to call the two new endpoints instead of
+  hardcoding ids; `sendTutorMessage` now requires a real learnerId/
+  topicId rather than silently defaulting to a stale one.
+- `src/components/MarkdownMessage.jsx` -- shared react-markdown +
+  remark-math + rehype-katex renderer (all three already in the
+  recovered package.json), used by every modality.
+- `src/components/ModalitySwitcher.jsx`, `TopicPicker.jsx` -- the
+  "whatever UI/toggle exists for switching modality" and topic picker
+  REBUILD_SPEC.md said were never recovered. Topic picker now lists all
+  12 seeded topics (the recovered `api.js` only exposed 3).
+- `src/components/StepReveal.jsx` -- **Animated** modality. `framer-motion`
+  added to `package.json` (not present before, per REBUILD_SPEC.md's own
+  note). Splits a reply on the same `"---"` divider convention
+  `utils/tts.js` already uses for a spoken pause, reusing an existing
+  convention instead of inventing a second one; reveals steps one at a
+  time with a fade/slide transition and a "reveal next / show all"
+  control.
+- `src/components/NumberLineSVG.jsx` -- **Visual** modality. Deliberately
+  narrow and honest about its limits (same spirit as MathGuard's own
+  design, ADR-011): only renders a number line when a response's own
+  `$$...$$` block is already a simplified, single-variable inequality
+  with numeric bounds (`x < -3`, `2 <= x < 7`) -- never tries to solve
+  one itself. Renders nothing, rather than guessing, otherwise.
+- `src/components/MathVerifiedBadge.jsx` -- REBUILD_SPEC.md Section 1
+  states as a requirement, not a suggestion, that `math_verified`/
+  `verification_warnings` be "shown as a visible badge in the chat UI."
+  Three visually distinct states: clean pass, verified-but-warnings
+  (the honest-limitation case -- must not look like a clean pass),
+  and a positively-detected issue.
+- `src/components/ChatScreen.jsx` -- the main orchestrator: fetches
+  learners/topics on mount, sends messages, and renders each assistant
+  reply according to whichever modality was active when that message
+  arrived (switching modality later doesn't retroactively re-render
+  history). Also surfaces `redirected`/`reasoning_trace` as a small
+  note above the reply when the diagnosis engine redirected teaching to
+  a prerequisite -- this is one of the two protected core
+  differentiators (ADR-011) and deserved to be visible, not hidden.
+- `src/utils/tts.js` -- one small, backward-compatible addition to the
+  recovered file: `speak(text, onEnd)` takes an optional callback so the
+  UI can know when speech actually finishes, instead of only reacting
+  to its own button click. Every existing call site still works
+  unchanged.
+- `vite.config.js`, `index.html`, `src/main.jsx`, `eslint.config.js` --
+  none of these existed at all; `package.json` had the vite/eslint
+  scripts and devDependencies but nothing to actually run or lint
+  against. Added the standard Vite+React scaffolding.
+
+**Verification:**
+- The new inequality-detection and step-splitting logic was prototyped
+  and tested in an isolated Node sandbox first (same prototype-before-
+  trusting discipline as MathGuard), against six cases including the
+  exact live-captured `/tutor/message` reply shape from step 6 -- all
+  passed.
+- Every `.js`/`.jsx` file syntax-checked with `esbuild`.
+- A full `npm install` + `npm run build` (run in an isolated sandbox
+  against an exact copy of the real files, since the local device's own
+  npm was too slow to finish in time) completed cleanly -- confirms
+  every import resolves and the whole app actually bundles, not just
+  that individual files parse.
+- `eslint` (newly configured) caught two real React anti-patterns
+  (`setState` called synchronously inside an effect, in both the
+  audio-autoplay effect and the step-reveal-reset effect) -- both
+  fixed properly (lazy initial state; removing an unnecessary effect
+  entirely) rather than suppressed. One pre-existing harmless unused
+  variable in the recovered `tts.js` (`currentUtterance`, write-only)
+  was left as-is, not "fixed," since it's original recovered code, not
+  something introduced this step.
+
+**Not done yet:**
+- Live browser testing (`npm run dev` against a real running backend)
+  -- handed off, since this environment can build but not interactively
+  click through a running dev server against the user's own browser
+  the way the user can.
+- Auth (step 8), everything in Section 8 (step 9).
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

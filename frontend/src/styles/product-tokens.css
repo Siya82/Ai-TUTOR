@@ -1,0 +1,9 @@
+/*
+  App.jsx imports this exact filename (see REBUILD_SPEC.md Section 3 --
+  "product-tokens.css (imported by App.jsx)" was one of the never-
+  recovered files). tokens.css is kept as the single source of truth
+  for the actual token values, so demo/tokens-demo.html and the live
+  app always see the same palette -- this file just makes that
+  available under the name the app actually imports.
+*/
+@import url("./tokens.css");

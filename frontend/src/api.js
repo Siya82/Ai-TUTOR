@@ -1,32 +1,39 @@
+/*
+ * REBUILD NOTE (8 Nov 2026, step 7): the recovered version of this file
+ * hardcoded a DEV_LEARNER_ID and a TOPIC_IDS map of specific UUIDs from
+ * the original (now-gone) database -- REBUILD_SPEC.md Section 3 flagged
+ * this exact problem ("Dev-environment IDs will not transfer") and
+ * recommended fetching them dynamically instead. fetchTopics() and
+ * fetchLearners() below do that, against the two new endpoints added
+ * in this same step (backend/app/routers/topics.py, learners.py).
+ */
+
 const API_BASE_URL = "http://localhost:8000";
 
-// Seeded dev data from backend/scripts/seed_dev_data.py
-export const DEV_LEARNER_ID = "6a87aa7c-9d68-41ad-9ac8-f5325aec0cf6";
+async function getJson(path) {
+  const response = await fetch(`${API_BASE_URL}${path}`);
+  if (!response.ok) {
+    throw new Error(`GET ${path} failed with status ${response.status}`);
+  }
+  return response.json();
+}
 
-// Real topic IDs, from backend/scripts/seed_dev_data.py and
-// seed_additional_topics.py. Only these three are enabled in the UI
-// today (see TOPICS list in ChatScreen.jsx) -- the rest of the CAPS
-// Grade 10 list exists for wayfinding but has no seeded content yet.
-export const TOPIC_IDS = {
-  algebra: "d6f49ad0-67ad-4572-bc90-98fd6f09e6c5",
-  trigonometry: "0cafa2a1-507e-4d64-b2a9-24c7273a81bf",
-  functions: "77771301-c648-4b2b-a5bf-9b21e15bd6f9",
-  finance: "fa3993dc-d993-4bb6-ab1b-7e3eb8113a7f",
-  exponents: "6d78d964-40a6-4a85-af3e-5e6f9d64d291",
-  numberPatterns: "29ac57e6-229f-4880-b5e2-f9bafd6acaaf",
-  equationsInequalities: "3e81145d-dacc-4bcc-be34-d7910469f02c",
-  statistics: "561ad88a-4388-4a7b-acc1-7efb45a48991",
-  probability: "1babf1d1-fc42-46e8-b7eb-f50a912903b7",
-  measurement: "36c1bfe3-9b18-4d20-8dc4-9043fc98edba",
-};
+/** All seeded topics, e.g. [{ id, name, caps_reference, prerequisite_id }, ...]. */
+export function fetchTopics() {
+  return getJson("/topics/");
+}
+
+/** All seeded learners, e.g. [{ id, display_name, grade, preferred_modality }, ...]. */
+export function fetchLearners() {
+  return getJson("/learners/");
+}
 
 export async function sendTutorMessage({ message, sessionId, learnerId, topicId }) {
-  const payload = {
-    learner_id: learnerId || DEV_LEARNER_ID,
-    topic_id: topicId || TOPIC_IDS.algebra,
-    message,
-  };
+  if (!learnerId || !topicId) {
+    throw new Error("sendTutorMessage requires a real learnerId and topicId (fetch them first).");
+  }
 
+  const payload = { learner_id: learnerId, topic_id: topicId, message };
   if (sessionId) {
     payload.session_id = sessionId;
   }

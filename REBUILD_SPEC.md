@@ -377,9 +377,18 @@ also not recovered.
    rooted at "Algebraic Expressions," 24 diagnostic questions (2/topic),
    one placeholder `ContentChunk` per topic (explicitly non-real --
    RAG ingestion per Section 8 was never built), one dev `Learner`.
-7. Rebuild the frontend chat UI, starting with Text + Audio modalities
+7. ~~Rebuild the frontend chat UI, starting with Text + Audio modalities
    (both fully specified / partially recovered) before attempting the
-   Animated/Visual modalities, which are the least-specified pieces here.
+   Animated/Visual modalities, which are the least-specified pieces
+   here~~ -- **DONE 8 Nov 2026, all four modalities built together in
+   one pass per Siya's explicit direction, not sequenced as originally
+   suggested above.** See `backend/app/routers/topics.py`/`learners.py`
+   (new, so the frontend never hardcodes stale dev-environment UUIDs
+   again), `frontend/src/components/ChatScreen.jsx` and its supporting
+   components, `docs/ADR-012-thutora-brand-tokens.md` (resolves the
+   open Zynora-vs-THUTOra palette decision this section and
+   `THUTOra_Project_Report.md` both flagged), and `docs/BUILD_LOG.md`'s
+   8 Nov 2026 step 7 entry for the full design-decision record.
 8. Re-add authentication (Section 2) before any dashboard or multi-learner
    feature goes anywhere near real data.
 9. Everything in Section 8 (quiz engine, RAG grounding, deployment

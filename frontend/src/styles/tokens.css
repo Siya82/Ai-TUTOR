@@ -1,38 +1,55 @@
 /*
-  RECOVERY NOTE: this file was NEVER read verbatim during the session that
-  produced this recovery package -- only its token names and values were
-  described in docs/ADR-008-brand-design-tokens.md and referenced by
-  demo/tokens-demo.html. This is a best-effort RECONSTRUCTION matching that
-  description, not recovered original code. Treat the three measured brand
-  values as trustworthy (ADR-008 records exactly how they were sampled);
-  treat the surface/semantic layer below as a reasonable guess at the
-  original structure, to be corrected against your own memory on rebuild.
+  THUTOra design tokens.
+
+  UPDATED 8 Nov 2026 (step 7): re-skinned from the original Zynora
+  black/white/cyan tokens (ADR-008) to the THUTOra brand-sheet palette,
+  resolving the open decision both ADR-008's update note and
+  THUTOra_Project_Report.md explicitly flagged as needing an explicit
+  choice rather than an implicit one -- see ADR-012.
+
+  Raw brand tokens below are taken directly from the THUTOra brand
+  sheet (dark navy / teal / purple / green / orange / off-white) --
+  this is now the authoritative source, not sampled/measured pixel
+  data like the original Zynora tokens were. Surface tiers, muted text,
+  and the "on-accent" text color are NOT from the brand sheet -- they
+  are this rebuild's own reasonable dark-UI additions, same role as the
+  equivalent additions in the original ADR-008 tokens.
 */
 
 :root {
-  /* Measured directly from the original Zynora logo pixel data — see ADR-008 */
-  --zynora-black: #000000;
-  --zynora-white: #FFFFFF;
-  --zynora-cyan: #00EEFD;
+  /* Raw brand tokens -- from the THUTOra brand sheet */
+  --thutora-navy: #0D1B2A;
+  --thutora-teal: #00BFA6;
+  --thutora-purple: #6C5CE7;
+  --thutora-green: #4CAF50;
+  --thutora-orange: #FF9F1C;
+  --thutora-offwhite: #F4F6FA;
 
-  /* Standard dark-UI practice additions — NOT sampled from the logo (ADR-008) */
-  --zynora-surface-1: #0A0D12;
-  --zynora-surface-2: #12161D;
-  --zynora-text-secondary: #9AA4B2;
-  --zynora-text-on-cyan: #001015;
+  /* Standard dark-UI practice additions -- NOT from the brand sheet */
+  --thutora-surface-1: #11223A;
+  --thutora-surface-2: #16304F;
+  --thutora-text-secondary: #9FB0C3;
+  --thutora-text-on-accent: #04140F;
 
-  /* Semantic aliases — components should reference these, not --zynora-* directly,
-     so the palette can be swapped later without touching every component. */
-  --color-background: var(--zynora-black);
-  --color-surface: var(--zynora-surface-1);
-  --color-surface-2: var(--zynora-surface-2);
-  --color-border: #1E242D;
-  --color-text: var(--zynora-white);
-  --color-text-muted: var(--zynora-text-secondary);
-  --color-accent: var(--zynora-cyan);
-  --color-accent-hover: #33F4FF;
+  /* Semantic aliases -- components should reference these, not
+     --thutora-* directly, so the palette can be adjusted later without
+     touching every component. */
+  --color-background: var(--thutora-navy);
+  --color-surface: var(--thutora-surface-1);
+  --color-surface-2: var(--thutora-surface-2);
+  --color-border: #1E3350;
+  --color-text: var(--thutora-offwhite);
+  --color-text-muted: var(--thutora-text-secondary);
+  --color-text-on-accent: var(--thutora-text-on-accent);
 
-  --shadow-glow-sm: 0 0 8px rgba(0, 238, 253, 0.25);
-  --shadow-glow-md: 0 0 16px rgba(0, 238, 253, 0.35);
-  --shadow-glow-lg: 0 0 28px rgba(0, 238, 253, 0.45);
+  --color-accent: var(--thutora-teal);
+  --color-accent-hover: #1ED6BC;
+  --color-accent-secondary: var(--thutora-purple);
+
+  --color-success: var(--thutora-green);
+  --color-warning: var(--thutora-orange);
+
+  --shadow-glow-sm: 0 0 8px rgba(0, 191, 166, 0.25);
+  --shadow-glow-md: 0 0 16px rgba(0, 191, 166, 0.35);
+  --shadow-glow-lg: 0 0 28px rgba(0, 191, 166, 0.45);
 }

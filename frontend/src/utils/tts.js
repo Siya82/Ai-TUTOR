@@ -20,7 +20,11 @@ function cleanForSpeech(text) {
     .trim();
 }
 
-export function speak(text) {
+// `onEnd` (added 8 Nov 2026, step 7, backward-compatible -- every
+// existing call site that only passes `text` behaves exactly as
+// before) lets a caller know when speech actually finishes, instead
+// of only ever reacting to its own "stop" button click.
+export function speak(text, onEnd) {
   if (!("speechSynthesis" in window)) {
     console.warn("Speech synthesis not supported in this browser.");
     return;
@@ -32,6 +36,9 @@ export function speak(text) {
 
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.rate = 0.95;
+  if (onEnd) {
+    utterance.onend = onEnd;
+  }
   currentUtterance = utterance;
   window.speechSynthesis.speak(utterance);
 }
