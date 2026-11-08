@@ -21,3 +21,8 @@ sympy>=1.12
 # leftover from the original DeepSeek integration (ADR-010) even after the
 # code moved to the `anthropic` SDK -- do not re-add it unless something
 # still imports it; grep the codebase first before pinning it on rebuild.
+
+# Test dependencies (step 2 of REBUILD_SPEC.md's rebuild priority order
+# added real unit tests -- pinning versions compatible with Python 3.12).
+pytest==8.3.3
+pytest-asyncio==0.24.0

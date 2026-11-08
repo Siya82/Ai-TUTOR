@@ -23,6 +23,8 @@ source was never read into any session transcript. Rebuild from the spec
 below plus the matching ADR.
 
 ### `tutor.py`
+**REBUILT 8 Nov 2026 -- see `backend/app/services/tutor.py`. This section is now historical context, not a to-do.**
+
 - `build_tutor_system_prompt()` — constructs the system prompt. Must
   contain, verbatim or near-verbatim: the `2x + 5 = 15` worked example
   anchor (ADR-003), an explicit non-negotiable "explain why" instruction,
@@ -40,6 +42,8 @@ below plus the matching ADR.
   `deepseek_*` per ADR-010).
 
 ### `tutor_orchestration.py`
+**REBUILT 8 Nov 2026 -- see `backend/app/services/tutor_orchestration.py`. This section is now historical context, not a to-do.**
+
 - `prepare_tutor_turn()` — pure, DB-free function. Order of operations:
   (1) run `diagnose_root_gap()` first, (2) build personalization
   instructions, (3) build the full tutor system prompt grounded on
@@ -51,6 +55,8 @@ below plus the matching ADR.
   `preferred_modality` value, rather than crashing.
 
 ### `personalization.py`
+**REBUILT 8 Nov 2026 -- see `backend/app/services/personalization.py`. This section is now historical context, not a to-do.**
+
 - `compute_pace_tier()` — looks at a learner's last 14 days of attempts on
   a topic; returns `needs_support` / `on_pace` / `ready_for_extension`
   based on accuracy. Defaults to `on_pace` if fewer than 3 recent attempts
@@ -66,6 +72,8 @@ below plus the matching ADR.
   whole schema in the same pass, or comparisons will break).
 
 ### `diagnosis.py`
+**REBUILT 8 Nov 2026 -- see `backend/app/services/diagnosis.py`. This section is now historical context, not a to-do.**
+
 - `diagnose_root_gap()` — takes an already-resolved, ordered prerequisite
   chain (does not query the DB itself — keeps it pure/testable) and walks
   backward through it, checking mastery at each step. Returns the deepest
@@ -335,10 +343,11 @@ also not recovered.
    service/router, risk_assessment.py) and get `/health` passing against
    a fresh local Postgres + migration, exactly as `LOCAL_SETUP.md`
    describes.
-4. Rebuild `tutor.py`, `tutor_orchestration.py`, `personalization.py`,
-   `diagnosis.py` from Section 1 above — these are well-specified and
-   should be quick to re-implement correctly the first time, since the
-   hard design decisions are already made.
+4. ~~Rebuild `tutor.py`, `tutor_orchestration.py`, `personalization.py`,
+   `diagnosis.py` from Section 1 above~~ -- **DONE 8 Nov 2026**, with unit
+   tests in `backend/tests/`. `POST /tutor/message` is wired end-to-end
+   against the real schema; `math_verified`/`verification_warnings` are
+   still pending step 5 (MathGuard).
 5. Rebuild MathGuard (`math_guard.py` / `math_validator.py`) with its full
    regression-test suite from Section 1 — don't skip the adversarial
    tests, they're what caught every real gap the first time.

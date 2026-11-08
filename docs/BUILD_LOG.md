@@ -743,6 +743,61 @@ the primary machine all projects run from (not the old HP laptop).
 
 ---
 
+## 2026-11-08 (2) -- Tutor logic rebuilt (REBUILD_SPEC.md step 2)
+
+**Goal:** Replace the step-1 placeholder `app/routers/tutor.py` with the
+real tutor conversation flow -- diagnosis.py, personalization.py,
+tutor_orchestration.py, and tutor.py -- per REBUILD_SPEC.md Section 1
+and the matching ADRs (ADR-002, ADR-003, ADR-007, ADR-010).
+
+**Done:**
+- `app/services/diagnosis.py` -- `diagnose_root_gap()`: walks a resolved
+  prerequisite chain (deepest last), stops at the first topic with
+  confirmed solid mastery, treats unconfirmed mastery (too few attempts)
+  as a possible gap rather than a pass, and recommends the deepest
+  topic that still has a gap -- which may be the originally requested
+  topic itself if everything deeper is already mastered (verified this
+  specific case against a wrong first assumption while writing the
+  unit tests -- see tests/test_diagnosis.py).
+- `app/services/personalization.py` -- `compute_pace_tier()` (14-day
+  window, >=3 scored attempts required for a signal, else "on_pace")
+  and `build_personalization_instructions()`. Uses `datetime.now(UTC)`
+  made naive before comparing against `Attempt.created_at`, per the
+  caveat in REBUILD_SPEC.md Section 1 (the schema's `created_at`
+  columns are naive).
+- `app/services/tutor.py` -- `build_tutor_system_prompt()` (worked
+  2x+5=15 anchor, non-negotiable "explain why" rule, RAG-grounding
+  placeholder, optional diagnosis note, personalization block) and
+  `TutorClient` (AsyncAnthropic wrapper -- system prompt via the
+  `system` param, not a message; `max_tokens=2048`).
+- `app/services/tutor_orchestration.py` -- `prepare_tutor_turn()` wires
+  the above three in order (diagnose -> personalize -> build prompt),
+  and falls back to the "balanced" modality instead of crashing on an
+  invalid/legacy `preferred_modality` value.
+- `app/schemas/tutor.py` and a real `app/routers/tutor.py`: resolves the
+  prerequisite chain via `Topic.prerequisite_id`, fetches scored
+  attempts per topic, gets-or-creates a `TutorSession`, persists
+  `TutorMessage` history both ways, and returns the reply plus the
+  diagnosis's redirect flag and reasoning trace. Deliberately NOT
+  included yet: `math_verified`/`verification_warnings` (MathGuard,
+  step 5) and authentication (step 8).
+- Added `pytest`/`pytest-asyncio` and a `pytest.ini` (with the
+  `live_api` marker REBUILD_SPEC.md Section 6 describes, excluded by
+  default). Wrote unit tests for all four new service modules plus
+  `TutorClient` (the Anthropic call itself is mocked, not live).
+- Annotated REBUILD_SPEC.md Section 1 and its rebuild-priority-order
+  item 4 as done, pointing at the real files, so the spec doesn't keep
+  reading like an open to-do for work that's now finished.
+
+**Not done yet (next steps, per REBUILD_SPEC.md):**
+- Running the new test suite against a real interpreter (pytest wasn't
+  run end-to-end in this session -- see the handoff notes for this
+  step) and a live `/tutor/message` smoke test, which needs seeded
+  data (step 6) to have a real learner/topic/question to call with.
+- MathGuard (step 5), seeding (step 6), frontend (step 7), auth (step 8).
+
+---
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
