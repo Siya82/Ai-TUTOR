@@ -44,6 +44,22 @@ def strip_markdown_artifacts(s: str) -> str:
     return s.replace("**", "").replace("__", "")
 
 
+_DECORATIVE_SYMBOLS = re.compile(r"[\u2713\u2714\u2717\u2718\u274c]")  # checkmarks / crosses
+
+
+def strip_decorative_symbols(s: str) -> str:
+    """Gap 13 (found via the step 6 live /tutor/message smoke test): the
+    tutor's own calibration anchor asks for a substitution *check* step,
+    and a real Claude reply wrote it as "$$15 = 15 \u2713$$" -- a checkmark
+    glyph literally inside the $$...$$ block. Left in, sympy reads it as
+    a bare one-letter symbol, which then collides with the real solving
+    variable (e.g. 'x') and makes the whole chain look like it has
+    multiple different variables, leaving a correct check unverified.
+    Decorative only -- never part of the actual mathematics -- so it is
+    stripped before anything else touches the string."""
+    return _DECORATIVE_SYMBOLS.sub("", s)
+
+
 def normalize_unicode_minus(s: str) -> str:
     """Gap 12: LaTeX/learner input sometimes uses U+2212 rather than ASCII '-'."""
     return s.replace(_UNICODE_MINUS, "-")
@@ -175,6 +191,7 @@ def normalize_latex(raw: str) -> str:
     generic backslash-stripping fallback would otherwise mangle it)."""
     s = raw
     s = strip_markdown_artifacts(s)
+    s = strip_decorative_symbols(s)
     s = normalize_unicode_minus(s)
     s = normalize_decimal_commas(s)
     s = convert_times(s)

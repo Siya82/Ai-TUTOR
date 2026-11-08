@@ -5,11 +5,13 @@ previously real, documented bug. Pure -- no DB, no network, no sympy
 Internet access needed.
 """
 
+import sympy
 from sympy import Symbol
 
 from app.services.math_validator import (
     build_relation_expr,
     finite_real_floats,
+    free_symbols_of,
     normalize_latex,
     sets_consistent,
     solve_relation,
@@ -113,3 +115,24 @@ def test_gap11_coordinate_pair_not_mistaken_for_decimal_comma():
 def test_gap12_unicode_minus_sign():
     rel = build_relation_expr("x = 5 − 3", "x")
     assert _finite_eq(solve_relation(rel, x), {2})
+
+
+def test_gap13_checkmark_glyph_in_check_step_does_not_break_parsing():
+    # Found via the step 6 live /tutor/message smoke test: a real Claude
+    # reply wrote its substitution check as "$$15 = 15 ✓$$". sympy
+    # auto-simplifies Eq(15, 15) to the singleton `True` rather than
+    # keeping it as an Eq with .lhs/.rhs -- both sides are already equal
+    # literals, so there's nothing left to represent symbolically.
+    rel = build_relation_expr("15 = 15 ✓", None)
+    assert rel.free_symbols == set()
+    assert rel is sympy.true
+
+
+def test_gap13_checkmark_does_not_collide_with_solving_variable():
+    # Before the fix, "✓" parsed as a bare one-letter symbol and
+    # collided with the real solving variable (e.g. x), making
+    # free_symbols_of() see TWO free symbols on a step that should have
+    # zero -- see test_math_guard.py's full-response version of this.
+    free_syms, parts = free_symbols_of("15 = 15 ✓")
+    assert free_syms == set()
+    assert parts is not None

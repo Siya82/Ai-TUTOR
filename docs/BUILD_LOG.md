@@ -966,6 +966,48 @@ conservative behavior for a brand-new learner, not a bug.
   now actually reflect a real check against $$-formatted output.
 - Frontend (step 7), auth (step 8), everything in Section 8 (step 9).
 
+## 2026-11-08 -- Gap 13: checkmark glyph inside a $$ check step
+
+**Goal:** re-run the live `/tutor/message` smoke test after the
+$$-formatting fix above, to confirm MathGuard now actually verifies
+real Claude output.
+
+**What happened:** it did extract and chain-compare real $$ blocks for
+the first time, but came back with `math_verified: true` and a warning
+"Multiple different variables appear across solving steps (['x', '✓'])"
+-- Claude's own substitution-check step was `$$15 = 15 ✓$$`, and the
+checkmark glyph parsed as a bare one-letter symbol, colliding with the
+real solving variable `x` and making a fully correct response look
+unverifiable (though still honestly -- a collision, not a false pass
+or fail, consistent with MathGuard's own design).
+
+**Fix (gap 13, added to REBUILD_SPEC.md's numbered list):**
+- `app/services/math_validator.py` -- new `strip_decorative_symbols()`,
+  stripping `✓ ✔ ✗ ✘ ❌` before any other normalization runs, called
+  first in `normalize_latex()`.
+- `tests/test_math_validator.py` -- two new regression tests.
+- `tests/test_math_guard.py` -- a new integration test using the exact
+  reply text captured from the live smoke test, asserting
+  `verified is True` and `warnings == []`.
+- Verified in an isolated sandbox against sympy directly (not just the
+  project's own test suite) before touching the real tests, per this
+  project's established prototype-first discipline -- confirmed the fix
+  produces zero warnings on the exact live-captured text, and that all
+  12 existing gap tests still pass (no regression).
+
+**Pattern worth naming:** both this and the $$-formatting fix above
+were found by one live call, not by any unit test -- each piece's own
+test suite was internally consistent but blind to how a real model
+actually writes. Live-testing a new integration point as it's built
+(not only after every piece individually passes) is now a demonstrated,
+not just suspected, gap in this project's test strategy.
+
+**Not done yet:**
+- Full `pytest -v` re-run with both fixes in place (handed off).
+- A third live `/tutor/message` call to confirm `math_verified` now
+  comes back fully clean end-to-end.
+- Frontend (step 7), auth (step 8), everything in Section 8 (step 9).
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

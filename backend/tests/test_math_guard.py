@@ -66,3 +66,22 @@ def test_no_math_blocks_at_all_is_also_an_honest_limitation():
     result = verify_tutor_response("Great question! Let me explain conceptually without equations.")
     assert result.verified is True
     assert len(result.warnings) == 1
+
+
+def test_gap13_checkmark_in_real_live_captured_response_is_fully_verified():
+    # The exact reply text captured from the step 6 live /tutor/message
+    # smoke test, before the gap-13 fix: this used to come back with
+    # "Multiple different variables appear across solving steps (['x', '✓'])"
+    # even though every step was mathematically correct -- the checkmark
+    # glyph in the final "$$15 = 15 ✓$$" check step was being parsed as a
+    # second symbol. Now fully verified with zero warnings.
+    text = (
+        "## Solving: $$2x + 5 = 15$$\n"
+        "Step 1: Subtract 5 from both sides:\n$$2x + 5 - 5 = 15 - 5$$\n$$2x = 10$$\n"
+        "Step 2: Divide both sides by 2:\n$$\\frac{2x}{2} = \\frac{10}{2}$$\n$$x = 5$$\n"
+        "Check: substitute x = 5 back into the original equation:\n"
+        "$$2(5) + 5 = 15$$\n$$10 + 5 = 15$$\n$$15 = 15 ✓$$\n"
+    )
+    result = verify_tutor_response(text)
+    assert result.verified is True
+    assert result.warnings == []

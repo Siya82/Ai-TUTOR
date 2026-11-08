@@ -159,6 +159,14 @@ discipline — see `docs/CAPABILITY-EVIDENCE-LOG.md`):
 12. Per later project memory, a Unicode minus-sign case was also found
     and fixed — LaTeX/learner input sometimes uses `−` (U+2212) rather
     than ASCII `-`.
+13. (New, found 8 Nov 2026 via the step 6 live `/tutor/message` smoke
+    test rather than from project memory — this is a genuinely new
+    finding, not a recovered one.) A checkmark glyph (`✓`, U+2713) that
+    Claude wrote directly inside a `$$...$$` check step (`$$15 = 15
+    ✓$$`) parsed as a bare symbol and collided with the real solving
+    variable, making a fully correct step look unverifiable. Fixed by
+    stripping decorative checkmark/cross glyphs before any other
+    normalization runs.
 
 Exposed on `POST /tutor/message` as `math_verified: bool` and
 `verification_warnings: list[str]`; shown as a visible badge in the chat
