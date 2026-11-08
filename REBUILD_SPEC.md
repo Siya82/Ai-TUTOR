@@ -245,6 +245,13 @@ topic, and content chunks (even if `content_chunks` ingestion is still a
 placeholder for RAG purposes) is more valuable than recreating the
 original four-script split.
 
+~~`sanity_check_claude.py`~~ -- **DONE 8 Nov 2026**, rebuilt as a genuine
+standalone live-API check (isolates the Anthropic call from the DB/
+FastAPI stack, never prints the key itself) -- written while diagnosing
+an `invalid x-api-key` 401 during the step 6 smoke test, not purely from
+the original name as first guessed. `audit_diagnosis.py`/`audit_topic.py`
+remain not recovered -- purpose still inferred from name only.
+
 ---
 
 ## 5. PowerShell scripts — known to exist, described only
