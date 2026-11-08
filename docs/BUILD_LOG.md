@@ -694,6 +694,55 @@ specifically is the Docker container orchestration layer on top of it.
 
 ---
 
+## 2026-11-08 -- Backend rebuilt and booted locally (REBUILD_SPEC.md step 1)
+
+**Goal:** After the laptop loss and recovery documented in REBUILD_SPEC.md,
+get the recovered backend core actually booting again against a fresh
+local Postgres + pgvector, on the new laptop -- which, going forward, is
+the primary machine all projects run from (not the old HP laptop).
+
+**Done:**
+- Filled in the two modules that were referenced but never recovered
+  verbatim: a step-2 placeholder `app/routers/tutor.py` (so `app.main`
+  imports cleanly -- the real tutor logic is next, not this entry), and
+  `app/schemas/dashboard.py` (reconstructed from the exact dict shapes
+  `services/dashboard.py` and `services/risk_assessment.py` already
+  return, since the schemas file itself never made it into the recovery
+  package).
+- Added the missing `__init__.py` files for app/app.routers/app.services/
+  app.core -- never recovered, not previously noticed since nothing had
+  tried to import them yet.
+- Wrote Alembic from scratch -- `alembic.ini`, `migrations/env.py`,
+  `migrations/versions/0001_initial_schema.py` -- since no migration had
+  ever been recovered, only the models. Hand-wrote the initial migration
+  (all 11 tables) instead of autogenerating, baking in both known
+  pgvector bugs from LOCAL_SETUP.md warning 1 from the start: `CREATE
+  EXTENSION IF NOT EXISTS vector`, and importing `pgvector.sqlalchemy.
+  Vector` for the `content_chunks.embedding` column. `env.py` swaps
+  `+asyncpg` for `+psycopg2` for Alembic's own sync connection, per
+  warning 2, from the single `DATABASE_URL`.
+- Pinned `psycopg2-binary==2.9.9` in `requirements.txt` for that sync
+  driver.
+- Confirmed Python 3.12.10 venv, created and activated correctly inside
+  `backend/` this time (a stray pre-existing `.venv` at the project
+  root, and a first attempt using `.venv\Scripts\activate` without the
+  `.ps1` extension in PowerShell, both silently led to a global-Python
+  install on the first pass -- recreated clean once noticed).
+- `docker compose up -d` -> `alembic upgrade head` -> `uvicorn app.main:app
+  --reload` -> `GET /health` returned `{"status": "ok", "environment":
+  "development"}` with all 11 tables + `alembic_version` confirmed via
+  `psql \dt`.
+
+**Not done yet (next steps, per REBUILD_SPEC.md):**
+- `tutor.py` / `tutor_orchestration.py` / `personalization.py` /
+  `diagnosis.py` -- the actual tutor logic the placeholder stands in for.
+- MathGuard (`math_guard.py` / `math_validator.py`) and its regression
+  suite.
+- Seeding the 12 CAPS topics; frontend; authentication; quiz engine; RAG
+  grounding.
+
+---
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
