@@ -798,6 +798,67 @@ and the matching ADRs (ADR-002, ADR-003, ADR-007, ADR-010).
 
 ---
 
+## 2026-11-08 (3) -- MathGuard rebuilt (REBUILD_SPEC.md step 5)
+
+**Goal:** Rebuild `math_guard.py` + `math_validator.py` -- the
+protected core differentiator (ADR-011) -- from REBUILD_SPEC.md
+Section 1's 12 numbered, individually-documented parsing/verification
+gaps, each with its own regression test, per the project's own stated
+discipline ("don't skip the adversarial tests").
+
+**Done:**
+- `app/services/math_validator.py` -- LaTeX normalization (markdown
+  artifacts, unicode minus, braced SA/European decimal commas scoped
+  tightly enough to never touch a coordinate pair's bare comma,
+  `\times`, `\frac{}{}`, `\sqrt{}`, `\pi`, powers, reserved-symbol
+  collisions I/E/S/N/O/Q via a sympy locals dict, the `in` keyword) plus
+  the actual solving/comparison logic.
+- Two real implementation choices worth recording for next time:
+  (1) `sympy.sympify()` alone doesn't support implicit multiplication
+  ("2x") -- needed `parse_expr()` with the
+  `implicit_multiplication_application` transformation instead.
+  (2) `sympy.solveset()` returns a correct but infinite periodic
+  `ImageSet` for trig equations (e.g. every solution of sin(theta)=0.5,
+  not just the two a learner would give) -- switched equation-solving
+  to `sympy.solve()`, which gives the finite, learner-shaped answer
+  (theta = 30, 150), and kept `solveset` only for inequalities, where
+  Interval/Union containment is exactly what's needed and has none of
+  that periodicity problem.
+- Degree-vs-radian handling (gap 4) is deliberately scoped to direct
+  trig-of-a-bare-variable only (`sin(theta)`, not `sin(2*theta)`),
+  matching REBUILD_SPEC.md's own documented scope.
+- Float-tolerance comparison (gap 5) was necessary for a reason beyond
+  the documented `1100/1.1` case: confirmed experimentally that
+  sympy's `Float(20.0) == Integer(20)` is `False` even though they're
+  the same number -- exact/structural solution-set equality would have
+  silently flagged correct answers as wrong.
+- `app/services/math_guard.py` -- `verify_tutor_response()`: extracts
+  ONLY `$$...$$` blocks (never prose), classifies each as a check step
+  (zero free symbols, verified on its own, never chain-compared -- gap
+  3), a solving step (one free symbol, chain-compared against the
+  previous one), or left-unverified (more than one free symbol, or a
+  step naming a different variable). `verified` is only ever set False
+  on a positively-detected inconsistency -- never merely because
+  something couldn't be parsed or judged, which is what keeps the
+  "Euclidean Geometry proofs aren't equation-shaped" limitation honest
+  rather than a false pass or fail.
+- Wired `math_verified`/`verification_warnings` into
+  `app/schemas/tutor.py` and `POST /tutor/message`, which deliberately
+  left them out in step 2 pending this step.
+- 19 new tests: one regression test per numbered gap
+  (`tests/test_math_validator.py`) plus 7 integration tests against
+  full tutor-response text (`tests/test_math_guard.py`).
+
+**Not done yet (next steps, per REBUILD_SPEC.md):**
+- Running this new test suite against a real interpreter (not done in
+  this session -- see the handoff notes for this step), and a live
+  end-to-end `/tutor/message` call that actually exercises MathGuard
+  against a real Claude response, which still needs seeded data
+  (step 6) to have a real learner/topic/question to call with.
+- Seeding (step 6), frontend (step 7), auth (step 8).
+
+---
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

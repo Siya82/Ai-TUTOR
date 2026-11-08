@@ -106,6 +106,8 @@ two copies — see the recovery note at the top of the recovered
   textbook and four official NSC Physical Sciences Data Sheets.
 
 ### `math_guard.py` + `math_validator.py` — MathGuard
+**REBUILT 8 Nov 2026 -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
+
 This is a protected core differentiator (ADR-011) — rebuild carefully and
 re-run the adversarial test suite at every stage, don't assume.
 
@@ -348,9 +350,10 @@ also not recovered.
    tests in `backend/tests/`. `POST /tutor/message` is wired end-to-end
    against the real schema; `math_verified`/`verification_warnings` are
    still pending step 5 (MathGuard).
-5. Rebuild MathGuard (`math_guard.py` / `math_validator.py`) with its full
-   regression-test suite from Section 1 — don't skip the adversarial
-   tests, they're what caught every real gap the first time.
+5. ~~Rebuild MathGuard (`math_guard.py` / `math_validator.py`) with its full
+   regression-test suite from Section 1~~ -- **DONE 8 Nov 2026**. All 12
+   numbered gaps have a dedicated regression test; `POST /tutor/message`
+   now populates `math_verified`/`verification_warnings` for real.
 6. Re-seed all 12 CAPS topics with prerequisite chains and diagnostic
    questions (Section 4).
 7. Rebuild the frontend chat UI, starting with Text + Audio modalities

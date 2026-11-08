@@ -1,14 +1,13 @@
 """
 POST /tutor/message -- the real tutor conversation endpoint.
 
-REBUILD NOTE: rebuilt from REBUILD_SPEC.md Section 1 (step 2 of its
-rebuild priority order) -- not recovered code. Wires diagnosis.py /
-personalization.py / tutor_orchestration.py / tutor.py (all rebuilt from
-spec, see each file's own REBUILD NOTE) into a real endpoint against the
-recovered 11-table schema.
+REBUILD NOTE: rebuilt from REBUILD_SPEC.md Section 1 -- not recovered
+code. Wires diagnosis.py / personalization.py / tutor_orchestration.py /
+tutor.py / math_guard.py (all rebuilt from spec, see each file's own
+REBUILD NOTE) into a real endpoint against the recovered 11-table
+schema.
 
 Deliberately NOT included yet (later steps, not this one):
-- math_verified / verification_warnings -- MathGuard, step 5.
 - Authentication -- REBUILD_SPEC.md Section 2, step 8. These endpoints
   are unauthenticated for now, same as the recovered dashboard router.
 - RAG grounding -- content_chunks ingestion is still a placeholder.
@@ -23,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models import Attempt, Learner, Question, Topic, TutorMessage, TutorSession
 from app.schemas.tutor import TutorMessageRequest, TutorMessageResponse
+from app.services.math_guard import verify_tutor_response
 from app.services.tutor import TutorClient
 from app.services.tutor_orchestration import prepare_tutor_turn
 
@@ -132,6 +132,8 @@ async def send_tutor_message(
 
     await db.commit()
 
+    math_result = verify_tutor_response(reply_text)
+
     return TutorMessageResponse(
         session_id=session.id,
         topic_id=prep.recommended_topic.id,
@@ -139,6 +141,8 @@ async def send_tutor_message(
         redirected=prep.diagnosis.redirected,
         reasoning_trace=prep.diagnosis.reasoning_trace,
         reply=reply_text,
+        math_verified=math_result.verified,
+        verification_warnings=math_result.warnings,
     )
 
 
