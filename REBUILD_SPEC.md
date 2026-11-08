@@ -354,8 +354,14 @@ also not recovered.
    regression-test suite from Section 1~~ -- **DONE 8 Nov 2026**. All 12
    numbered gaps have a dedicated regression test; `POST /tutor/message`
    now populates `math_verified`/`verification_warnings` for real.
-6. Re-seed all 12 CAPS topics with prerequisite chains and diagnostic
-   questions (Section 4).
+6. ~~Re-seed all 12 CAPS topics with prerequisite chains and diagnostic
+   questions (Section 4)~~ -- **DONE 8 Nov 2026**. One idempotent script
+   (`backend/scripts/seed_dev_data.py`), consolidating the original
+   four-script split per this section's own recommendation. 12 real CAPS
+   Grade 10 Pure Mathematics topics, single-parent prerequisite chain
+   rooted at "Algebraic Expressions," 24 diagnostic questions (2/topic),
+   one placeholder `ContentChunk` per topic (explicitly non-real --
+   RAG ingestion per Section 8 was never built), one dev `Learner`.
 7. Rebuild the frontend chat UI, starting with Text + Audio modalities
    (both fully specified / partially recovered) before attempting the
    Animated/Visual modalities, which are the least-specified pieces here.

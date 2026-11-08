@@ -859,6 +859,60 @@ discipline ("don't skip the adversarial tests").
 
 ---
 
+## 2026-11-08 -- Step 6: seed_dev_data.py (rebuilt, consolidated)
+
+**Goal:** per REBUILD_SPEC.md Section 4 + rebuild priority order item 6,
+re-seed all 12 CAPS Grade 10 Pure Mathematics topics with a real
+prerequisite chain, diagnostic questions, and placeholder content chunks
+so `POST /tutor/message` has real data to run against for the first
+time -- it could not be live-tested before this.
+
+**Done:**
+- `backend/scripts/seed_dev_data.py` -- a single idempotent script,
+  deliberately consolidating the original four-script split
+  (`seed_dev_data.py` + `seed_additional_topics.py` +
+  `seed_more_topics.py` + `seed_stats_prob_measurement.py` +
+  `seed_geometry.py`) into one, per Section 4's own recommendation.
+- 12 topics: Algebraic Expressions (root), Exponents, Equations and
+  Inequalities, Number Patterns, Trigonometry, Functions, Finance/Growth
+  and Decay, Analytical Geometry, Euclidean Geometry, Measurement,
+  Statistics, Probability -- each with a single-parent `prerequisite_id`
+  chain back to Algebraic Expressions. The exact chain shape (which
+  topic depends on which) is my own reasonable construction from the
+  CAPS Grade 10 syllabus order, not recovered -- documented as such.
+- 24 diagnostic `Question` rows (2 per topic, `is_diagnostic=True`).
+- One placeholder `ContentChunk` per topic, with
+  `PLACEHOLDER_EMBEDDING = [0.0] * 1536` and a `source` string that
+  says plainly this is not real ingested content -- RAG ingestion
+  (`scripts/ingest_content.py`) was never built, per Section 8.
+- One dev `Learner` ("Test Learner", `preferred_modality="balanced"`).
+- Idempotency: every entity is looked up by its natural key
+  (subject name+grade, topic name within subject, question text within
+  topic, content-chunk source within topic, learner display name)
+  before being created, so re-running the script is safe and only
+  fills in anything missing -- rather than the original's behavior
+  per ADR-010, which raised `UniqueViolationError` on a second run.
+- `_validate_topic_data()` fails fast (before touching the database) on
+  a prerequisite name that doesn't exist or is ordered after its
+  dependent, or a `DIAGNOSTIC_QUESTIONS` key that isn't a real topic
+  name -- catches a typo instead of half-seeding.
+- Confirmed via `async_session_factory`/`get_db` in `app/core/database.py`
+  (read in full this time, not truncated) that the session-factory name
+  and usage pattern match what the script imports.
+- Each `Topic` is flushed individually right after creation (not batched
+  at the end) specifically so its `uuid_pk()`-generated `.id` -- a
+  client-side default evaluated at flush time, not at object
+  construction -- is available to assign as the *next* topic's
+  `prerequisite_id`.
+
+**Not done yet (next steps, per REBUILD_SPEC.md):**
+- Running the script against the real database and confirming the
+  insert counts and topic/learner ids it prints (handed off to Siya to
+  run and paste back).
+- The live end-to-end `POST /tutor/message` smoke test this seed data
+  unblocks -- still pending that run.
+- Frontend (step 7), auth (step 8), everything in Section 8 (step 9).
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
