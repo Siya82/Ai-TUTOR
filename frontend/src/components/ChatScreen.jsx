@@ -18,6 +18,7 @@ import MarkdownMessage from "./MarkdownMessage";
 import StepReveal from "./StepReveal";
 import NumberLineSVG, { extractSimplifiedInequality } from "./NumberLineSVG";
 import MathVerifiedBadge from "./MathVerifiedBadge";
+import SymbolKeyboard from "./SymbolKeyboard";
 
 function topicNameById(topics, id) {
   const topic = topics.find((t) => t.id === id);
@@ -108,6 +109,7 @@ export default function ChatScreen() {
   const [loadError, setLoadError] = useState(null);
   const [sendError, setSendError] = useState(null);
   const transcriptRef = useRef(null);
+  const draftInputRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -131,6 +133,28 @@ export default function ChatScreen() {
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
+
+  // Inserts a symbol at the composer's current cursor position (or
+  // replaces a selection), then restores focus/cursor there -- added
+  // after live testing showed a standard keyboard has no sin/cos/tan,
+  // theta, root, pi, etc., and that the right symbol set depends on
+  // the topic (see SymbolKeyboard.jsx).
+  const insertSymbol = (token) => {
+    const el = draftInputRef.current;
+    if (!el) {
+      setDraft((d) => d + token);
+      return;
+    }
+    const start = el.selectionStart ?? draft.length;
+    const end = el.selectionEnd ?? draft.length;
+    const next = draft.slice(0, start) + token + draft.slice(end);
+    setDraft(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + token.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -200,8 +224,14 @@ export default function ChatScreen() {
 
       {sendError && <div className="chat-screen__error">{sendError}</div>}
 
+      <SymbolKeyboard
+        topicName={topics.find((t) => t.id === topicId)?.name}
+        onInsert={insertSymbol}
+      />
+
       <form className="chat-screen__composer" onSubmit={handleSend}>
         <input
+          ref={draftInputRef}
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

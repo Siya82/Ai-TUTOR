@@ -1118,6 +1118,44 @@ descriptions in REBUILD_SPEC.md Section 3:**
   the way the user can.
 - Auth (step 8), everything in Section 8 (step 9).
 
+## 2026-11-08 -- Step 7 follow-up: topic-aware symbol keyboard
+
+**Goal:** Siya tested the deployed chat UI live and found a real
+usability gap not covered by REBUILD_SPEC.md at all: a standard
+keyboard has no `sin`/`cos`/`tan`, `theta`, root, pi, `<=`/`>=`, etc.,
+and the symbols a learner actually needs depend on the topic (a
+Trigonometry question needs `sin`/`cos`/`tan`/`theta`/degree; a
+Measurement question needs pi/root; and so on).
+
+**Done:**
+- `src/components/SymbolKeyboard.jsx` -- a new on-screen symbol row
+  above the composer. `TOPIC_SYMBOLS` is keyed by the exact 12 CAPS
+  topic names `seed_dev_data.py` creates, each mapped to a small,
+  topic-relevant symbol set; a handful of `COMMON_SYMBOLS` (parens,
+  squared, root, equals) always show alongside them. A topic name that
+  doesn't match anything falls back to the common set only, rather
+  than erroring.
+- `ChatScreen.jsx` -- added `insertSymbol()`, a cursor-aware insert
+  (reads the composer input's `selectionStart`/`selectionEnd`, so
+  clicking a symbol inserts it where the cursor actually is, or
+  replaces a selection, rather than always appending to the end) and
+  restores focus/cursor afterward.
+- The insertion math (slicing a string around a cursor position or
+  selection) was prototyped and tested in an isolated Node sandbox
+  first against four cases (empty draft, end-of-text, replacing a
+  selection, inserting mid-string) before being wired into the real
+  component.
+
+**Design choices, not specified anywhere (this is new scope, not a
+recovery):** `sin`/`cos`/`tan` insert with an opening paren (`sin(`) as
+a small convenience, matching how a real calculator keyboard behaves;
+every other symbol inserts literally. No numeric keypad -- a standard
+keyboard already has digits fine, this only covers symbols one
+doesn't.
+
+**Verified:** full `npm run build` + `eslint` re-run clean (same three
+pre-existing cosmetic warnings as before, zero new errors or warnings).
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
