@@ -4,7 +4,12 @@ scenarios ADR-007 describes. Pure -- no DB, no event loop needed.
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+
+
+# Matches app.services.personalization._now_naive(): datetime.now(UTC) (not the deprecated _now_naive()), made naive to match Attempt.created_at's naive _now_naive() default.
+def _now_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 from app.models import Attempt, Topic
 from app.services.diagnosis import diagnose_root_gap
@@ -15,7 +20,7 @@ def _topic(name: str, prerequisite_id=None) -> Topic:
 
 
 def _attempts(n_correct: int, n_wrong: int, days_ago: int = 1) -> list[Attempt]:
-    when = datetime.utcnow() - timedelta(days=days_ago)
+    when = _now_naive() - timedelta(days=days_ago)
     return (
         [Attempt(is_correct=True, created_at=when) for _ in range(n_correct)]
         + [Attempt(is_correct=False, created_at=when) for _ in range(n_wrong)]

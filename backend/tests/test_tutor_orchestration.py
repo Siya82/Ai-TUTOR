@@ -4,7 +4,12 @@ Pure -- no DB needed, Learner/Topic/Attempt are constructed directly.
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+
+
+# Matches app.services.personalization._now_naive(): datetime.now(UTC) (not the deprecated _now_naive()), made naive to match Attempt.created_at's naive _now_naive() default.
+def _now_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 from app.models import Attempt, Learner, Topic
 from app.services.tutor_orchestration import prepare_tutor_turn
@@ -21,7 +26,7 @@ def _learner(preferred_modality: str = "balanced") -> Learner:
 
 
 def _attempts(n_correct: int, n_wrong: int) -> list[Attempt]:
-    when = datetime.utcnow() - timedelta(days=1)
+    when = _now_naive() - timedelta(days=1)
     return (
         [Attempt(is_correct=True, created_at=when) for _ in range(n_correct)]
         + [Attempt(is_correct=False, created_at=when) for _ in range(n_wrong)]
