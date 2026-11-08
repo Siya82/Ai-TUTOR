@@ -1,0 +1,22 @@
+# RECOVERY NOTE: reconstructed from the description in docs/LOCAL_SETUP.md
+# and docs/BUILD_LOG.md (2 Aug 2026 entry): "pgvector/pgvector:pg16 image,
+# so local setup doesn't require compiling pgvector from source", exposed
+# on localhost:5432 with a persistent volume. The exact original file
+# (size 520 bytes) was never read verbatim — this is a best-effort
+# reconstruction matching that description, not recovered code.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: caps_tutor
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

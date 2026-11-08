@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+# Env / secrets
+.env
+*.env.local
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# This repo's own recovery zip (extracted already, no need to version the archive itself)
+THUTOra_Recovery_Package.zip
+
+# Archived duplicate from the original build, if it ever reappears
+_ARCHIVE_ai-caps-tutor-DO-NOT-USE/

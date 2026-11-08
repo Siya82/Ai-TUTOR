@@ -1,0 +1,38 @@
+/*
+  RECOVERY NOTE: this file was NEVER read verbatim during the session that
+  produced this recovery package -- only its token names and values were
+  described in docs/ADR-008-brand-design-tokens.md and referenced by
+  demo/tokens-demo.html. This is a best-effort RECONSTRUCTION matching that
+  description, not recovered original code. Treat the three measured brand
+  values as trustworthy (ADR-008 records exactly how they were sampled);
+  treat the surface/semantic layer below as a reasonable guess at the
+  original structure, to be corrected against your own memory on rebuild.
+*/
+
+:root {
+  /* Measured directly from the original Zynora logo pixel data — see ADR-008 */
+  --zynora-black: #000000;
+  --zynora-white: #FFFFFF;
+  --zynora-cyan: #00EEFD;
+
+  /* Standard dark-UI practice additions — NOT sampled from the logo (ADR-008) */
+  --zynora-surface-1: #0A0D12;
+  --zynora-surface-2: #12161D;
+  --zynora-text-secondary: #9AA4B2;
+  --zynora-text-on-cyan: #001015;
+
+  /* Semantic aliases — components should reference these, not --zynora-* directly,
+     so the palette can be swapped later without touching every component. */
+  --color-background: var(--zynora-black);
+  --color-surface: var(--zynora-surface-1);
+  --color-surface-2: var(--zynora-surface-2);
+  --color-border: #1E242D;
+  --color-text: var(--zynora-white);
+  --color-text-muted: var(--zynora-text-secondary);
+  --color-accent: var(--zynora-cyan);
+  --color-accent-hover: #33F4FF;
+
+  --shadow-glow-sm: 0 0 8px rgba(0, 238, 253, 0.25);
+  --shadow-glow-md: 0 0 16px rgba(0, 238, 253, 0.35);
+  --shadow-glow-lg: 0 0 28px rgba(0, 238, 253, 0.45);
+}

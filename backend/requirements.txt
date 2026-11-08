@@ -1,0 +1,22 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+sqlalchemy==2.0.35
+asyncpg==0.30.0
+pgvector==0.3.5
+pydantic-settings==2.6.0
+anthropic==0.39.0
+python-dotenv==1.0.1
+alembic==1.13.3
+httpx==0.27.2
+sympy>=1.12
+
+# Added after this Aug-26 snapshot, per later project memory (not verified
+# verbatim here -- re-pin exact versions on rebuild):
+# bcrypt==4.0.1        # pinned specifically due to a passlib/bcrypt 5.x incompatibility
+# passlib
+# python-jose          # JWT handling for auth
+#
+# Also per later memory: the `openai` package was present in this file as a
+# leftover from the original DeepSeek integration (ADR-010) even after the
+# code moved to the `anthropic` SDK -- do not re-add it unless something
+# still imports it; grep the codebase first before pinning it on rebuild.
