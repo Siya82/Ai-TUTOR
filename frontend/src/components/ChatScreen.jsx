@@ -7,16 +7,21 @@
  * genuine rebuild from that description, not a recovery of lost code --
  * every interaction/layout decision below is this rebuild's own,
  * documented as such in docs/BUILD_LOG.md's step 7 entry.
+ *
+ * UPDATED 8 Nov 2026: narrowed from four modalities to Text + Audio
+ * after live testing showed Animated and Visual weren't adding
+ * anything distinct over Audio -- same content, just more motion/
+ * graphics around it. Audio gained proper pause/resume (not just
+ * stop), specifically so a learner who'd rather read can pause
+ * without losing their place. See BUILD_LOG.md.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { fetchLearners, fetchTopics, sendTutorMessage } from "../api";
-import { speak, stopSpeaking } from "../utils/tts";
+import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking } from "../utils/tts";
 import ModalitySwitcher from "./ModalitySwitcher";
 import TopicPicker from "./TopicPicker";
 import MarkdownMessage from "./MarkdownMessage";
-import StepReveal from "./StepReveal";
-import NumberLineSVG, { extractSimplifiedInequality } from "./NumberLineSVG";
 import MathVerifiedBadge from "./MathVerifiedBadge";
 import SymbolKeyboard from "./SymbolKeyboard";
 
@@ -25,34 +30,47 @@ function topicNameById(topics, id) {
   return topic ? topic.name : id;
 }
 
+// Three states instead of a play/stop boolean, since pause/resume
+// (distinct from stop/cancel) is the whole point of this update: a
+// learner who wants to read instead of listen pauses, rather than
+// losing their place and having to replay from the start.
+const PLAYBACK = { IDLE: "idle", PLAYING: "playing", PAUSED: "paused" };
+
 function AssistantMessage({ message, topics }) {
   const { reply, modality, mathVerified, verificationWarnings, redirected, reasoningTrace, topicId, requestedTopicId } = message;
   // Lazy initial state (not a setState call inside the effect body) --
   // avoids the react-hooks/set-state-in-effect warning for what is
-  // really just "this message's initial speaking state depends on the
+  // really just "this message's initial playback state depends on the
   // modality it was created with," not a derived-state update.
-  const [speaking, setSpeaking] = useState(modality === "audio");
+  const [playback, setPlayback] = useState(modality === "audio" ? PLAYBACK.PLAYING : PLAYBACK.IDLE);
 
   useEffect(() => {
     if (modality === "audio") {
-      speak(reply, () => setSpeaking(false));
+      speak(reply, () => setPlayback(PLAYBACK.IDLE));
     }
     return () => stopSpeaking();
     // Only ever auto-speak once, right when this message is first rendered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleToggleSpeech = () => {
-    if (speaking) {
-      stopSpeaking();
-      setSpeaking(false);
+  const handlePlaybackClick = () => {
+    if (playback === PLAYBACK.PLAYING) {
+      pauseSpeaking();
+      setPlayback(PLAYBACK.PAUSED);
+    } else if (playback === PLAYBACK.PAUSED) {
+      resumeSpeaking();
+      setPlayback(PLAYBACK.PLAYING);
     } else {
-      setSpeaking(true);
-      speak(reply, () => setSpeaking(false));
+      setPlayback(PLAYBACK.PLAYING);
+      speak(reply, () => setPlayback(PLAYBACK.IDLE));
     }
   };
 
-  const inequalitySolution = modality === "visual" ? extractSimplifiedInequality(reply) : null;
+  const playbackLabel = {
+    [PLAYBACK.PLAYING]: "⏸ Pause",
+    [PLAYBACK.PAUSED]: "▶ Resume",
+    [PLAYBACK.IDLE]: "🔊 Read aloud",
+  }[playback];
 
   return (
     <div className="chat-message chat-message--assistant">
@@ -75,20 +93,12 @@ function AssistantMessage({ message, topics }) {
         </div>
       )}
 
-      {modality === "animated" ? (
-        <StepReveal text={reply} />
-      ) : (
-        <MarkdownMessage text={reply} />
-      )}
+      <MarkdownMessage text={reply} />
 
       {modality === "audio" && (
-        <button type="button" className="speaker-toggle" onClick={handleToggleSpeech}>
-          {speaking ? "⏹ Stop reading" : "🔊 Read aloud"}
+        <button type="button" className="speaker-toggle" onClick={handlePlaybackClick}>
+          {playbackLabel}
         </button>
-      )}
-
-      {modality === "visual" && inequalitySolution && (
-        <NumberLineSVG solution={inequalitySolution} />
       )}
 
       <MathVerifiedBadge mathVerified={mathVerified} verificationWarnings={verificationWarnings} />

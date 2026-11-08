@@ -1,17 +1,21 @@
 /*
- * Toggle for the four teaching modalities (REBUILD_SPEC.md Section 3:
- * "whatever UI/toggle exists for switching modality" was never
- * recovered -- this is a genuine rebuild of that control, not a
- * recovery). New messages render using whichever modality is selected
- * at the moment they arrive; switching modality does not retroactively
- * re-render earlier messages in the transcript.
+ * Toggle between Text and Audio.
+ *
+ * UPDATED 8 Nov 2026: originally built with all four REBUILD_SPEC.md
+ * modalities (Text, Audio, Animated, Visual). After live testing, Siya
+ * found that Animated (step-reveal) and Visual (number-line) weren't
+ * adding anything distinct over Audio -- the content was the same
+ * either way, just presented with extra motion/graphics that didn't
+ * serve a different need. Narrowed to Text + Audio, with pause/resume
+ * added to Audio (see ChatScreen.jsx) so a learner who wants to read
+ * instead of listen can pause rather than only stop outright. The
+ * StepReveal/NumberLineSVG components and the framer-motion dependency
+ * they needed were removed, not just hidden -- see BUILD_LOG.md.
  */
 
 const MODALITIES = [
   { id: "text", label: "Text" },
   { id: "audio", label: "Audio" },
-  { id: "animated", label: "Animated" },
-  { id: "visual", label: "Visual" },
 ];
 
 export default function ModalitySwitcher({ modality, onChange }) {

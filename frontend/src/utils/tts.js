@@ -49,3 +49,21 @@ export function stopSpeaking() {
   }
   currentUtterance = null;
 }
+
+// Added 8 Nov 2026: pause/resume (distinct from stop/cancel) so a
+// learner can pause mid-explanation -- e.g. to read ahead at their own
+// pace -- without losing their place and having to replay from the
+// start. The Web Speech API supports this natively via
+// speechSynthesis.pause()/resume(); cancel() (stopSpeaking, above)
+// discards the utterance entirely and can't be resumed.
+export function pauseSpeaking() {
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.pause();
+  }
+}
+
+export function resumeSpeaking() {
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.resume();
+  }
+}

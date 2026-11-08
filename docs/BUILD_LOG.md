@@ -1156,6 +1156,45 @@ doesn't.
 **Verified:** full `npm run build` + `eslint` re-run clean (same three
 pre-existing cosmetic warnings as before, zero new errors or warnings).
 
+## 2026-11-08 -- Narrowed from four modalities to Text + Audio, with pause/resume
+
+**Goal:** after live-testing all four modalities, Siya found Animated
+and Visual weren't earning their place -- "I see the other tabs
+(animated and visual) basically are doing the same thing audio is
+doing." Decision: drop both, keep Text + Audio, and make Audio actually
+pausable (not just stop/restart), specifically so a learner who'd
+rather read can pause without losing their place.
+
+**Done:**
+- `src/utils/tts.js` -- added `pauseSpeaking()`/`resumeSpeaking()`,
+  using the Web Speech API's native `pause()`/`resume()` (distinct from
+  `cancel()`, which discards the utterance entirely and can't be
+  resumed).
+- `src/components/ChatScreen.jsx` -- `AssistantMessage`'s playback
+  state is now a three-way `idle`/`playing`/`paused` state machine
+  instead of a play/stop boolean; the speaker button's label and
+  behavior follow it (Pause while playing, Resume while paused, Read
+  aloud from idle).
+- `src/components/ModalitySwitcher.jsx` -- narrowed to Text + Audio.
+- Deleted `src/components/StepReveal.jsx` and `NumberLineSVG.jsx`
+  outright (not just unused) and removed the now-unneeded
+  `framer-motion` dependency from `package.json` -- confirmed nothing
+  else referenced either file or that package first.
+- `MarkdownMessage` (the base text rendering) is now always shown
+  regardless of modality -- it already was for Text, and Audio never
+  hid it either, so a learner who wants to read instead of listen
+  always can, even without touching Pause.
+
+**Verified:** full `npm install` + `npm run build` + `eslint` clean in
+an isolated sandbox (bundle size dropped ~127KB with framer-motion
+gone, confirming it was actually removed, not just unreferenced) --
+only the one pre-existing cosmetic `tts.js` warning remains. The
+device's own `package-lock.json` still references the deleted
+framer-motion tree until Siya runs `npm install` again on the real
+machine (handed off) -- this is deliberate, after the earlier
+Linux-vs-Windows lockfile mismatch: let Windows regenerate its own
+lockfile rather than committing one generated elsewhere again.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
