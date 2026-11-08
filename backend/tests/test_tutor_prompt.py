@@ -11,6 +11,28 @@ def test_contains_worked_example_anchor():
     assert "2x + 5 = 15" in prompt
 
 
+def test_worked_example_anchor_uses_dollar_delimiters():
+    """Regression test for the 8 Nov 2026 fix found via the step 6 live
+    smoke test: the calibration anchor itself must demonstrate the
+    $$...$$ format, not just plain "Step 1: ... = ..." text -- Claude
+    follows the example's formatting, not just the rule describing it."""
+    prompt = build_tutor_system_prompt("Quadratic Equations", "personalization block")
+    assert "$$2x + 5 = 15$$" in prompt
+    assert "$$x = 5$$" in prompt
+
+
+def test_contains_math_formatting_rule():
+    """Regression test: without an explicit instruction to wrap equations
+    in $$...$$, MathGuard (which only extracts $$...$$ blocks) never has
+    anything to verify in a real Claude response -- math_verified would
+    always be True with a "no blocks found" warning, silently never
+    doing its job. Caught via the step 6 live /tutor/message smoke test,
+    not a unit test -- see BUILD_LOG.md."""
+    prompt = build_tutor_system_prompt("Quadratic Equations", "personalization block")
+    assert "MATH FORMATTING RULE" in prompt
+    assert "$$" in prompt
+
+
 def test_contains_explain_why_rule():
     prompt = build_tutor_system_prompt("Quadratic Equations", "personalization block")
     assert "NON-NEGOTIABLE" in prompt

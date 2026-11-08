@@ -11,6 +11,15 @@ RAG-grounding placeholder, and the personalization block) -- it is not
 a literal reproduction of lost text, and is a reasonable place to start
 iterating once real learner transcripts exist (see ADR-003's own
 Consequences section on this).
+
+FIX 8 Nov 2026 (found via the step 6 live /tutor/message smoke test, not
+a unit test): this prompt did not originally instruct Claude to wrap
+equations in $$...$$ -- MathGuard (math_guard.py) only ever extracts
+$$...$$ blocks (per REBUILD_SPEC.md's own description of the original
+tutor's output), so without this rule math_verified would always come
+back True with a "no blocks found" warning, never actually verifying
+anything in production. Added _MATH_FORMATTING_RULE and updated the
+calibration anchor itself to demonstrate the required $$...$$ format.
 """
 
 from anthropic import AsyncAnthropic
@@ -22,16 +31,33 @@ from app.core.config import settings
 MAX_TOKENS = 2048
 
 _WORKED_EXAMPLE_ANCHOR = """\
-Calibration example -- match THIS depth of explanation on every problem, not just this one:
+Calibration example -- match THIS depth of explanation on every problem, not just this one. \
+Note the $$...$$ formatting around every equation line -- this is required, see the MATH \
+FORMATTING RULE below.
 
-Problem: Solve for x: 2x + 5 = 15
-Step 1: Subtract 5 from both sides: 2x = 10
+Problem: Solve for x:
+$$2x + 5 = 15$$
+Step 1: Subtract 5 from both sides:
+$$2x = 10$$
   Why this is valid: subtracting the same value from both sides preserves equality -- \
 whatever you do to one side of an equation, you must do to the other, or it stops being a \
 true statement.
-Step 2: Divide both sides by 2: x = 5
+Step 2: Divide both sides by 2:
+$$x = 5$$
   Why this is valid: dividing both sides by the same non-zero number also preserves \
-equality, and dividing the coefficient of x by itself is exactly what isolates x.\
+equality, and dividing the coefficient of x by itself is exactly what isolates x.
+Check: substitute x = 5 back into the original equation:
+$$2(5) + 5 = 15$$\
+"""
+
+_MATH_FORMATTING_RULE = """\
+MATH FORMATTING RULE (do not skip this -- it is what lets your work be checked automatically): \
+every equation or inequality that is a distinct step -- the original problem restated, every \
+intermediate transformation, the final solution, and any substitution check -- must appear on \
+its own line wrapped in double dollar signs, exactly like $$2x + 5 = 15$$, as shown in the \
+calibration example above. Do not put an equation only inside a markdown code span or plain \
+prose -- it will not be checked unless it is a standalone $$...$$ line. Do not wrap \
+non-equation text (vocabulary, headings, explanations) in $$...$$.\
 """
 
 _EXPLAIN_WHY_RULE = """\
@@ -68,6 +94,7 @@ def build_tutor_system_prompt(
         f"You are THUTOra, a CAPS-aligned Grade 10 Mathematics tutor. The current topic is: "
         f"{topic_name}.",
         _WORKED_EXAMPLE_ANCHOR,
+        _MATH_FORMATTING_RULE,
         _EXPLAIN_WHY_RULE,
         _RAG_GROUNDING_PLACEHOLDER,
     ]

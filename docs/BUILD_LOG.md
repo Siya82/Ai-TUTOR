@@ -913,6 +913,59 @@ time -- it could not be live-tested before this.
   unblocks -- still pending that run.
 - Frontend (step 7), auth (step 8), everything in Section 8 (step 9).
 
+## 2026-11-08 -- Live smoke test caught a real wiring gap: tutor.py never told Claude to use $$...$$
+
+**Goal:** the first-ever live end-to-end `POST /tutor/message` call
+(step 6's seed data finally made this possible) against a real learner
+with zero prior `Attempt` rows.
+
+**What happened:** the call succeeded (200, a genuine Claude reply,
+correct diagnosis/redirect behavior for a brand-new learner -- see
+below) but `math_verified: true` came back with
+`verification_warnings: ["No $$...$$ math blocks found to verify..."]`
+even though the reply contained real worked-through algebra. Reading
+`math_guard.py` confirmed it only ever extracts `$$...$$` blocks (per
+REBUILD_SPEC.md's own description: "extract equations/inequalities
+directly from the LaTeX (`$$...$$`) blocks the tutor actually
+renders"), and reading `tutor.py`'s system-prompt builder confirmed it
+never actually instructed Claude to use that delimiter -- step 2's
+rebuild of the calibration anchor used plain "Step 1: ... = ..." text,
+not $$-wrapped equations. Step 2's and step 5's own test suites both
+passed because each piece was individually correct against its own
+assumptions; nothing tested the two together until a live call with a
+real model response did.
+
+**Fix:**
+- `app/services/tutor.py` -- rewrote `_WORKED_EXAMPLE_ANCHOR` to
+  demonstrate the required format (each equation on its own `$$...$$`
+  line, including a substitution-check step), and added a new
+  `_MATH_FORMATTING_RULE` section, inserted into
+  `build_tutor_system_prompt()` right after the anchor.
+- `tests/test_tutor_prompt.py` -- two new regression tests:
+  `test_worked_example_anchor_uses_dollar_delimiters` and
+  `test_contains_math_formatting_rule`.
+
+**Lesson for later steps:** unit tests on either side of an integration
+seam (prompt builder vs. response parser) can't catch a seam that's
+simply never connected -- only a real end-to-end call surfaces that.
+Worth deliberately live-testing each new integration point as it's
+built, not only after all the pieces exist.
+
+**Separately confirmed working correctly in this same smoke test:**
+diagnosis.py's behavior for a learner with zero `Attempt` rows anywhere
+in the prerequisite chain -- correctly treated every topic as
+"insufficient data, not a pass" (can't confirm mastery on 0 attempts,
+per `MIN_ATTEMPTS_FOR_CONFIRMED_MASTERY = 3`) and redirected all the way
+to the deepest/root prerequisite (Algebraic Expressions) rather than the
+requested topic (Equations and Inequalities) -- exactly the intended
+conservative behavior for a brand-new learner, not a bug.
+
+**Not done yet:**
+- Re-running the full test suite and the live smoke test again with
+  this fix in place, to confirm `math_verified`/`verification_warnings`
+  now actually reflect a real check against $$-formatted output.
+- Frontend (step 7), auth (step 8), everything in Section 8 (step 9).
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
