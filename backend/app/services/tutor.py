@@ -20,6 +20,12 @@ tutor's output), so without this rule math_verified would always come
 back True with a "no blocks found" warning, never actually verifying
 anything in production. Added _MATH_FORMATTING_RULE and updated the
 calibration anchor itself to demonstrate the required $$...$$ format.
+
+FIX 12 Nov 2026 (multi-subject support, ADR-013): build_tutor_system_prompt()
+and the RAG-grounding placeholder were hardcoded to "Mathematics". Both
+now take subject_name/grade so a second subject (Physical Sciences,
+Physics strand) introduces itself correctly instead of every tutor turn
+claiming to be a Maths tutor regardless of the real topic's subject.
 """
 
 from anthropic import AsyncAnthropic
@@ -69,34 +75,58 @@ the same wording), and consider whether they are actually asking about a more fo
 concept underneath the one you just covered.\
 """
 
-_RAG_GROUNDING_PLACEHOLDER = """\
-[CAPS content grounding: not yet wired to real retrieval -- content_chunks ingestion is a \
-known placeholder, see REBUILD_SPEC.md Section 8. Answer from general CAPS Grade 10 \
-Mathematics curriculum knowledge until this is implemented.]\
-"""
+def _build_rag_grounding_placeholder(subject_name: str, grade: int) -> str:
+    """
+    FIX 12 Nov 2026 (multi-subject support): this used to be a module-level
+    constant that hardcoded "Mathematics" -- fine while THUTOra was
+    Maths-only (ADR-006), wrong the moment a second subject (Physical
+    Sciences) was seeded, since every tutor turn for every subject would
+    still claim to be grounded in "Mathematics curriculum knowledge."
+    Turned into a function parameterized by the real Subject row instead.
+    """
+    return (
+        f"[CAPS content grounding: not yet wired to real retrieval -- content_chunks "
+        f"ingestion is a known placeholder, see REBUILD_SPEC.md Section 8. Answer from "
+        f"general CAPS Grade {grade} {subject_name} curriculum knowledge until this is "
+        f"implemented.]"
+    )
 
 
 def build_tutor_system_prompt(
     topic_name: str,
     personalization_block: str,
+    subject_name: str = "Pure Mathematics",
+    grade: int = 10,
     diagnosis_note: str | None = None,
 ) -> str:
     """
     Builds the full tutor system prompt. Always includes, in order: a
-    short framing line naming the topic, the worked-example calibration
-    anchor, the non-negotiable "explain why" rule, the RAG-grounding
-    placeholder block, an optional diagnosis note (present only when
-    tutor_orchestration.prepare_tutor_turn() redirected teaching to a
-    prerequisite topic), and the personalization block from
+    short framing line naming the SUBJECT and topic (FIX 12 Nov 2026,
+    multi-subject support -- see _build_rag_grounding_placeholder's own
+    note; subject_name/grade default to the original Pure Mathematics
+    values so any caller not yet updated keeps its old behaviour), the
+    worked-example calibration anchor, the non-negotiable "explain why"
+    rule, the RAG-grounding placeholder block, an optional diagnosis note
+    (present only when tutor_orchestration.prepare_tutor_turn() redirected
+    teaching to a prerequisite topic), and the personalization block from
     personalization.py.
+
+    The $$...$$ math-formatting rule and worked-example anchor are kept
+    for every subject, not just Mathematics -- Physical Sciences content
+    (kinematics, Ohm's Law, Coulomb's Law, etc.) is equally equation-
+    shaped and MathGuard verifies it the same way. This does NOT
+    generalize to every possible subject (e.g. purely descriptive
+    content has nothing for MathGuard to check), which is exactly why
+    Physical Sciences rebuild started with the Physics strand only --
+    see ADR-013.
     """
     sections = [
-        f"You are THUTOra, a CAPS-aligned Grade 10 Mathematics tutor. The current topic is: "
-        f"{topic_name}.",
+        f"You are THUTOra, a CAPS-aligned Grade {grade} {subject_name} tutor. The current "
+        f"topic is: {topic_name}.",
         _WORKED_EXAMPLE_ANCHOR,
         _MATH_FORMATTING_RULE,
         _EXPLAIN_WHY_RULE,
-        _RAG_GROUNDING_PLACEHOLDER,
+        _build_rag_grounding_placeholder(subject_name, grade),
     ]
     if diagnosis_note:
         sections.append(diagnosis_note)

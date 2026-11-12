@@ -18,7 +18,12 @@ async function getJson(path) {
   return response.json();
 }
 
-/** All seeded topics, e.g. [{ id, name, caps_reference, prerequisite_id }, ...]. */
+/** All seeded subjects, e.g. [{ id, name, grade }, ...]. NEW 12 Nov 2026, multi-subject support. */
+export function fetchSubjects() {
+  return getJson("/subjects/");
+}
+
+/** All seeded topics, e.g. [{ id, subject_id, name, caps_reference, prerequisite_id }, ...]. */
 export function fetchTopics() {
   return getJson("/topics/");
 }

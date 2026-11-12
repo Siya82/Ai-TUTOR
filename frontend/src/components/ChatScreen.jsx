@@ -17,9 +17,10 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { fetchLearners, fetchTopics, sendTutorMessage } from "../api";
+import { fetchLearners, fetchSubjects, fetchTopics, sendTutorMessage } from "../api";
 import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking } from "../utils/tts";
 import ModalitySwitcher from "./ModalitySwitcher";
+import SubjectPicker from "./SubjectPicker";
 import TopicPicker from "./TopicPicker";
 import MarkdownMessage from "./MarkdownMessage";
 import MathVerifiedBadge from "./MathVerifiedBadge";
@@ -108,8 +109,10 @@ function AssistantMessage({ message, topics }) {
 
 export default function ChatScreen() {
   const [learners, setLearners] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [topics, setTopics] = useState([]);
   const [learnerId, setLearnerId] = useState(null);
+  const [subjectId, setSubjectId] = useState(null);
   const [topicId, setTopicId] = useState(null);
   const [modality, setModality] = useState("text");
   const [messages, setMessages] = useState([]);
@@ -124,14 +127,29 @@ export default function ChatScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [fetchedLearners, fetchedTopics] = await Promise.all([fetchLearners(), fetchTopics()]);
+        const [fetchedLearners, fetchedSubjects, fetchedTopics] = await Promise.all([
+          fetchLearners(),
+          fetchSubjects(),
+          fetchTopics(),
+        ]);
         setLearners(fetchedLearners);
+        setSubjects(fetchedSubjects);
         setTopics(fetchedTopics);
         if (fetchedLearners.length > 0) setLearnerId(fetchedLearners[0].id);
-        if (fetchedTopics.length > 0) setTopicId(fetchedTopics[0].id);
-        if (fetchedLearners.length === 0 || fetchedTopics.length === 0) {
+        // Default to Pure Mathematics specifically when it's seeded, rather than
+        // whichever subject happens to sort first alphabetically (NEW 12 Nov
+        // 2026, multi-subject support -- keeps the existing default experience
+        // for the one subject that was already live before Physical Sciences).
+        if (fetchedSubjects.length > 0) {
+          const defaultSubject =
+            fetchedSubjects.find((s) => s.name === "Pure Mathematics") || fetchedSubjects[0];
+          setSubjectId(defaultSubject.id);
+          const firstTopicForSubject = fetchedTopics.find((t) => t.subject_id === defaultSubject.id);
+          if (firstTopicForSubject) setTopicId(firstTopicForSubject.id);
+        }
+        if (fetchedLearners.length === 0 || fetchedSubjects.length === 0 || fetchedTopics.length === 0) {
           setLoadError(
-            "No seeded learners/topics found. Run backend/scripts/seed_dev_data.py against your database first."
+            "No seeded learners/subjects/topics found. Run backend/scripts/seed_dev_data.py against your database first."
           );
         }
       } catch (err) {
@@ -139,6 +157,17 @@ export default function ChatScreen() {
       }
     })();
   }, []);
+
+  // When the subject changes, jump the topic to the first one in that
+  // subject instead of leaving a stale topic from the previous subject
+  // selected (NEW 12 Nov 2026, multi-subject support).
+  const topicsForSubject = topics.filter((t) => t.subject_id === subjectId);
+
+  const handleSubjectChange = (newSubjectId) => {
+    setSubjectId(newSubjectId);
+    const firstTopic = topics.find((t) => t.subject_id === newSubjectId);
+    setTopicId(firstTopic ? firstTopic.id : null);
+  };
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
@@ -210,7 +239,13 @@ export default function ChatScreen() {
       </header>
 
       <div className="chat-screen__controls">
-        <TopicPicker topics={topics} selectedTopicId={topicId} onChange={setTopicId} disabled={sending} />
+        <SubjectPicker
+          subjects={subjects}
+          selectedSubjectId={subjectId}
+          onChange={handleSubjectChange}
+          disabled={sending}
+        />
+        <TopicPicker topics={topicsForSubject} selectedTopicId={topicId} onChange={setTopicId} disabled={sending} />
         {learners.length > 0 && (
           <span className="chat-screen__learner">Learner: {learners.find((l) => l.id === learnerId)?.display_name}</span>
         )}

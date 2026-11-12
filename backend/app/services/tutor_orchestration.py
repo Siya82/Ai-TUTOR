@@ -5,6 +5,12 @@ personalization, then prompt assembly. See REBUILD_SPEC.md Section 1.
 
 REBUILD NOTE: rebuilt from REBUILD_SPEC.md Section 1 -- not recovered
 code.
+
+FIX 12 Nov 2026 (multi-subject support, ADR-013): now reads
+recommended_topic.subject.name/.grade to build a subject-aware system
+prompt (see tutor.py's own fix note). Since this module is deliberately
+DB-free, it requires the caller to have already eager-loaded
+Topic.subject -- it does not, and must not, trigger a lazy load itself.
 """
 
 import uuid
@@ -74,9 +80,15 @@ def prepare_tutor_turn(
             f"failure), then teach '{recommended_topic.name}'."
         )
 
+    # FIX 12 Nov 2026 (multi-subject support, ADR-013): recommended_topic.subject
+    # must already be eager-loaded by the caller (routers/tutor.py uses
+    # selectinload(Topic.subject) on every Topic it fetches) -- this module
+    # stays DB-free per its own docstring, so it cannot lazy-load it itself.
     system_prompt = build_tutor_system_prompt(
         topic_name=recommended_topic.name,
         personalization_block=personalization_block,
+        subject_name=recommended_topic.subject.name,
+        grade=recommended_topic.subject.grade,
         diagnosis_note=diagnosis_note,
     )
 

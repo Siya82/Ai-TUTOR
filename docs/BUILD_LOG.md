@@ -1195,6 +1195,58 @@ machine (handed off) -- this is deliberate, after the earlier
 Linux-vs-Windows lockfile mismatch: let Windows regenerate its own
 lockfile rather than committing one generated elsewhere again.
 
+## 2026-11-12 -- Multi-subject support: Physical Sciences added (Physics strand), ADR-013
+
+**Goal:** Siya asked whether Science and Technology could be added now,
+in parallel with step 8 (auth), given the EdPaaS vision. Answered first
+(grounded in the real schema and REBUILD_SPEC/Project Report), then
+Siya confirmed: Physical Sciences now, in parallel with auth -- see
+ADR-013 for the full decision, including why Chemistry strand and
+"Technology" specifically are deferred rather than added too.
+
+**Done:**
+- `tutor.py`: `build_tutor_system_prompt()` takes `subject_name`/`grade`
+  instead of a hardcoded "Mathematics" string (defaults preserve old
+  behaviour for any caller not yet updated); RAG-grounding placeholder
+  is now a function of the same two values.
+- `tutor_orchestration.py` / `routers/tutor.py`: subject is read from
+  `recommended_topic.subject`, eager-loaded via `selectinload` on both
+  `Topic` fetches in the prerequisite-chain walk (this module stays
+  DB-free, so it cannot lazy-load it itself).
+- `seed_dev_data.py`: generalized from one hardcoded
+  `SUBJECT_NAME`/`GRADE`/`TOPICS`/`DIAGNOSTIC_QUESTIONS` set to a
+  `SUBJECTS` list; added CAPS Grade 10 Physical Sciences, Physics
+  strand -- 8 topics (Vectors in Two Dimensions, Motion in One
+  Dimension, Mechanical Energy, Waves/Sound/Light, Electromagnetic
+  Radiation, Magnetism, Electrostatics, Electric Circuits), two
+  diagnostic questions each, sourced from the DBE CAPS Physical
+  Sciences document (checked against two independent sources).
+- New `GET /subjects` endpoint (`schemas/subjects.py`,
+  `routers/subjects.py`, registered in `main.py`); `TopicResponse`
+  gained `subject_id`; `GET /topics` gained an optional `subject_id`
+  filter query param.
+- Frontend: new `SubjectPicker.jsx`; `ChatScreen.jsx` fetches subjects,
+  defaults to Pure Mathematics (keeps the existing default experience),
+  filters topics to the selected subject, resets topic on subject
+  change. `SymbolKeyboard.jsx` gained symbol sets for all 8 new topics
+  (→, Δ, λ, Ω, Hz, etc.).
+- `docs/ADR-013-multi-subject-support.md` written with the full
+  reasoning, including the "why Technology isn't actually a Grade 10
+  CAPS subject" point and the Chemistry-strand deferral.
+
+**Not done yet:**
+- No live `/tutor/message` test against a Physical Sciences topic yet
+  -- handed to Siya to run (seed script + pytest + a live smoke test),
+  same discipline as the Maths MathGuard gaps (8, 13) were found: a
+  real Claude reply, not a unit test, is what will surface whether
+  units written inline (e.g. "10 m/s" outside a $$...$$ block) create
+  a new parsing gap MathGuard's Maths-only test suite never had reason
+  to cover.
+- `THUTOra_Project_Report.md`'s "Brand & scope reconciliation" open
+  decision needs updating to reflect this (partial) resolution.
+- Chemistry strand, Life Sciences, Accounting: still fully out of
+  scope, per ADR-013.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

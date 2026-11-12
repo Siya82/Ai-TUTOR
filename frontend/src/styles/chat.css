@@ -79,6 +79,9 @@ body {
   flex-wrap: wrap;
 }
 
+/* .subject-picker added 12 Nov 2026 (multi-subject support, ADR-013) --
+   intentionally identical styling to .topic-picker, grouped together. */
+.subject-picker,
 .topic-picker {
   display: flex;
   align-items: center;
@@ -87,6 +90,7 @@ body {
   color: var(--color-text-muted);
 }
 
+.subject-picker select,
 .topic-picker select {
   background: var(--color-surface);
   color: var(--color-text);

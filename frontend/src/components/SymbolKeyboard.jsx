@@ -12,6 +12,10 @@
  * creates. A topic name that doesn't match anything (e.g. if the seed
  * data changes) falls back to COMMON_SYMBOLS only, rather than showing
  * nothing or throwing.
+ *
+ * FIX 12 Nov 2026 (multi-subject support, ADR-013): added entries for
+ * the Physical Sciences (Physics strand) topics -- different symbol
+ * needs again (Ω, Δ, vector arrows, °) from either Maths bucket above.
  */
 
 const COMMON_SYMBOLS = [
@@ -86,6 +90,42 @@ const TOPIC_SYMBOLS = {
     { label: "%", insert: "%" },
     { label: "∩", insert: "∩" },
     { label: "∪", insert: "∪" },
+  ],
+  "Vectors in Two Dimensions": [
+    { label: "→", insert: "→" },
+    { label: "°", insert: "°" },
+    { label: "θ", insert: "θ" },
+  ],
+  "Motion in One Dimension": [
+    { label: "Δ", insert: "Δ" },
+    { label: "m/s", insert: "m/s" },
+    { label: "m/s²", insert: "m/s²" },
+  ],
+  "Mechanical Energy": [
+    { label: "Δ", insert: "Δ" },
+    { label: "J", insert: "J" },
+  ],
+  "Waves, Sound and Light": [
+    { label: "λ", insert: "λ" },
+    { label: "Hz", insert: "Hz" },
+  ],
+  "Electromagnetic Radiation": [
+    { label: "λ", insert: "λ" },
+    { label: "Hz", insert: "Hz" },
+  ],
+  Magnetism: [
+    { label: "N", insert: "N" },
+    { label: "S", insert: "S" },
+  ],
+  Electrostatics: [
+    { label: "C", insert: "C" },
+    { label: "⁻", insert: "⁻" },
+    { label: "⁺", insert: "⁺" },
+  ],
+  "Electric Circuits": [
+    { label: "Ω", insert: "Ω" },
+    { label: "V", insert: "V" },
+    { label: "A", insert: "A" },
   ],
 };
 

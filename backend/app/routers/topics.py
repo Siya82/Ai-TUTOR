@@ -6,7 +6,9 @@ exists: it replaces the recovered api.js's hardcoded, stale TOPIC_IDS
 map with a real, always-current list straight from the database.
 """
 
-from fastapi import APIRouter, Depends
+import uuid
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,13 +20,22 @@ router = APIRouter(prefix="/topics", tags=["topics"])
 
 
 @router.get("/", response_model=list[TopicResponse])
-async def list_topics(db: AsyncSession = Depends(get_db)) -> list[Topic]:
+async def list_topics(
+    subject_id: uuid.UUID | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> list[Topic]:
     """
-    All topics across all subjects, ordered by name. There is currently
-    only one seeded subject (Pure Mathematics, grade 10), so this is not
-    yet subject-filtered -- revisit if/when a second subject is seeded
-    (see REBUILD_SPEC.md's own note on the broader multi-subject THUTOra
-    brand vision vs. the current Maths-only engineering scope, ADR-006).
+    Topics, ordered by name, optionally filtered to one subject.
+
+    FIX 12 Nov 2026 (multi-subject support, ADR-013): added the optional
+    subject_id filter now that a second subject (Physical Sciences) is
+    seeded alongside Pure Mathematics -- an unfiltered call still returns
+    every topic across every subject (the frontend's own subject picker
+    does the filtering for the UI; this param exists for any caller that
+    wants it server-side instead).
     """
-    result = await db.execute(select(Topic).order_by(Topic.name))
+    stmt = select(Topic).order_by(Topic.name)
+    if subject_id is not None:
+        stmt = stmt.where(Topic.subject_id == subject_id)
+    result = await db.execute(stmt)
     return list(result.scalars().all())

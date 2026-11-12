@@ -18,6 +18,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.models import Attempt, Learner, Question, Topic, TutorMessage, TutorSession
@@ -39,14 +40,26 @@ _MAX_PREREQUISITE_DEPTH = 20  # generous guard against an accidental prerequisit
 
 
 async def _resolve_prerequisite_chain(db: AsyncSession, topic: Topic) -> list[Topic]:
-    """Walks Topic.prerequisite_id repeatedly, deepest topic last."""
+    """
+    Walks Topic.prerequisite_id repeatedly, deepest topic last.
+
+    FIX 12 Nov 2026 (multi-subject support, ADR-013): eager-loads
+    Topic.subject via selectinload on every fetch in this walk. Needed
+    because tutor_orchestration.build the system prompt now reads
+    recommended_topic.subject.name/.grade to introduce the tutor
+    correctly for whichever subject is actually being taught -- without
+    this, that read would trigger an async lazy-load outside any
+    greenlet context and raise, not silently return stale data.
+    """
     chain = [topic]
     seen = {topic.id}
     current = topic
     for _ in range(_MAX_PREREQUISITE_DEPTH):
         if current.prerequisite_id is None or current.prerequisite_id in seen:
             break
-        prereq = await db.get(Topic, current.prerequisite_id)
+        prereq = await db.get(
+            Topic, current.prerequisite_id, options=[selectinload(Topic.subject)]
+        )
         if prereq is None:
             break
         chain.append(prereq)
@@ -100,7 +113,9 @@ async def send_tutor_message(
     if learner is None:
         raise HTTPException(status_code=404, detail="Learner not found")
 
-    requested_topic = await db.get(Topic, payload.topic_id)
+    requested_topic = await db.get(
+        Topic, payload.topic_id, options=[selectinload(Topic.subject)]
+    )
     if requested_topic is None:
         raise HTTPException(status_code=404, detail="Topic not found")
 

@@ -60,3 +60,39 @@ def test_diagnosis_note_included_only_when_given():
 def test_topic_name_appears_in_prompt():
     prompt = build_tutor_system_prompt("Analytical Geometry", "p-block")
     assert "Analytical Geometry" in prompt
+
+
+def test_default_subject_is_pure_mathematics_grade_10():
+    """Regression test for the 12 Nov 2026 multi-subject fix (ADR-013):
+    subject_name/grade default to the original values so any caller not
+    yet updated (and every test above that doesn't pass them) keeps the
+    exact old behaviour."""
+    prompt = build_tutor_system_prompt("Quadratic Equations", "p-block")
+    assert "Grade 10 Pure Mathematics tutor" in prompt
+    assert "Grade 10 Pure Mathematics curriculum knowledge" in prompt
+
+
+def test_subject_name_and_grade_are_used_when_given():
+    """Regression test for the 12 Nov 2026 multi-subject fix (ADR-013):
+    before this fix, every tutor turn claimed to be a Mathematics tutor
+    regardless of the real topic's subject -- found by inspection while
+    adding Physical Sciences, not by a live call (unlike most of this
+    project's other MathGuard-adjacent fixes)."""
+    prompt = build_tutor_system_prompt(
+        "Motion in One Dimension", "p-block", subject_name="Physical Sciences", grade=10
+    )
+    assert "Grade 10 Physical Sciences tutor" in prompt
+    assert "Grade 10 Physical Sciences curriculum knowledge" in prompt
+    assert "Mathematics" not in prompt
+
+
+def test_math_formatting_rule_still_applies_to_non_maths_subjects():
+    """Physical Sciences content (kinematics, Ohm's Law, etc.) is equally
+    equation-shaped, so the $$...$$ rule -- and MathGuard verification --
+    must still apply; it is not a Maths-only rule despite living in a
+    module literally about math formatting."""
+    prompt = build_tutor_system_prompt(
+        "Electric Circuits", "p-block", subject_name="Physical Sciences", grade=10
+    )
+    assert "MATH FORMATTING RULE" in prompt
+    assert "$$" in prompt

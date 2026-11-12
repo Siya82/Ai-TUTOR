@@ -332,10 +332,15 @@ also not recovered.
   `docs/ADR-008-brand-design-tokens.md` and the reconstructed
   `frontend/src/styles/tokens.css` in this package. Decide explicitly
   which palette is authoritative before re-skinning on rebuild.
-- Grade 10 CAPS Mathematics is considered complete; planned expansion is
+- ~~Grade 10 CAPS Mathematics is considered complete; planned expansion is
   Maths first to other grades (11/12), then other subjects (Physical
-  Sciences, Life Sciences, Accounting) — consistent with the "depth over
-  breadth" philosophy (ADR-006) applied repeatedly, not abandoned.
+  Sciences, Life Sciences, Accounting)~~ — **order explicitly changed
+  12 Nov 2026**: Siya chose subjects-before-grades, adding Physical
+  Sciences (Physics strand) at Grade 10 rather than extending Maths to
+  Grade 11/12 first. The underlying "depth over breadth" philosophy
+  (ADR-006) is unchanged — it's applied to *which slice* of Physical
+  Sciences got added (Physics strand only, Chemistry strand deferred),
+  not abandoned. See `docs/ADR-013-multi-subject-support.md`.
 - **Longer-term vision**: evolve THUTOra from a single-tenant Maths tutor
   into an **Education Platform as a Service (EdPaaS)**, with a conceptual
   access/role model spanning: student, teacher/parent, principal, district
@@ -393,3 +398,13 @@ also not recovered.
    feature goes anywhere near real data.
 9. Everything in Section 8 (quiz engine, RAG grounding, deployment
    hardening) as genuinely new work, not recovery.
+10. ~~Add a second subject (Physical Sciences, Physics strand) once a
+    second subject's content is actually wanted, generalizing
+    `tutor.py`/`tutor_orchestration.py`/`seed_dev_data.py` away from
+    their single-subject assumptions first~~ -- **DONE 12 Nov 2026,
+    done in parallel with item 8 (auth) per Siya's explicit direction,
+    not sequenced after it.** See `docs/ADR-013-multi-subject-support.md`
+    for the full decision, including why the Chemistry strand and a
+    literal "Technology" subject were both deferred rather than added
+    alongside it. Not yet live-tested against a real Claude call --
+    handed to Siya, same as the original MathGuard gaps were found.
