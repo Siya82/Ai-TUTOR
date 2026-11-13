@@ -65,6 +65,45 @@ def normalize_unicode_minus(s: str) -> str:
     return s.replace(_UNICODE_MINUS, "-")
 
 
+def strip_text_commands(s: str) -> str:
+    """Gap 14 (found 13 Nov 2026 via the first live Physical Sciences
+    smoke test -- not from project memory, a genuinely new finding):
+    Maths worked examples never put units inside a $$...$$ block, so
+    this was never exercised before. A Physical Sciences reply wrote
+    "$$v = 10 \text{ m/s}$$" -- strip_latex_cruft's generic
+    backslash-stripping fallback turned "\text{ m/s}" into the literal,
+    unparseable "text{ m/s}" (a brace-using fragment that looks like a
+    function call but isn't valid syntax), breaking the parse on every
+    single numeric-answer line that included a unit. \text{...} is
+    never meaningful mathematics -- always a unit label or word
+    annotation -- so it (including its content) is dropped entirely,
+    same philosophy as strip_decorative_symbols. Brace-matched the same
+    way convert_sqrt/convert_frac already are, in case of nested braces."""
+    out = []
+    i = 0
+    pattern = re.compile(r"\\text")
+    while i < len(s):
+        m = pattern.search(s, i)
+        if not m:
+            out.append(s[i:])
+            break
+        out.append(s[i:m.start()])
+        j = m.end()
+        if j < len(s) and s[j] == "{":
+            depth = 1
+            k = j + 1
+            while k < len(s) and depth > 0:
+                if s[k] == "{":
+                    depth += 1
+                elif s[k] == "}":
+                    depth -= 1
+                k += 1
+            i = k  # drop \text{...} entirely, including its content
+        else:
+            i = j  # bare \text with no brace group -- just drop the command itself
+    return "".join(out)
+
+
 def normalize_decimal_commas(s: str) -> str:
     """
     Gap 6 (and the gap-11 interaction with it): the SA/European decimal-comma
@@ -174,6 +213,38 @@ def protect_in_keyword(s: str) -> str:
     return re.sub(r"\bin\b", "in_var", s)
 
 
+_TRIG_LITERAL_DEGREE = re.compile(r"\\(sin|cos|tan)\(?\s*(\d+(?:\.\d+)?)\s*\u00b0\)?")
+
+
+def convert_trig_of_literal_degrees(s: str) -> str:
+    """Gap 16 (found 13 Nov 2026 via live Physical Sciences testing):
+    different from gap 4's bare-symbol case (sin(theta), where CAPS
+    convention assumes degrees with no literal degree sign written at
+    all). A Physical Sciences worked example evaluates a trig function
+    AT a known numeric angle, written WITH a literal degree sign and
+    often with no parentheses -- "\cos30\u00b0", "\sin 60\u00b0". Observed
+    sympy behaviour on this is version-dependent (a parse failure on one
+    sympy version, "cos30" silently read as a brand-new unrelated symbol
+    on another) because without the parentheses, "cos30" is just one
+    token to sympy's tokenizer, not a function call -- so this is
+    resolved deterministically via regex, before sympy ever sees the
+    string, rather than relying on any particular parser's tokenization.
+    Mathematically verified correct: 50*cos(30 deg) ~ 43.301, matching
+    the worked example's own 43.3."""
+    return _TRIG_LITERAL_DEGREE.sub(lambda m: f"{m.group(1)}(({m.group(2)})*pi/180)", s)
+
+
+def strip_bare_degree_sign(s: str) -> str:
+    """Gap 16 (continued): runs AFTER convert_trig_of_literal_degrees has
+    already consumed every degree sign that was actually part of a trig
+    argument -- any degree sign still remaining at this point is just
+    decorative, on a final numeric angle answer (e.g. "theta = 30\u00b0"),
+    same role as a unit label. Dropping it is correct and consistent
+    with gap 4's own convention that a bare angle NUMBER (no radian
+    conversion applied) is understood to already be in degrees."""
+    return s.replace("\u00b0", "")
+
+
 def apply_degree_conversion_for_bare_trig(s: str, symbol_name: str) -> str:
     """
     Gap 4: sympy's trig functions default to radians; CAPS teaches degrees.
@@ -192,24 +263,58 @@ def normalize_latex(raw: str) -> str:
     s = raw
     s = strip_markdown_artifacts(s)
     s = strip_decorative_symbols(s)
+    s = strip_text_commands(s)  # gap 14 -- before anything else touches units
     s = normalize_unicode_minus(s)
     s = normalize_decimal_commas(s)
+    s = convert_relation_operators(s)  # gap 15 -- must run before strip_latex_cruft
     s = convert_times(s)
+    s = convert_trig_of_literal_degrees(s)  # gap 16 -- must run before strip_latex_cruft
     s = convert_frac(s)
     s = convert_sqrt(s)
     s = convert_pi(s)
     s = convert_power(s)
     s = strip_latex_cruft(s)
+    s = strip_bare_degree_sign(s)  # gap 16 continued -- after trig conversion consumed the real ones
     s = protect_in_keyword(s)
     return s.strip()
 
 
+# Gap 15 (found 13 Nov 2026 alongside gap 14): these backslash-form
+# patterns were DEAD CODE -- normalize_latex's strip_latex_cruft step
+# already strips every backslash-letter command (via its generic
+# fallback) BEFORE split_relation ever runs on the result, so "\leq"
+# had already become the bare word "leq" with no backslash left to
+# match against "\\leq" below. Never caught before because every existing
+# regression test for inequalities used plain ASCII (-2x > 6), never the
+# LaTeX relation form Claude actually renders. Fixed properly in
+# normalize_latex via convert_relation_operators(), which runs BEFORE
+# strip_latex_cruft -- these patterns are kept only as a documented,
+# harmless no-op fallback.  \approx is new: a Physical Sciences
+# "rounds to" check step (e.g. "$$d = \sqrt{2499.9} \approx 50$$"),
+# treated as equality for verification purposes (NUMERIC_TOLERANCE/
+# CHAIN_RELATIVE_TOLERANCE already express the right amount of "approximately").
 _REL_OPERATORS = [
     (r"\\neq", "!="), (r"\\leq", "<="), (r"\\geq", ">="),
     (r"\\le", "<="), (r"\\ge", ">="),
     ("<=", "<="), (">=", ">="), ("!=", "!="),
     ("=", "="), ("<", "<"), (">", ">"),
 ]
+
+_LATEX_RELATION_CONVERSIONS = [
+    (r"\\leq", "<="), (r"\\geq", ">="), (r"\\neq", "!="), (r"\\approx", "="),
+    (r"\\le\b", "<="), (r"\\ge\b", ">="),
+]
+
+
+def convert_relation_operators(s: str) -> str:
+    """Gap 15: converts LaTeX relation commands to their ASCII
+    equivalents BEFORE strip_latex_cruft can strip their backslash and
+    turn them into unmatched plain words. Order matters -- the 4-letter
+    forms (leq/geq/neq/approx) must convert before the 2-letter le/ge
+    forms, or a leftover "q" would be stranded."""
+    for pat, repl in _LATEX_RELATION_CONVERSIONS:
+        s = re.sub(pat, repl, s)
+    return s
 
 
 def split_relation(normalized: str) -> tuple[str, str, str] | None:
@@ -329,17 +434,44 @@ def finite_real_floats(sol_set) -> list[float] | None:
     return out
 
 
+# Gap 17 (found 13 Nov 2026 via live Physical Sciences testing): CAPS
+# Physical Sciences convention is to round intermediate trig/arithmetic
+# results to 3-4 significant figures and carry the ROUNDED value
+# forward into the next step (e.g. "cos30 degrees ~ 0.866" then
+# "50 * 0.866 = 43.3"), unlike Maths, which never has this kind of
+# expected per-step rounding. NUMERIC_TOLERANCE (1e-6, flat/absolute)
+# is exactly right for Maths's exact arithmetic but too strict for
+# this -- it was flagging pedagogically correct, properly-rounded
+# Physics steps as "does not follow from the previous one" purely
+# because 50*cos(30deg)=43.30127... differs from 50*0.866=43.3 by
+# ~0.0013, which exceeds 1e-6 in absolute terms even though it is a
+# normal, expected rounding difference, not a mathematical error.
+# CHAIN_RELATIVE_TOLERANCE is deliberately separate from
+# NUMERIC_TOLERANCE (not a change to the global constant) so Maths's
+# existing exact-arithmetic guarantee (gap 5c: x=2 vs x=7 must still be
+# flagged) is completely unaffected -- it only widens the chain
+# consistency check specifically, nowhere near loose enough to mask a
+# genuine conceptual/arithmetic error (0.1% relative vs. gap 5c's ~250%
+# relative discrepancy).
+CHAIN_RELATIVE_TOLERANCE = 1e-3
+
+
 def is_numeric_subset(later_floats: list[float], earlier_floats: list[float],
-                       tol: float = NUMERIC_TOLERANCE) -> bool:
+                       tol: float = NUMERIC_TOLERANCE,
+                       rel_tol: float = CHAIN_RELATIVE_TOLERANCE) -> bool:
     """
     Gap 5: every value in `later` must be numerically close (not exactly
     equal -- sympy's Float(20.0) == Integer(20) is False even though they
     are the same number) to SOME value in `earlier`. A later step may
     validly narrow to fewer solutions (e.g. discarding an extraneous root
     after squaring) without being flagged.
+
+    Gap 17: the per-pair tolerance is the LARGER of the flat absolute
+    tolerance and a tolerance relative to the earlier value's magnitude
+    -- see CHAIN_RELATIVE_TOLERANCE's own comment for why.
     """
     for lf in later_floats:
-        if not any(abs(lf - ef) <= tol for ef in earlier_floats):
+        if not any(abs(lf - ef) <= max(tol, rel_tol * max(1, abs(ef))) for ef in earlier_floats):
             return False
     return True
 

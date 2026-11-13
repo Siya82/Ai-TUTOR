@@ -106,7 +106,7 @@ two copies — see the recovery note at the top of the recovered
   textbook and four official NSC Physical Sciences Data Sheets.
 
 ### `math_guard.py` + `math_validator.py` — MathGuard
-**REBUILT 8 Nov 2026 -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
+**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 below, found via the Physical Sciences live-test pass) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
 
 This is a protected core differentiator (ADR-011) — rebuild carefully and
 re-run the adversarial test suite at every stage, don't assume.
@@ -167,6 +167,59 @@ discipline — see `docs/CAPABILITY-EVIDENCE-LOG.md`):
     variable, making a fully correct step look unverifiable. Fixed by
     stripping decorative checkmark/cross glyphs before any other
     normalization runs.
+14. (New, found 13 Nov 2026 via the first live `/tutor/message` smoke
+    test against a real Physical Sciences topic -- exactly the risk
+    ADR-013 flagged as untested, though the actual gap turned out
+    broader than "units written inline" alone.) `\text{...}` LaTeX
+    commands (e.g. `50 \text{ m}`, `\text{ above horizontal}`) were
+    never stripped -- the generic backslash-stripping fallback turned
+    `\text{ m/s}` into the literal, unparseable `text{ m/s}`. Fixed by
+    removing `\text{...}` entirely (brace-matched, so nested braces
+    inside the text don't truncate the strip early), the same
+    treatment already given to markdown artifacts and decorative
+    symbols.
+15. (New, found 13 Nov 2026 alongside gap 14.) LaTeX's own relation
+    operators (`\leq`, `\geq`, `\neq`) were **pre-existing dead
+    code** -- `normalize_latex`'s generic backslash-stripping fallback
+    already turned `\leq` into the bare word `leq` *before*
+    `split_relation` ever got to run its backslash-form matching, so
+    those patterns could never fire. Latent since gap 9's inequality
+    work; never caught because every existing inequality regression
+    test used plain ASCII (`-2x > 6`), never real LaTeX. Fixed with a
+    dedicated conversion step that runs before the generic stripping
+    fallback; `\approx` is now also accepted and treated as equality
+    for verification purposes.
+16. (New, found 13 Nov 2026, same live test.) Trig applied to a
+    *literal* numeric degree value with no parentheses and a real `°`
+    sign (`\cos30°`, as opposed to gap 4's bare-symbol case like
+    `sin(theta)`) parsed unreliably, since `cos30` reads as one token
+    to sympy's tokenizer rather than a function call on `30`. Fixed via
+    a deterministic regex conversion to `cos((30)*pi/180)` before sympy
+    ever sees it, run ahead of the existing degree/radian handling; any
+    `°` left over afterward (not consumed by a trig conversion) is
+    now stripped rather than left to break parsing.
+17. (New, found 13 Nov 2026, same live test -- and only visible once
+    gaps 14-16 let Physical Sciences content reach the comparison stage
+    at all.) The flat `NUMERIC_TOLERANCE = 1e-6` used for Maths'
+    exact-arithmetic steps was too strict for CAPS Physical Sciences'
+    convention of rounding an intermediate value to 3 significant
+    figures and carrying the *rounded* number into the next line (e.g.
+    `cos30° = 0.866` then `50 × 0.866 = 43.3`) -- real, pedagogically
+    correct steps were being flagged "does not follow from the previous
+    one". Fixed with a second, separate, wider `CHAIN_RELATIVE_TOLERANCE
+    = 1e-3` used only for solving-step chain-consistency comparison
+    (never for the Maths check-step numeric verification gap 5
+    already covers -- gap 5c's "a genuinely wrong step is still
+    flagged" guarantee was re-verified to still hold). Also fixed
+    alongside this: `verify_tutor_response` required every solving
+    step in a response to share ONE symbol name, or it discarded chain
+    verification for the *entire* response -- a real limitation once a
+    single Physical Sciences reply solves for more than one quantity
+    (e.g. both `d_x` and `d_y`, or a vector-resolution example followed
+    by an unrelated `v_f` equation). Fixed by grouping solving steps by
+    symbol name and chain-verifying each group independently, so one
+    quantity's steps are checked without being blocked by, or
+    cross-contaminating, another's.
 
 Exposed on `POST /tutor/message` as `math_verified: bool` and
 `verification_warnings: list[str]`; shown as a visible badge in the chat

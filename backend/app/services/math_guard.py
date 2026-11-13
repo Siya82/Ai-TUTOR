@@ -22,7 +22,19 @@ here was checkable" as well as "everything checked out".
 
 REBUILD NOTE: rebuilt from REBUILD_SPEC.md Section 1 -- not recovered
 code.
-"""
+
+FIX 13 Nov 2026 (found via live Physical Sciences testing, ADR-013
+follow-up): solving steps used to require ONE symbol across the
+*entire* response, or the whole chain was left unverified -- fine for
+Maths's single-worked-example-per-turn style, wrong the moment a
+response legitimately solves for several different quantities in one
+turn (resolve a vector into d_x, then d_y, then combine them into d).
+Solving steps are now grouped by symbol NAME and each group is
+chain-compared independently -- a response that solves for three
+different things now gets three independent (and, if each is
+internally consistent, three silently-passing) checks instead of one
+"multiple different variables -- left unverified" warning that threw
+away real verification of all three."""
 
 import re
 from dataclasses import dataclass, field
@@ -98,16 +110,20 @@ def verify_tutor_response(text: str) -> MathVerificationResult:
         elif result is None:
             warnings.append(f"Could not numerically verify this check step: {block[:60]!r}")
 
-    symbol_names = {s.name for _, s in solving_steps}
-    if len(symbol_names) > 1:
-        warnings.append(
-            f"Multiple different variables appear across solving steps "
-            f"({sorted(symbol_names)}) -- left unverified."
-        )
-    elif len(solving_steps) >= 2:
-        symbol = solving_steps[0][1]
+    # Group solving steps by symbol NAME (not position) rather than
+    # requiring one symbol for the whole response -- see the module
+    # docstring's 13 Nov 2026 fix note. A dict preserves insertion
+    # order, so each group's steps stay in the order they appeared.
+    grouped_by_symbol: dict[str, list[tuple[str, object]]] = {}
+    for block, symbol in solving_steps:
+        grouped_by_symbol.setdefault(symbol.name, []).append((block, symbol))
+
+    for symbol_name, steps in grouped_by_symbol.items():
+        if len(steps) < 2:
+            continue
+        symbol = steps[0][1]
         prev_set = None
-        for block, _ in solving_steps:
+        for block, _ in steps:
             rel = build_relation_expr(block, symbol.name)
             sol_set = solve_relation(rel, symbol)
             if prev_set is not None:

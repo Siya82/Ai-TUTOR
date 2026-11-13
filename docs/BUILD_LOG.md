@@ -1279,6 +1279,71 @@ prompt-builder layer alone.
 Physical Sciences topic -- that's next, now that the full suite is
 green again.
 
+## 2026-11-13 -- Physical Sciences live smoke test: 4 real MathGuard gaps + 1 architectural limitation found and fixed
+
+**Goal:** with the full suite green again (see the entry above), run the
+real live `/tutor/message` smoke test against a Physical Sciences topic
+that the 12 Nov change deliberately left for this moment. Live reply
+covered Vectors in Two Dimensions (a resolved-vector worked example,
+including a Pythagoras check step) plus a one-line Motion in One
+Dimension tie-in. `math_verified: true` came back, but with 12
+verification warnings against a reply that was, on inspection, entirely
+correct -- the opposite of a false pass: a real reply being marked far
+less verified than it actually was.
+
+**Root causes (all confirmed against the exact live-captured reply
+text, via a sandbox-first reproduction before touching real files):**
+- Gap 14: `\text{...}` units (`50 \text{ m}`, `\text{ above
+  horizontal}`) were never stripped -- this is the specific risk
+  ADR-013 flagged as untested going in, now confirmed and fixed.
+- Gap 15: LaTeX's own `\leq`/`\geq`/`\neq` relation operators turned
+  out to be pre-existing dead code, latent since gap 9 -- caught only
+  now because this was the first real-LaTeX-input test to use them
+  instead of plain ASCII. Also added `\approx` support.
+- Gap 16: `\cos30°`/`\sin30°` (trig on a literal degree value, no
+  parentheses) parsed unreliably; fixed with a deterministic regex
+  conversion ahead of sympy.
+- Gap 17: the flat `1e-6` numeric tolerance was too strict for CAPS
+  Physical Sciences' 3-sig-fig intermediate rounding convention, once
+  gaps 14-16 let that content reach the comparison stage at all. Fixed
+  with a separate, wider `CHAIN_RELATIVE_TOLERANCE = 1e-3` used only for
+  solving-step chain comparison -- gap 5c's "genuinely wrong step is
+  still caught" guarantee was re-verified to still hold, nothing about
+  the Maths check-step tolerance changed.
+- Architectural: `verify_tutor_response` required every solving step in
+  a response to share one symbol name or threw away chain verification
+  for the whole reply -- a real limitation once a single Physical
+  Sciences reply solves for more than one quantity. Fixed by grouping
+  solving steps by symbol name and verifying each group independently.
+
+See `docs/REBUILD_SPEC.md` Section 1's MathGuard gap list (now 14-17)
+for the full technical description of each fix.
+
+**Verification:** every fix reproduced and verified individually and in
+combination in a sandbox against the exact live-captured reply before
+being applied to the real files; the full existing gap 1-13 regression
+suite re-run with zero regressions; 9 new unit tests added to
+`test_math_validator.py` (one, in `test_gap15_approx_is_treated_as_equality_for_verification`,
+deliberately scoped to a clean two-term `\approx` case -- a block with
+an earlier, different relation already in it, e.g. a three-term chain,
+remains a known, separate, pre-existing limitation of the single-split
+parser, not something this fix claims to cover) and 3 new integration
+tests added to `test_math_guard.py`, including one that replays the
+exact live-captured reply end-to-end and asserts full verification with
+no false warnings.
+
+**Not done yet:**
+- Siya still needs to re-run `pytest -v` and the same live
+  `/tutor/message` smoke test on the real Windows/Python 3.12 venv to
+  confirm what the sandbox already shows (all green, far fewer and
+  only-honest warnings on the same Physical Sciences reply).
+- `THUTOra_Project_Report.md`'s "Brand & scope reconciliation" note
+  about MathGuard being untested against real Physics content should
+  be updated to reflect that it's now been tested, with these specific
+  findings.
+- Chemistry strand, Life Sciences, Accounting: still fully out of
+  scope, per ADR-013.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

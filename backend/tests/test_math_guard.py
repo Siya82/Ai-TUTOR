@@ -85,3 +85,61 @@ def test_gap13_checkmark_in_real_live_captured_response_is_fully_verified():
     result = verify_tutor_response(text)
     assert result.verified is True
     assert result.warnings == []
+
+
+def test_physical_sciences_live_captured_response_now_fully_verified():
+    # The exact reply text captured from the first live /tutor/message
+    # smoke test against Physical Sciences (13 Nov 2026), before gaps
+    # 14-17 were fixed: this used to come back verified=False, flagged
+    # by two false "does not follow from the previous one" errors on
+    # pedagogically-correct, properly-rounded steps (gap 17), after
+    # most of its lines failed to parse at all because of inline units
+    # (gap 14) -- see BUILD_LOG.md's 13 Nov 2026 entry for the full
+    # investigation. Now verified=True; the handful of remaining
+    # warnings are genuinely unverifiable content (prose restating a
+    # given value, general vector/kinematics identities, and one
+    # three-term "d = ... \approx ... check" chain the single-split
+    # parser was never designed to handle) -- an honest limitation, not
+    # a bug.
+    text = (
+        "$$\\vec{d} = 50 \\text{ m at } 30°\\text{ above horizontal}$$\n"
+        "$$d_x = d\\cos\\theta$$\n"
+        "$$d_x = 50 \\times \\cos30°$$\n"
+        "$$d_x = 50 \\times 0.866$$\n"
+        "$$d_x = 43.3 \\text{ m}$$\n"
+        "$$d_y = d\\sin\\theta$$\n"
+        "$$d_y = 50 \\times \\sin30°$$\n"
+        "$$d_y = 50 \\times 0.5$$\n"
+        "$$d_y = 25 \\text{ m}$$\n"
+        "$$d = \\sqrt{d_x^2 + d_y^2}$$\n"
+        "$$d = \\sqrt{(43.3)^2 + (25)^2}$$\n"
+        "$$d = \\sqrt{1874.9 + 625}$$\n"
+        "$$d = \\sqrt{2499.9} \\approx 50 \\text{ m} ✓$$\n"
+        "$$v_f = v_i + at$$\n"
+        "$$v_f = 0 + (2)(5)$$\n"
+        "$$v_f = 10 \\text{ m/s}$$\n"
+    )
+    result = verify_tutor_response(text)
+    assert result.verified is True
+    assert not any("does not follow" in w or "does not hold" in w for w in result.warnings)
+
+
+def test_solving_for_two_different_quantities_in_one_response_both_get_checked():
+    """Regression test for the 13 Nov 2026 per-symbol-grouping fix: a
+    response that correctly solves for TWO different quantities (not
+    just leaves extra content unverified, but actually gets each one
+    right) must verify both chains, not throw both away just because
+    more than one symbol appears across the whole response."""
+    text = "$$d_x = 10$$\n$$d_x = 10$$\n$$v_f = 5$$\n$$v_f = 5$$"
+    result = verify_tutor_response(text)
+    assert result.verified is True
+    assert not any("Multiple different variables" in w for w in result.warnings)
+
+
+def test_solving_for_two_different_quantities_a_wrong_one_is_still_caught():
+    # Same shape as above, but the d_x chain is wrong -- must still be
+    # flagged, even though v_f's chain (a different symbol) is fine.
+    text = "$$d_x = 10$$\n$$d_x = 99$$\n$$v_f = 5$$\n$$v_f = 5$$"
+    result = verify_tutor_response(text)
+    assert result.verified is False
+    assert any("does not follow from the previous one" in w for w in result.warnings)
