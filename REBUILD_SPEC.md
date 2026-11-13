@@ -493,3 +493,19 @@ also not recovered.
     literal "Technology" subject were both deferred rather than added
     alongside it. Not yet live-tested against a real Claude call --
     handed to Siya, same as the original MathGuard gaps were found.
+11. ~~Add Grade 11 Pure Mathematics (deepen the one subject MathGuard
+    fully protects, rather than widen again) once Physical Sciences was
+    live-tested and Siya chose this direction over another subject~~ --
+    **DONE 13 Nov 2026.** 11 CAPS Grade 11 topics, each mapping 1:1 to
+    its Grade 10 counterpart; introduces cross-grade prerequisite
+    linking (`seed_dev_data.py`'s topic tuples can now reference an
+    earlier-seeded subject/grade, not just a topic within the same
+    subject) so ADR-011's root-cause diagnosis works across grades, not
+    just within one. Two new MathGuard parsing gaps (18: nth-root
+    surds, 19: a compound-inequality crash) found and fixed
+    PROACTIVELY, from CAPS research alone, before any seed data was
+    even written -- the first time this project's "find it before a
+    live reply" discipline was applied a step earlier than usual. See
+    `docs/ADR-014-grade11-expansion.md`. Not yet live-tested against a
+    real Claude call, or run against a real Postgres instance at all --
+    handed to Siya, same handoff as every previous content expansion.

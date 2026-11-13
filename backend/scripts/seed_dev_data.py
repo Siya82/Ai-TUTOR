@@ -116,6 +116,80 @@ _MATHS_QUESTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# --- Pure Mathematics, Grade 11 (added 13 Nov 2026, ADR-014) ---
+# Topic names/order follow the DBE CAPS FET Mathematics Grades 10-12 document,
+# Section 3.2 (Grade 11 Annual Teaching Plan). Every Grade 11 topic maps 1:1
+# by name to its Grade 10 counterpart -- the cleanest possible cross-grade
+# chain (unlike Physical Sciences' cross-subject mapping). Within-grade
+# prerequisites follow CAPS' own teaching order; a prerequisite entry can
+# ALSO be a (subject_name, grade, topic_name) tuple instead of a plain
+# string, meaning "this topic's foundation is actually in an earlier grade,
+# not within this grade" -- see ADR-014 for why only the topics with no
+# natural within-grade predecessor get one (Topic.prerequisite_id is a
+# single self-referential FK, not a DAG with multiple parents, so each
+# topic gets exactly one chain to walk, same as every subject before this).
+
+_MATHS_GRADE11_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Exponents and Surds", ("Pure Mathematics", 10, "Exponents")),
+    ("Equations and Inequalities", "Exponents and Surds"),
+    ("Number Patterns", "Equations and Inequalities"),
+    ("Functions", "Equations and Inequalities"),
+    ("Analytical Geometry", "Functions"),
+    ("Trigonometry", "Equations and Inequalities"),
+    ("Euclidean Geometry", ("Pure Mathematics", 10, "Euclidean Geometry")),
+    ("Measurement", "Euclidean Geometry"),
+    ("Finance, Growth and Decay", "Exponents and Surds"),
+    ("Probability", ("Pure Mathematics", 10, "Probability")),
+    ("Statistics", "Number Patterns"),
+]
+
+_MATHS_GRADE11_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Exponents and Surds": [
+        ("Simplify: sqrt(12) + sqrt(27)", "5*sqrt(3)"),
+        ("Simplify: the cube root of 8 times the cube root of 27", "6"),
+    ],
+    "Equations and Inequalities": [
+        ("Solve for x: x^2 - 5x + 6 = 0", "x = 2 or x = 3"),
+        ("Solve for x: x^2 - x - 6 > 0", "x < -2 or x > 3"),
+    ],
+    "Number Patterns": [
+        ("Find the next term: 1, 4, 9, 16, ...", "25"),
+        ("Determine the general term for the quadratic sequence 3, 7, 13, 21, ...", "T_n = n^2 + n + 1"),
+    ],
+    "Functions": [
+        ("Determine the x-intercepts of f(x) = x^2 - x - 6", "x = -2 or x = 3"),
+        ("Describe the effect on the graph of f(x) = a*x^2 when a < 0", "The graph is reflected about the x-axis (opens downward)"),
+    ],
+    "Analytical Geometry": [
+        ("Determine the equation of the line parallel to y = 2x + 1 passing through (3, 4)", "y = 2x - 2"),
+        ("Determine whether the lines y = 2x + 1 and y = -0.5x + 3 are perpendicular", "Yes, since 2 * -0.5 = -1"),
+    ],
+    "Trigonometry": [
+        ("Simplify: sin(180 - theta)", "sin(theta)"),
+        ("Solve for theta, general solution: sin(theta) = 0.5", "theta = 30 + k*360 or theta = 150 + k*360, k an integer"),
+    ],
+    "Euclidean Geometry": [
+        ("State the theorem relating the angle at the centre of a circle to the angle at the circumference subtended by the same arc", "The angle at the centre is twice the angle at the circumference"),
+        ("AB is a diameter of a circle and C is a point on the circle. Find angle ACB", "90 degrees (angle in a semi-circle)"),
+    ],
+    "Measurement": [
+        ("Calculate the surface area of a sphere with radius 3 cm (use pi = 3.14)", "approximately 113.04 cm^2"),
+        ("Calculate the volume of a cone with radius 4 cm and height 9 cm (use pi = 3.14)", "approximately 150.72 cm^3"),
+    ],
+    "Finance, Growth and Decay": [
+        ("Calculate the value of R5000 invested at 6% p.a. compound interest after 3 years", "R5955.08"),
+        ("A car valued at R200 000 depreciates at 15% p.a. on the reducing-balance method. Find its value after 2 years", "R144 500"),
+    ],
+    "Probability": [
+        ("A bag contains 4 red and 6 blue balls. Two balls are drawn without replacement. Find P(both red)", "(4/10)*(3/9) = 2/15"),
+        ("For independent events A and B, P(A) = 0.4 and P(B) = 0.5. Find P(A and B)", "0.2"),
+    ],
+    "Statistics": [
+        ("Calculate the variance of the data set 2, 4, 4, 4, 5, 5, 7, 9", "4"),
+        ("Determine the five-number summary of 3, 7, 8, 12, 13, 14, 18, 21", "min=3, Q1=7.5, median=12.5, Q3=16, max=21"),
+    ],
+}
+
 # --- Physical Sciences, Grade 10 -- Physics strand only (see module docstring) ---
 # Topic names/grouping follow the DBE CAPS Grade 10 Physical Sciences document
 # (sources: za.pearson.com Grade 10 Physical Sciences navigation pack;
@@ -193,7 +267,18 @@ SUBJECTS: list[dict] = [
         "topics": _PHYSICAL_SCIENCES_TOPICS,
         "questions": _PHYSICAL_SCIENCES_QUESTIONS,
     },
+    {
+        "name": "Pure Mathematics",
+        "grade": 11,
+        "topics": _MATHS_GRADE11_TOPICS,
+        "questions": _MATHS_GRADE11_QUESTIONS,
+    },
 ]
+
+# SUBJECTS order matters as of ADR-014: a topic's prerequisite can now
+# reference an EARLIER subject in this list via a (subject_name, grade,
+# topic_name) tuple (see _MATHS_GRADE11_TOPICS above) -- Grade 10 Pure
+# Mathematics must therefore stay seeded before Grade 11 Pure Mathematics.
 
 
 async def get_or_create_subject(session, name: str, grade: int) -> Subject:
@@ -273,15 +358,34 @@ async def get_or_create_dev_learner(session) -> Learner:
     return learner
 
 
-def _validate_subject_data(subject_spec: dict) -> None:
-    """Fails fast on a typo'd prerequisite name or a question-dict key that
-    doesn't match a real topic name, instead of half-seeding the database."""
-    topics: list[tuple[str, str | None]] = subject_spec["topics"]
+def _validate_subject_data(subject_spec: dict, known_subjects: set[tuple[str, int]]) -> None:
+    """Fails fast on a typo'd prerequisite name/reference or a question-dict
+    key that doesn't match a real topic name, instead of half-seeding the
+    database.
+
+    FIX 13 Nov 2026 (ADR-014, cross-grade prerequisites): a prerequisite can
+    now be a (subject_name, grade, topic_name) tuple instead of a plain
+    string, meaning "this topic's foundation is in an earlier-seeded
+    subject/grade". `known_subjects` is every (name, grade) pair already
+    present in SUBJECTS *before* this one -- a cross-reference to a subject
+    that isn't in that set (wrong grade, typo'd name, or a subject that
+    hasn't been seeded yet because it comes LATER in SUBJECTS) fails fast
+    here rather than as a confusing lookup error mid-seed."""
+    topics: list[tuple[str, "str | tuple[str, int, str] | None"]] = subject_spec["topics"]
     questions: dict[str, list[tuple[str, str]]] = subject_spec["questions"]
     names = {name for name, _ in topics}
     seen: set[str] = set()
     for name, prereq in topics:
-        if prereq is not None and prereq not in seen:
+        if isinstance(prereq, tuple):
+            ref_subject, ref_grade, ref_topic = prereq
+            if (ref_subject, ref_grade) not in known_subjects:
+                raise ValueError(
+                    f"[{subject_spec['name']}] Topic {name!r} names a cross-subject prerequisite "
+                    f"{prereq!r}, but ({ref_subject!r}, grade {ref_grade}) isn't an earlier subject "
+                    f"in SUBJECTS -- either it's a typo, or that subject needs to come BEFORE "
+                    f"{subject_spec['name']!r} (grade {subject_spec['grade']}) in the SUBJECTS list."
+                )
+        elif prereq is not None and prereq not in seen:
             raise ValueError(
                 f"[{subject_spec['name']}] Topic {name!r} names prerequisite {prereq!r}, which "
                 f"either doesn't exist or comes LATER in the topics list -- fix the ordering."
@@ -294,12 +398,25 @@ def _validate_subject_data(subject_spec: dict) -> None:
         )
 
 
-async def _seed_subject(session, subject_spec: dict) -> tuple[Subject, dict[str, Topic], int, int]:
+async def _seed_subject(
+    session, subject_spec: dict, all_seeded_topics: dict[tuple[str, int], dict[str, Topic]]
+) -> tuple[Subject, dict[str, Topic], int, int]:
+    """FIX 13 Nov 2026 (ADR-014, cross-grade prerequisites): `all_seeded_topics`
+    is a running registry of every Topic seeded so far, keyed by
+    (subject_name, grade) -> {topic_name: Topic} -- it's how a Grade 11
+    topic resolves a prerequisite that lives back in Grade 10. Only ever
+    READ here for a cross-reference, and written to once (by main(), after
+    this subject's own topics_by_name is complete) so later subjects can
+    reference THIS one in turn."""
     subject = await get_or_create_subject(session, subject_spec["name"], subject_spec["grade"])
 
     topics_by_name: dict[str, Topic] = {}
-    for name, prereq_name in subject_spec["topics"]:
-        prerequisite_id = topics_by_name[prereq_name].id if prereq_name else None
+    for name, prereq in subject_spec["topics"]:
+        if isinstance(prereq, tuple):
+            ref_subject, ref_grade, ref_topic = prereq
+            prerequisite_id = all_seeded_topics[(ref_subject, ref_grade)][ref_topic].id
+        else:
+            prerequisite_id = topics_by_name[prereq].id if prereq else None
         topics_by_name[name] = await get_or_create_topic(session, name, subject.id, prerequisite_id)
 
     questions_created = 0
@@ -312,13 +429,24 @@ async def _seed_subject(session, subject_spec: dict) -> tuple[Subject, dict[str,
 
 
 async def main() -> None:
+    # FIX 13 Nov 2026 (ADR-014, cross-grade prerequisites): validation now
+    # needs to know which (subject_name, grade) pairs are seeded BEFORE
+    # each subject_spec, so a cross-grade reference can be checked against
+    # subjects that actually come earlier in SUBJECTS -- accumulated
+    # progressively in the same order SUBJECTS (and seeding) will use.
+    known_subjects: set[tuple[str, int]] = set()
     for subject_spec in SUBJECTS:
-        _validate_subject_data(subject_spec)
+        _validate_subject_data(subject_spec, known_subjects)
+        known_subjects.add((subject_spec["name"], subject_spec["grade"]))
 
     async with async_session_factory() as session:
         results = []
+        all_seeded_topics: dict[tuple[str, int], dict[str, Topic]] = {}
         for subject_spec in SUBJECTS:
-            results.append(await _seed_subject(session, subject_spec))
+            result = await _seed_subject(session, subject_spec, all_seeded_topics)
+            results.append(result)
+            subject, topics_by_name, _, _ = result
+            all_seeded_topics[(subject.name, subject.grade)] = topics_by_name
 
         learner = await get_or_create_dev_learner(session)
 
@@ -332,20 +460,23 @@ async def main() -> None:
                   f"{chunks_created} new content chunk(s) this run):")
             for name, topic in topics_by_name.items():
                 prereq = next((p for n, p in subject_spec["topics"] if n == name), None)
-                print(f"    - {name}  (id={topic.id}, prerequisite={prereq or 'none -- root topic'})")
+                if isinstance(prereq, tuple):
+                    prereq_label = f"{prereq[2]} ({prereq[0]}, grade {prereq[1]})"
+                else:
+                    prereq_label = prereq or "none -- root topic"
+                print(f"    - {name}  (id={topic.id}, prerequisite={prereq_label})")
             print()
 
         print(f"Dev learner: {learner.display_name} -- id {learner.id}")
         print()
-        maths_topics = results[0][1]
-        print("Use these two ids for a live POST /tutor/message smoke test (Mathematics), e.g.:")
+        print("Use these ids for a live POST /tutor/message smoke test, e.g.:")
         print(f'  learner_id = "{learner.id}"')
-        print(f'  topic_id   = "{maths_topics["Equations and Inequalities"].id}"   # or any Maths topic above')
-        if len(results) > 1:
-            ps_topics = results[1][1]
-            print()
-            print("...or for Physical Sciences, e.g.:")
-            print(f'  topic_id   = "{ps_topics["Motion in One Dimension"].id}"   # or any Physical Sciences topic above')
+        for subject, topics_by_name, _, _ in results:
+            example_name, example_topic = next(iter(topics_by_name.items()))
+            print(
+                f'  topic_id   = "{example_topic.id}"   '
+                f'# {subject.name} (grade {subject.grade}), topic "{example_name}" -- or any other topic above'
+            )
 
 
 if __name__ == "__main__":

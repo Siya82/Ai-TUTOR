@@ -1405,6 +1405,65 @@ touched file and checked).
   Grade 11 is built and live-tested, same "one slice at a time"
   discipline as Physical Sciences.
 
+## 2026-11-13 -- Grade 11 Pure Mathematics added, with cross-grade prerequisite linking
+
+**Goal:** per Siya's choice to deepen the proven, MathGuard-protected
+subject (Grade 11 Pure Maths) rather than widen to another subject
+MathGuard can't fully verify, add Grade 11 as a new `Subject` row (same
+schema, no migration -- `UniqueConstraint("name", "grade")` already
+supports a second grade of the same subject name).
+
+**Content:** 11 Grade 11 topics sourced from the DBE CAPS FET
+Mathematics Grades 10-12 document (Section 3.2, Grade 11 Annual
+Teaching Plan), 22 new diagnostic questions. Every Grade 11 topic maps
+1:1 by name to its Grade 10 counterpart.
+
+**New design decision -- cross-grade prerequisites:** `Topic
+.prerequisite_id` is a single self-referential FK (one parent, not a
+DAG). Rather than chain Grade 11 within-grade only (simple, but throws
+away cross-grade root-cause diagnosis for every topic but the first),
+each Grade 11 topic now uses CAPS' own within-grade teaching order
+where one exists, and a DIRECT prerequisite link back to its Grade 10
+counterpart for the three topics that have no natural within-grade
+predecessor (Exponents and Surds, Euclidean Geometry, Probability) --
+every other Grade 11 topic still reaches Grade 10 by walking its own
+chain back to one of those three anchors. `seed_dev_data.py`'s topic
+tuples now accept either a same-subject string (as before) or a
+`(subject_name, grade, topic_name)` cross-reference; `_seed_subject`
+and `main()` thread a running cross-subject topic registry through the
+seeding loop, which makes `SUBJECTS` list order load-bearing for the
+first time (Grade 10 Maths must seed before Grade 11 references it) --
+`_validate_subject_data` checks this and fails fast on a wrong-order or
+typo'd reference. `diagnosis.py` itself needed no changes -- it already
+walks `prerequisite_id` with no assumption a prerequisite shares its
+topic's subject or grade. Full reasoning in
+`docs/ADR-014-grade11-expansion.md`.
+
+**2 parsing gaps found proactively, before any live test** (see this
+morning's separate "Fix 2 MathGuard gaps found proactively while
+scoping Grade 11 Pure Maths" entry/commit, done BEFORE this content was
+written): gap 18 (`\sqrt[n]{}` nth-root surds) and gap 19 (a compound/
+union inequality answer crashing verification outright). Both fixed and
+regression-tested first.
+
+**Verification:** `_validate_subject_data` exercised directly (pure
+Python, no DB) against the real `SUBJECTS` list -- all 3 subjects
+validate cleanly, Grade 11's cross-grade references resolve correctly.
+The async DB-writing path (`_seed_subject`/`main()`) mirrors the exact
+structure already proven for Physical Sciences, with the registry
+threading reviewed carefully rather than independently DB-tested here
+(no Postgres in this sandbox) -- same "I seed/pytest/live-test, Siya
+confirms" handoff as every previous content expansion.
+
+**Not done yet:**
+- Siya needs to run the seed script, pytest, and a live `/tutor/message`
+  smoke test against a Grade 11 topic -- same discipline as Physical
+  Sciences, expecting this round to surface fewer new gaps than that
+  one did, since both notational risks were already caught proactively.
+- Grade 12 Pure Mathematics: next, after Grade 11 is live-tested.
+- `THUTOra_Project_Report.md` not yet updated for this -- due once
+  Grade 11 is confirmed working end-to-end.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
