@@ -19,6 +19,7 @@ from app.routers import dashboard as dashboard_router
 from app.routers import topics as topics_router
 from app.routers import learners as learners_router
 from app.routers import subjects as subjects_router  # NEW 12 Nov 2026, multi-subject support (ADR-013)
+from app.routers import attachments as attachments_router  # NEW 13 Nov 2026, student file attachments (ADR-016)
 
 app = FastAPI(
     title="AI CAPS Tutor — Pilot API",
@@ -38,6 +39,7 @@ app.include_router(tutor_router.router, prefix="/tutor", tags=["tutor"])
 app.include_router(topics_router.router, tags=["topics"])  # NEW 8 Nov 2026, step 7
 app.include_router(learners_router.router, tags=["learners"])  # NEW 8 Nov 2026, step 7
 app.include_router(subjects_router.router, tags=["subjects"])  # NEW 12 Nov 2026, multi-subject support (ADR-013)
+app.include_router(attachments_router.router, tags=["attachments"])  # NEW 13 Nov 2026, student file attachments (ADR-016)
 
 
 @app.get("/health")

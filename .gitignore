@@ -18,6 +18,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# Student-uploaded attachments (ADR-016) -- runtime data, not source
+backend/uploads/
+
 # This repo's own recovery zip (extracted already, no need to version the archive itself)
 THUTOra_Recovery_Package.zip
 

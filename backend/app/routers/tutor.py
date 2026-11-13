@@ -21,8 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.models import Attempt, Learner, Question, Topic, TutorMessage, TutorSession
+from app.models import Attachment, Attempt, Learner, Question, Topic, TutorMessage, TutorSession
 from app.schemas.tutor import TutorMessageRequest, TutorMessageResponse
+from app.services.attachments import build_attachment_content_blocks, history_summary_for
 from app.services.math_guard import verify_tutor_response
 from app.services.tutor import TutorClient
 from app.services.tutor_orchestration import prepare_tutor_turn
@@ -104,6 +105,36 @@ async def _get_or_create_session(
     return session
 
 
+async def _fetch_owned_attachments(
+    db: AsyncSession, learner_id: uuid.UUID, attachment_ids: list[uuid.UUID]
+) -> list[Attachment]:
+    """
+    Loads the attachments a student referenced on this turn, filtered by
+    learner_id as a basic sanity check (NOT a real permission boundary --
+    no auth exists yet, step 8, REBUILD_SPEC.md Section 2). Returned in
+    the same order as attachment_ids so build_attachment_content_blocks
+    presents them to Claude in the order the student attached them.
+    """
+    if not attachment_ids:
+        return []
+    stmt = select(Attachment).where(
+        Attachment.id.in_(attachment_ids), Attachment.learner_id == learner_id
+    )
+    result = await db.execute(stmt)
+    by_id = {a.id: a for a in result.scalars().all()}
+    return [by_id[aid] for aid in attachment_ids if aid in by_id]
+
+
+def _attachment_to_dict(attachment: Attachment) -> dict:
+    return {
+        "kind": attachment.kind,
+        "storage_path": attachment.storage_path,
+        "original_filename": attachment.original_filename,
+        "extracted_text": attachment.extracted_text,
+        "extraction_warning": attachment.extraction_warning,
+    }
+
+
 @router.post("/message", response_model=TutorMessageResponse)
 async def send_tutor_message(
     payload: TutorMessageRequest,
@@ -118,6 +149,12 @@ async def send_tutor_message(
     )
     if requested_topic is None:
         raise HTTPException(status_code=404, detail="Topic not found")
+
+    # NEW 13 Nov 2026 (ADR-016, student file attachments). Loaded before
+    # the prerequisite/diagnosis work below so a bad attachment_ids entry
+    # fails fast, before any other work on this turn.
+    attachments = await _fetch_owned_attachments(db, learner.id, payload.attachment_ids)
+    attachment_dicts = [_attachment_to_dict(a) for a in attachments]
 
     prerequisite_chain = await _resolve_prerequisite_chain(db, requested_topic)
     attempts_by_topic = await _fetch_scored_attempts_by_topic(
@@ -137,9 +174,29 @@ async def send_tutor_message(
     history = history_result.scalars().all()
 
     claude_messages = [{"role": m.role, "content": m.content} for m in history]
-    claude_messages.append({"role": "user", "content": payload.message})
 
-    db.add(TutorMessage(session_id=session.id, role="user", content=payload.message))
+    # NEW 13 Nov 2026 (ADR-016): when the student attached files, Claude
+    # gets the rich multimodal content (image vision blocks and/or
+    # extracted PDF/docx text) for THIS turn only -- see
+    # build_attachment_content_blocks. What gets PERSISTED below is a
+    # plain-text summary instead (history_summary_for), so replaying this
+    # turn in a later turn's history doesn't re-spend tokens resending an
+    # image that was already answered.
+    if attachment_dicts:
+        user_content = build_attachment_content_blocks(attachment_dicts)
+        user_content.append({"type": "text", "text": payload.message})
+    else:
+        user_content = payload.message
+    claude_messages.append({"role": "user", "content": user_content})
+
+    persisted_content = history_summary_for(attachment_dicts, payload.message)
+    user_message = TutorMessage(session_id=session.id, role="user", content=persisted_content)
+    db.add(user_message)
+    await db.flush()  # need user_message.id to backfill the attachments below
+
+    for attachment in attachments:
+        attachment.session_id = session.id
+        attachment.message_id = user_message.id
 
     reply_text = await _tutor_client.ask(prep.system_prompt, claude_messages)
 

@@ -14,10 +14,19 @@
  * graphics around it. Audio gained proper pause/resume (not just
  * stop), specifically so a learner who'd rather read can pause
  * without losing their place. See BUILD_LOG.md.
+ *
+ * UPDATED 13 Nov 2026 (ADR-016, student file attachments): a student
+ * can now attach a photo, PDF, or Word document to a question -- via
+ * the paperclip button, drag-and-drop onto the composer, or (images
+ * only -- a browser paste event only ever carries a real file for an
+ * image, never a PDF/docx) pasting straight into the text box. Each
+ * file uploads immediately via POST /attachments so its preview chip
+ * (and any extraction_warning, e.g. a scanned PDF with no text layer)
+ * shows before the student actually sends their question.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { fetchLearners, fetchSubjects, fetchTopics, sendTutorMessage } from "../api";
+import { fetchLearners, fetchSubjects, fetchTopics, sendTutorMessage, uploadAttachment } from "../api";
 import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking } from "../utils/tts";
 import ModalitySwitcher from "./ModalitySwitcher";
 import SubjectPicker from "./SubjectPicker";
@@ -41,6 +50,11 @@ function subjectNameById(subjects, id) {
 // learner who wants to read instead of listen pauses, rather than
 // losing their place and having to replay from the start.
 const PLAYBACK = { IDLE: "idle", PLAYING: "playing", PAUSED: "paused" };
+
+// NEW 13 Nov 2026 (ADR-016). Mirrors the accept list the attach button
+// and drop zone both use -- kept in one place rather than repeated.
+const ACCEPTED_ATTACHMENT_TYPES =
+  "image/png,image/jpeg,image/jpg,image/webp,image/gif,application/pdf,.docx";
 
 function AssistantMessage({ message, topics }) {
   const { reply, modality, mathVerified, verificationWarnings, redirected, reasoningTrace, topicId, requestedTopicId } = message;
@@ -74,7 +88,7 @@ function AssistantMessage({ message, topics }) {
 
   const playbackLabel = {
     [PLAYBACK.PLAYING]: "⏸ Pause",
-    [PLAYBACK.PAUSED]: "▶ Resume",
+    [PLAXBACK.PAUSED]: "▶ Resume",
     [PLAYBACK.IDLE]: "🔊 Read aloud",
   }[playback];
 
@@ -112,6 +126,35 @@ function AssistantMessage({ message, topics }) {
   );
 }
 
+// NEW 13 Nov 2026 (ADR-016). Small badge text per attachment kind, used
+// both in the pending-attachment chips and on a sent user message.
+const ATTACHMENT_KIND_LABEL = { image: "Image", pdf: "PDF", docx: "Word" };
+
+function AttachmentChip({ attachment, onRemove }) {
+  const { original_filename, kind, uploading, error, extraction_warning } = attachment;
+  return (
+    <div
+      className={
+        "attachment-chip" +
+        (error ? " attachment-chip--error" : "") +
+        (extraction_warning ? " attachment-chip--warning" : "")
+      }
+    >
+      <span className="attachment-chip__name">
+        {uploading ? "Uploading…" : ATTACHMENT_KIND_LABEL[kind] ? `${ATTACHMENT_KIND_LABEL[kind]}: ` : ""}
+        {original_filename}
+      </span>
+      {error && <span className="attachment-chip__detail">{error}</span>}
+      {extraction_warning && !error && <span className="attachment-chip__detail">{extraction_warning}</span>}
+      {onRemove && (
+        <button type="button" className="attachment-chip__remove" onClick={onRemove} aria-label={`Remove ${original_filename}`}>
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function ChatScreen() {
   const [learners, setLearners] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -126,8 +169,16 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [sendError, setSendError] = useState(null);
+  // NEW 13 Nov 2026 (ADR-016): files attached to the question currently
+  // being composed -- each entry starts as { tempId, original_filename,
+  // uploading: true } and is filled in with the backend's { id, kind,
+  // extraction_warning } once POST /attachments returns, or { error }
+  // if the upload failed.
+  const [pendingAttachments, setPendingAttachments] = useState([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const transcriptRef = useRef(null);
   const draftInputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -205,18 +256,106 @@ export default function ChatScreen() {
     });
   };
 
-  const handleSend = async (e) => {
+  // NEW 13 Nov 2026 (ADR-016). Shared by the paperclip button's file
+  // input, drag-and-drop onto the composer, and clipboard image paste.
+  // Uploads each file immediately so its chip (and extraction_warning)
+  // shows before the student sends their question -- the ADR's
+  // "upload happens before the message" persistence model.
+  const handleFilesSelected = (fileList) => {
+    const files = Array.from(fileList || []);
+    if (files.length === 0 || !learnerId) return;
+
+    files.forEach((file) => {
+      const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setPendingAttachments((prev) => [
+        ...prev,
+        { tempId, original_filename: file.name, uploading: true },
+      ]);
+
+      uploadAttachment(file, learnerId)
+        .then((result) => {
+          setPendingAttachments((prev) =>
+            prev.map((a) => (a.tempId === tempId ? { ...a, ...result, uploading: false } : a))
+          );
+        })
+        .catch((err) => {
+          setPendingAttachments((prev) =>
+            prev.map((a) => (a.tempId === tempId ? { ...a, uploading: false, error: err.message } : a))
+          );
+        });
+    });
+  };
+
+  const removePendingAttachment = (tempId) => {
+    setPendingAttachments((prev) => prev.filter((a) => a.tempId !== tempId));
+  };
+
+  const handleAttachButtonClick = () => fileInputRef.current?.click();
+
+  const handleFileInputChange = (e) => {
+    handleFilesSelected(e.target.files);
+    e.target.value = ""; // allow re-selecting the same file name later
+  };
+
+  const handleComposerDragOver = (e) => {
     e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleComposerDragLeave = () => setIsDragOver(false);
+
+  const handleComposerDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    handleFilesSelected(e.dataTransfer.files);
+  };
+
+  // A browser only ever puts a real file on a paste event for an image
+  // -- a PDF or .docx can't be pasted from the OS clipboard this way,
+  // it always needs the file picker or drag-and-drop above (ADR-016).
+  // Ordinary text paste is untouched: this only fires handleFilesSelected
+  // when the clipboard actually carried a file.
+  const handleDraftPaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files = [];
+    for (const item of items) {
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      handleFilesSelected(files);
+    }
+  };
+
+  const attachmentsUploading = pendingAttachments.some((a) => a.uploading);
+  const readyAttachments = pendingAttachments.filter((a) => a.id && !a.error);
+
+  const handleSend = async (e) => {
+    e.preventDefalt();
     const text = draft.trim();
-    if (!text || !learnerId || !topicId || sending) return;
+    if ((!text && readyAttachments.length === 0) || !learnerId || !topicId || sending || attachmentsUploading) {
+      return;
+    }
 
     setSending(true);
     setSendError(null);
-    setMessages((prev) => [...prev, { role: "user", text }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        text,
+        attachments: readyAttachments.map((a) => ({ original_filename: a.original_filename, kind: a.kind })),
+      },
+    ]);
     setDraft("");
+    const attachmentIds = readyAttachments.map((a) => a.id);
+    setPendingAttachments([]);
 
     try {
-      const response = await sendTutorMessage({ message: text, sessionId, learnerId, topicId });
+      const response = await sendTutorMessage({ message: text, sessionId, learnerId, topicId, attachmentIds });
       setSessionId(response.session_id);
       setMessages((prev) => [
         ...prev,
@@ -269,7 +408,16 @@ export default function ChatScreen() {
         )}
         {messages.map((m, i) =>
           m.role === "user" ? (
-            <div key={i} className="chat-message chat-message--user">{m.text}</div>
+            <div key={i} className="chat-message chat-message--user">
+              {m.attachments && m.attachments.length > 0 && (
+                <div className="attachment-chip-row attachment-chip-row--sent">
+                  {m.attachments.map((a, j) => (
+                    <AttachmentChip key={j} attachment={a} />
+                  ))}
+                </div>
+              )}
+              {m.text}
+            </div>
           ) : (
             <AssistantMessage key={i} message={m} topics={topics} />
           )
@@ -284,20 +432,62 @@ export default function ChatScreen() {
         onInsert={insertSymbol}
       />
 
-      <form className="chat-screen__composer" onSubmit={handleSend}>
+      {pendingAttachments.length > 0 && (
+        <div className="attachment-chip-row">
+          {pendingAttachments.map((a) => (
+            <AttachmentChip key={a.tempId} attachment={a} onRemove={() => removePendingAttachment(a.tempId)} />
+          ))}
+        </div>
+      )}
+
+      <form
+        className={"chat-screen__composer" + (isDragOver ? " chat-screen__composer--dragover" : "")}
+        onSubmit={handleSend}
+        onDragOver={handleComposerDragOver}
+        onDragLeave={handleComposerDragLeave}
+        onDrop={handleComposerDrop}
+      >
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="chat-screen__file-input"
+          multiple
+          accept={ACCEPTED_ATTACHMENT_TYPES}
+          onChange={handleFileInputChange}
+        />
+        <button
+          type="button"
+          className="chat-screen__attach-button"
+          onClick={handleAttachButtonClick}
+          disabled={sending || !learnerId}
+          title="Attach a photo, PDF, or Word document"
+          aria-label="Attach a file"
+        >
+          📎
+        </button>
         <input
           ref={draftInputRef}
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          onPaste={handleDraftPaste}
           placeholder={
             subjectNameById(subjects, subjectId)
-              ? `Ask THUTOra a ${subjectNameById(subjects, subjectId)} question…`
+              ? `Ask THUTOra a ${subjectNameById(subjects, subjectId)} question… (or attach/paste a photo of your work)`
               : "Ask THUTOra a question…"
           }
           disabled={sending || !learnerId || !topicId}
         />
-        <button type="submit" disabled={sending || !draft.trim() || !learnerId || !topicId}>
+        <button
+          type="submit"
+          disabled={
+            sending ||
+            attachmentsUploading ||
+            (!draft.trim() && readyAttachments.length === 0) ||
+            !learnerId ||
+            !topicId
+          }
+        >
           Send
         </button>
       </form>

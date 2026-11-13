@@ -16,6 +16,11 @@ class TutorMessageRequest(BaseModel):
     learner_id: UUID
     topic_id: UUID
     message: str = Field(min_length=1)
+    # NEW 13 Nov 2026 (ADR-016): files the student attached via a prior
+    # POST /attachments call, in the order they should be presented to
+    # Claude. Optional and defaults to empty so every existing caller
+    # (and every existing test) keeps working unchanged.
+    attachment_ids: list[UUID] = Field(default_factory=list)
 
 
 class TutorMessageResponse(BaseModel):

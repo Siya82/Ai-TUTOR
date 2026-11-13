@@ -143,11 +143,18 @@ class TutorClient:
 
     async def ask(self, system_prompt: str, messages: list[dict]) -> str:
         """
-        messages: a list of {"role": "user" | "assistant", "content": str}
+        messages: a list of {"role": "user" | "assistant", "content": ...}
         dicts, in order -- NOT including the system prompt. Anthropic's
         API takes the system prompt via the dedicated `system` parameter
         rather than a {"role": "system"} message in `messages`, which it
         does not accept (ADR-010).
+
+        `content` is usually a plain string, but the Anthropic SDK also
+        accepts a list of content blocks (text/image/...) for a single
+        message -- used by app/routers/tutor.py when a student has
+        attached a file to this turn (ADR-016, student file
+        attachments). No change needed here either way: this method
+        just forwards `messages` through unmodified.
         """
         response = await self._client.messages.create(
             model=self._model,

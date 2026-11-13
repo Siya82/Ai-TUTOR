@@ -244,3 +244,33 @@ class Attempt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     learner: Mapped["Learner"] = relationship(back_populates="attempts")
+
+
+class Attachment(Base):
+    """
+    A file a student attached to (or alongside) a tutor message -- an
+    image (sent to Claude as a vision block), a PDF, or a Word document
+    (both text-extracted server-side). See
+    docs/ADR-016-student-file-attachments.md.
+
+    `session_id`/`message_id` start NULL: the upload endpoint
+    (POST /attachments) runs before the student's message is sent, so
+    the attachment exists before any session/message row does. Both get
+    backfilled by POST /tutor/message once it creates the resulting
+    TutorMessage, so a persisted attachment is always traceable back to
+    the learner AND, once sent, the exact session/message it was part of.
+    """
+
+    __tablename__ = "attachments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"))
+    session_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tutor_sessions.id"))
+    message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tutor_messages.id"))
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)  # "image" | "pdf" | "docx"
+    storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    extracted_text: Mapped[str | None] = mapped_column(Text)  # PDF/docx only; null for images
+    extraction_warning: Mapped[str | None] = mapped_column(Text)  # e.g. a scanned PDF with no text layer
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

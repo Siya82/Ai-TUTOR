@@ -1638,6 +1638,96 @@ braced-subscript variable is now caught). Full suite: 53/53 passing.
   MathGuard-focused, not a diagnosis-engine change.
 
 
+## 2026-11-13 -- Student file attachments added (ADR-016): photo/PDF/Word uploads wired into the tutor chat, persisted
+
+**Goal:** a feature request from Siya, arrived at after a multi-turn
+mixup (the initial report -- "I still can't attach screenshot or
+upload files in the question box" -- turned out not to be about this
+chat UI at all). Once clarified ("i want a student to be able to
+paste files"), scoped via three direct answers: all common file
+formats including paste, not just images; do this now, ahead of the
+planned Grade 12 content expansion; and persist attachments, linked to
+the learner/session, rather than treating them as ephemeral.
+
+**Decision record:** `docs/ADR-016-student-file-attachments.md`. Three
+kinds, handled differently: an **image** (PNG/JPEG/WEBP/GIF) goes to
+Claude directly as a vision content block for that turn -- no
+server-side extraction, since OCR would lose handwriting/diagram/
+layout fidelity a photographed worksheet actually needs; a **PDF** is
+text-extracted server-side via `pypdf`; a **Word (.docx)** via
+`python-docx`. A scanned/image-only PDF with no text layer returns an
+explicit `extraction_warning` ("try a photo instead") rather than
+silently sending near-empty content -- same honest-limitation
+discipline as MathGuard's own documented gaps.
+
+**Why paste is image-only, not a shortcut:** a browser's paste event
+only ever carries a real file object for an image pasted from the OS
+clipboard -- a PDF or `.docx` simply cannot arrive that way, with any
+app. PDF/Word go through the file picker or drag-and-drop instead; the
+frontend offers all three paths (paperclip button, drag-and-drop onto
+the composer, image paste into the text box) side by side.
+
+**What was built:**
+- `app/models/__init__.py` -- new `Attachment` table. `session_id`/
+  `message_id` start NULL (the upload endpoint runs *before* the
+  student's message is sent, so neither exists yet) and are backfilled
+  by `POST /tutor/message` once it creates the resulting `TutorMessage`.
+- `migrations/versions/0002_add_attachments.py`.
+- `app/services/attachments.py` (new, pure/DB-free, same convention as
+  `math_validator.py`): `classify_content_type`, `save_upload`
+  (uuid-subfolder-per-upload, so same-named files never collide and a
+  path-traversal attempt in the original filename can't escape its own
+  subfolder -- confirmed with a `../../etc/passwd` test case),
+  `extract_pdf_text`/`extract_docx_text` (each returns
+  `(text, warning)`), `build_attachment_content_blocks` (the rich,
+  per-turn multimodal content sent to Claude), `history_summary_for`
+  (the plain-text summary that gets PERSISTED instead, so replaying
+  history in a later turn never re-spends tokens resending an image
+  that was already answered).
+- `app/routers/attachments.py` -- `POST /attachments/` (multipart
+  `learner_id` + `file`), returns `AttachmentUploadResponse` including
+  any `extraction_warning` so the frontend can show it before the
+  student sends their question.
+- `app/routers/tutor.py` -- `POST /message` now accepts
+  `attachment_ids`, loads them (filtered by `learner_id` -- a sanity
+  check, not a real permission boundary; no auth exists yet, step 8),
+  builds the Claude-bound content via `build_attachment_content_blocks`
+  for this turn only, persists the `history_summary_for` text instead,
+  and backfills `session_id`/`message_id` onto each attachment once the
+  user `TutorMessage` exists.
+- Frontend: `ChatScreen.jsx` gained a paperclip attach button, drag-
+  and-drop onto the composer, and image clipboard paste, each uploading
+  immediately via a new `uploadAttachment()` in `api.js` so a preview
+  chip (with any `extraction_warning`) shows before sending; `api.js`'s
+  `sendTutorMessage` now passes `attachment_ids` through. New CSS in
+  `chat.css` for the attach button, drop-zone highlight, and attachment
+  chips, using the existing THUTOra token variables.
+- `backend/requirements.txt` -- added `pypdf`/`python-docx`.
+  `backend/uploads/` added to `.gitignore` (runtime data, not source).
+
+**Tests added:** `backend/tests/test_attachments.py`, 23 pure unit
+tests covering every function in `app/services/attachments.py`
+(including a path-traversal save_upload case, a scanned-PDF-with-no-
+text-layer warning, and multi-attachment block ordering) against real
+PDF/docx/PNG fixtures built in-memory. Run directly against this
+sandbox's system Python (no DB, no app import needed) -- all 23 pass.
+The full project suite (which does need the real venv's
+`pydantic_settings`/Python 3.12) could not be run in this sandbox's
+Linux VM, same network/environment split as every other live test this
+project hands to Siya -- the existing 53 tests were not touched by this
+change and nothing in this diff should affect them.
+
+**Not done yet:**
+- Live end-to-end test against the real backend (upload a real photo/
+  PDF through the running frontend, confirm Claude actually receives
+  and responds to it) -- handed to Siya, same handoff as every
+  previous feature.
+- Virus/malware scanning of uploads, an upload-directory retention/
+  cleanup job, and multi-file-per-message UI polish are explicitly out
+  of scope for this pass (see ADR-016's Consequences section).
+- Grade 12 content expansion resumes after this, per Siya's explicit
+  priority call.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

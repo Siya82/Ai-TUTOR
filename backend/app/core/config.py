@@ -21,5 +21,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # NEW 13 Nov 2026 (ADR-016, student file attachments). Relative to the
+    # working directory uvicorn is started from (backend/, per
+    # docs/LOCAL_SETUP.md) unless overridden. Git-ignored -- runtime data,
+    # not source.
+    upload_dir: str = "uploads/attachments"
+
 
 settings = Settings()

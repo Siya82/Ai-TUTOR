@@ -591,3 +591,17 @@ also not recovered.
     written. See `docs/ADR-015-grade11-physical-sciences.md`. Not yet
     live-tested or run against a real Postgres instance -- handed to
     Siya, same handoff as every previous content expansion.
+13. **Student file attachments (ADR-016)** -- added 13 Nov 2026, ahead of
+    Grade 12 content expansion per Siya's explicit priority call (made
+    after a feature request arrived at via a multi-turn mixup -- see
+    `docs/BUILD_LOG.md`'s "Student file attachments added" entry for the
+    full story). A student can attach/paste a photo, PDF, or Word
+    document to a question: an image goes to Claude as a vision block;
+    a PDF/docx is text-extracted server-side (`pypdf`/`python-docx`),
+    with an honest `extraction_warning` for a scanned PDF with no text
+    layer rather than silently sending nothing. Persisted (not
+    ephemeral) per Siya's explicit choice -- a new `attachments` table,
+    with `session_id`/`message_id` backfilled once the resulting
+    `TutorMessage` exists. See `docs/ADR-016-student-file-attachments.md`.
+    Not yet live-tested against the real backend -- handed to Siya, same
+    handoff as every previous feature.

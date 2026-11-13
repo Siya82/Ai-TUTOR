@@ -33,7 +33,37 @@ export function fetchLearners() {
   return getJson("/learners/");
 }
 
-export async function sendTutorMessage({ message, sessionId, learnerId, topicId }) {
+/*
+ * NEW 13 Nov 2026 (ADR-016, student file attachments). Uploads a single
+ * file ahead of the message it'll go with -- the upload happens first
+ * so the composer can show a preview (including any extraction_warning,
+ * e.g. a scanned PDF with no text layer) before the student actually
+ * sends their question. Returns the backend's AttachmentUploadResponse:
+ * { id, kind, original_filename, extraction_warning }.
+ */
+export async function uploadAttachment(file, learnerId) {
+  if (!learnerId) {
+    throw new Error("uploadAttachment requires a real learnerId.");
+  }
+
+  const formData = new FormData();
+  formData.append("learner_id", learnerId);
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/attachments/`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || `Upload failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function sendTutorMessage({ message, sessionId, learnerId, topicId, attachmentIds }) {
   if (!learnerId || !topicId) {
     throw new Error("sendTutorMessage requires a real learnerId and topicId (fetch them first).");
   }
@@ -41,6 +71,12 @@ export async function sendTutorMessage({ message, sessionId, learnerId, topicId 
   const payload = { learner_id: learnerId, topic_id: topicId, message };
   if (sessionId) {
     payload.session_id = sessionId;
+  }
+  // NEW 13 Nov 2026 (ADR-016): ids returned by uploadAttachment() for
+  // any files the student attached to this message, in the order they
+  // attached them.
+  if (attachmentIds && attachmentIds.length > 0) {
+    payload.attachment_ids = attachmentIds;
   }
 
   const response = await fetch(`${API_BASE_URL}/tutor/message`, {
