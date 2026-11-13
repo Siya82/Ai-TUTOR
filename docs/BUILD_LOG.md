@@ -1344,6 +1344,67 @@ no false warnings.
 - Chemistry strand, Life Sciences, Accounting: still fully out of
   scope, per ADR-013.
 
+## 2026-11-13 -- Scoping Grade 11 Pure Mathematics: 2 real MathGuard gaps found proactively, before any live test
+
+**Goal:** per Siya's choice (deepen the proven, MathGuard-protected
+subject vertically -- Grade 11/12 Pure Maths -- rather than widen to
+another subject MathGuard can't fully verify). Researched the official
+CAPS Grade 11 Mathematics topic list before writing any seed data:
+every Grade 11 topic maps 1:1 to its Grade 10 counterpart (the cleanest
+possible cross-grade chain, unlike Physical Sciences' cross-subject
+mapping), and most content stays equation-shaped. Two new notational
+patterns stood out as likely gaps before any content was even seeded:
+nth-root surds (Exponents and Surds) and compound/union inequality
+answers (Equations and Inequalities' quadratic inequalities).
+
+**Both confirmed real, in a sandbox, against the real pipeline, before
+writing a single line of Grade 11 seed data:**
+- Gap 18: `\sqrt[3]{8}` (a cube root) normalized to the literal,
+  unparseable `[3]{8}` -- `convert_sqrt` only matches a `\sqrt`
+  immediately followed by `{`, and silently dropped `\sqrt` entirely
+  when it hit `[` instead. Fixed with a dedicated `convert_nth_root`
+  conversion, run before `convert_sqrt`.
+- Gap 19 (a genuine crash, not just lost verification): `x < -2
+  \text{ or } x > 3` -- the natural answer to a factorised quadratic
+  inequality -- raised a raw, uncaught `TypeError` out of
+  `verify_tutor_response` once gap 14 stripped `\text{ or }` down to
+  nothing. sympy's parser doesn't reject a malformed split like
+  `-2  x > 3`; it parses it as its own relational expression, which
+  then crashed when compared against another expression downstream.
+  Fixed at the root (`split_relation` now rejects a split where either
+  side still contains another relational operator) and again with
+  `try`/`except` around every sympy call inside `verify_tutor_response`
+  -- MathGuard sits beside the real tutoring reply and must never be
+  able to take it down over a verification-only failure.
+
+See `docs/REBUILD_SPEC.md` Section 1 (now gaps 18-19) for full detail.
+
+**Verification:** both reproduced and fixed in a sandbox against the
+real files first; full existing gap 1-17 suite (42 tests) re-run with
+zero regressions; 4 new unit tests in `test_math_validator.py`, 2 new
+integration tests in `test_math_guard.py` (one replaying the exact
+crash scenario end-to-end and asserting it no longer raises). Also
+caught and fixed a pre-existing `DeprecationWarning: invalid escape
+sequence` in `math_validator.py`'s own gap-16 docstring (a non-raw
+string containing literal `\cos`/`\sin` text, present since the 13 Nov
+gap-16 fix but never flagged until this pass actually recompiled every
+touched file and checked).
+
+**Not done yet:**
+- No Grade 11 seed data written yet -- this was a proactive
+  parsing-gap pass done BEFORE touching `seed_dev_data.py`, per this
+  project's "fix it before it reaches a live reply" discipline, now
+  applied one step earlier than usual (research-time, not live-test
+  time).
+- Cross-grade prerequisite linking (Grade 11 topic -> its Grade 10
+  foundation) needs its own design decision -- `seed_dev_data.py`'s
+  current per-subject prerequisite resolution only looks within one
+  subject spec's own topic list, so it can't wire a cross-grade link as
+  written today.
+- Grade 12 Pure Mathematics: out of scope for this pass; next after
+  Grade 11 is built and live-tested, same "one slice at a time"
+  discipline as Physical Sciences.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

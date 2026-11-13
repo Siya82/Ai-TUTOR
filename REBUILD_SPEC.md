@@ -106,7 +106,7 @@ two copies — see the recovery note at the top of the recovered
   textbook and four official NSC Physical Sciences Data Sheets.
 
 ### `math_guard.py` + `math_validator.py` — MathGuard
-**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 below, found via the Physical Sciences live-test pass) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
+**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 via the Physical Sciences live-test pass; gaps 18-19 proactively, while scoping Grade 11 Pure Mathematics) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
 
 This is a protected core differentiator (ADR-011) — rebuild carefully and
 re-run the adversarial test suite at every stage, don't assume.
@@ -220,6 +220,38 @@ discipline — see `docs/CAPABILITY-EVIDENCE-LOG.md`):
     symbol name and chain-verifying each group independently, so one
     quantity's steps are checked without being blocked by, or
     cross-contaminating, another's.
+18. (New, found 13 Nov 2026 proactively, while scoping Grade 11's
+    Exponents and Surds topic -- before any live test, this time, since
+    research into what Grade 11 needs flagged it directly.) `\sqrt[n]{}`
+    (an indexed/nth root, e.g. a cube root) was never handled --
+    `convert_sqrt` only matches a `\sqrt` immediately followed by `{`,
+    so when it hit the `[` of an index instead, it silently dropped
+    `\sqrt` without converting anything, leaving `\sqrt[3]{8}` as the
+    literal, unparseable `[3]{8}`. Fixed with a dedicated
+    `convert_nth_root` conversion (`((X))**(1/(n))`) that runs before
+    `convert_sqrt`.
+19. (New, found 13 Nov 2026 alongside gap 18, same Grade 11 scoping
+    pass -- this one IS a real crash, not just a lost warning.) A
+    compound/union inequality answer (e.g. `x < -2 \text{ or } x > 3`,
+    the natural answer shape for Grade 11's quadratic inequalities)
+    collapses to `x < -2  x > 3` once gap 14 strips `\text{ or }`
+    entirely -- two relations with nothing connecting them. The naive
+    first-operator split used to hand `-2  x > 3` to sympy as a single
+    RHS; sympy's parser doesn't reject that, it parses it AS ITS OWN
+    relational expression, which then raised a raw, uncaught
+    `TypeError` the moment downstream code tried to compare that
+    relational object as if it were a plain expression -- a genuine
+    crash risk for the live `/tutor/message` endpoint, not merely lost
+    verification coverage. Fixed at the root in `split_relation` (now
+    rejects a split where either side still contains another
+    relational operator, degrading honestly to "could not parse"
+    instead), and defended again with `try`/`except` around every
+    sympy parser/solver call inside `verify_tutor_response` itself, so
+    MathGuard -- which sits *beside* the real tutoring reply, never
+    blocking it -- can never take that reply down over a
+    verification-only failure. Compound/union inequality answers are
+    now a known, accepted "left unverified" case, the same category as
+    a multi-symbol identity.
 
 Exposed on `POST /tutor/message` as `math_verified: bool` and
 `verification_warnings: list[str]`; shown as a visible badge in the chat

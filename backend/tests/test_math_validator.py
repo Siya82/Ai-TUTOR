@@ -16,6 +16,7 @@ from app.services.math_validator import (
     normalize_latex,
     sets_consistent,
     solve_relation,
+    split_relation,
 )
 
 x = Symbol("x")
@@ -230,3 +231,43 @@ def test_gap17_does_not_weaken_gap5c_genuinely_wrong_step():
     rel1 = build_relation_expr(r"x = 2", "x")
     rel2 = build_relation_expr(r"x = 7", "x")
     assert sets_consistent(solve_relation(rel1, x), solve_relation(rel2, x)) is False
+
+
+def test_gap18_cube_root_surd_parses_and_solves():
+    r"""Found 13 Nov 2026 while scoping Grade 11's Exponents and Surds
+    topic: \sqrt[n]{X} (an indexed root) was never handled --
+    convert_sqrt only matches \sqrt immediately followed by '{', so it
+    silently dropped "\sqrt" and left "[3]{8}" behind as inert,
+    unparseable text."""
+    assert normalize_latex(r"\sqrt[3]{8}") == "((8))**(1/(3))"
+    rel = build_relation_expr(r"x = \sqrt[3]{27}", "x")
+    assert _finite_eq(solve_relation(rel, x), {3})
+
+
+def test_gap18_square_root_still_works_unaffected():
+    # Regression guard: gap 18's new nth-root handling must not break
+    # gap 10's plain \sqrt{} case, which has no bracketed index at all.
+    assert normalize_latex(r"\sqrt{16}") == "sqrt((16))"
+
+
+def test_gap19_compound_or_inequality_is_left_unverified_not_a_crash():
+    """Found 13 Nov 2026 while scoping Grade 11's quadratic inequalities:
+    once gap 14 strips "\text{ or }" entirely, "x < -2 \text{ or } x >
+    3" collapses to "x < -2  x > 3" -- two relations with nothing left
+    connecting them. The naive first-operator split used to hand
+    "-2  x > 3" to sympy as a single RHS; sympy parsed THAT as its own
+    relational expression, which crashed build_relation_expr's "l < r"
+    with a raw TypeError once it tried to compare a relational object
+    as if it were a plain expression. split_relation now rejects a
+    split where either side still contains another relational operator,
+    so this returns None (an honest "could not parse"), never crashes."""
+    assert split_relation(normalize_latex(r"x < -2 \text{ or } x > 3")) is None
+    free_syms, parts = free_symbols_of(r"x < -2 \text{ or } x > 3")
+    assert parts is None
+
+
+def test_gap19_does_not_reject_a_normal_single_inequality():
+    # Regression guard: gap 19's new rejection must not misfire on an
+    # ordinary single relation -- only a side that ITSELF still
+    # contains a relational operator gets rejected.
+    assert split_relation(normalize_latex(r"-2x > 6")) == ("-2x", ">", "6")

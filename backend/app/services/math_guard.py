@@ -34,7 +34,18 @@ chain-compared independently -- a response that solves for three
 different things now gets three independent (and, if each is
 internally consistent, three silently-passing) checks instead of one
 "multiple different variables -- left unverified" warning that threw
-away real verification of all three."""
+away real verification of all three.
+
+FIX 13 Nov 2026, part 2 (gap 19, found while scoping Grade 11): a
+compound/union inequality answer (e.g. "x < -2 or x > 3") could reach
+build_relation_expr/solve_relation as a malformed relation and raise a
+raw, uncaught TypeError -- a real crash risk for the live
+/tutor/message endpoint, not just a lost warning. Fixed at the root in
+math_validator.split_relation (rejects a split where either side still
+contains another relational operator) and defended again here with
+try/except around every call into sympy's parser/solver inside this
+function, so verification can never take down the actual tutoring
+response it sits beside."""
 
 import re
 from dataclasses import dataclass, field
@@ -103,7 +114,10 @@ def verify_tutor_response(text: str) -> MathVerificationResult:
             )
 
     for block in check_steps:
-        result = verify_numeric_check(block)
+        try:
+            result = verify_numeric_check(block)
+        except Exception:
+            result = None
         if result is False:
             warnings.append(f"Substitution/check step does not hold numerically: {block[:60]!r}")
             verified = False
@@ -124,8 +138,26 @@ def verify_tutor_response(text: str) -> MathVerificationResult:
         symbol = steps[0][1]
         prev_set = None
         for block, _ in steps:
-            rel = build_relation_expr(block, symbol.name)
-            sol_set = solve_relation(rel, symbol)
+            # Gap 19 (new, found 13 Nov 2026 alongside the split_relation
+            # fix for compound/union inequalities): a defense-in-depth
+            # net, not the primary fix -- split_relation now rejects the
+            # specific case that used to crash here, but
+            # build_relation_expr/solve_relation call back into sympy's
+            # own parser and solver, which can in principle raise on
+            # some other not-yet-seen input shape too. MathGuard sits
+            # BESIDE the actual tutoring reply, never blocking it -- an
+            # unexpected exception here must degrade to an honest
+            # "could not verify", exactly like a None from
+            # sets_consistent already does, never propagate and risk
+            # taking down the whole /tutor/message response over a
+            # verification-only failure.
+            try:
+                rel = build_relation_expr(block, symbol.name)
+                sol_set = solve_relation(rel, symbol)
+            except Exception:
+                warnings.append(f"Could not verify this step against the previous one: {block[:60]!r}")
+                prev_set = None
+                continue
             if prev_set is not None:
                 consistency = sets_consistent(prev_set, sol_set)
                 if consistency is False:

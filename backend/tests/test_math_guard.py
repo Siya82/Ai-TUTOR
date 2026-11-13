@@ -143,3 +143,35 @@ def test_solving_for_two_different_quantities_a_wrong_one_is_still_caught():
     result = verify_tutor_response(text)
     assert result.verified is False
     assert any("does not follow from the previous one" in w for w in result.warnings)
+
+
+def test_gap19_compound_inequality_answer_does_not_crash_verification():
+    """Found 13 Nov 2026 while scoping Grade 11's quadratic inequalities
+    (Equations and Inequalities topic): a factorised quadratic
+    inequality's natural answer is a compound/union statement, e.g.
+    "x < -2 or x > 3". Once rendered in LaTeX ("x < -2 \\text{ or } x >
+    3") and run through gap 14's \\text{...} stripping, this used to
+    raise a raw, uncaught TypeError out of verify_tutor_response --
+    a real crash risk for the live /tutor/message endpoint, not just a
+    lost warning. Must now degrade to an honest "could not verify",
+    with the rest of the response (the correct, equation-shaped steps
+    before it) still verified normally."""
+    text = (
+        "$$x^2 - x - 6 > 0$$\n"
+        "$$(x - 3)(x + 2) > 0$$\n"
+        "$$x < -2 \\text{ or } x > 3$$"
+    )
+    result = verify_tutor_response(text)  # must not raise
+    assert result.verified is True
+    assert any("Could not parse" in w for w in result.warnings)
+
+
+def test_gap18_cube_root_surd_in_a_real_reply_verifies_cleanly():
+    """Found 13 Nov 2026 while scoping Grade 11's Exponents and Surds
+    topic: a worked example solving via a cube root used to produce
+    unparseable garbage ("[3]{8}") for every $$...$$ block that
+    contained one, leaving the whole reply unverifiable."""
+    text = "$$x^3 = 27$$\n$$x = \\sqrt[3]{27}$$\n$$x = 3$$"
+    result = verify_tutor_response(text)
+    assert result.verified is True
+    assert not any("Could not parse" in w or "does not follow" in w for w in result.warnings)

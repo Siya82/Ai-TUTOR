@@ -121,6 +121,49 @@ def convert_times(s: str) -> str:
     return re.sub(r"\\times", "*", s)
 
 
+def convert_nth_root(s: str) -> str:
+    """Gap 18 (new, found 13 Nov 2026 while scoping Grade 11's Exponents
+    and Surds topic): \\sqrt[n]{X} (an indexed/nth root, e.g. a cube
+    root) was never handled -- convert_sqrt only matches a \\sqrt that is
+    IMMEDIATELY followed by '{', so when it hit the '[' of an index
+    instead, its own no-brace fallback branch silently dropped "\\sqrt"
+    without emitting anything for it, leaving the bracket-and-braces
+    behind as inert text (e.g. "\\sqrt[3]{8}" became the literal,
+    unparseable "[3]{8}"). Must run BEFORE convert_sqrt, since a plain
+    \\sqrt prefix-match would otherwise still consume (and mishandle) the
+    very same text first. Converts to "((X))**(1/(n))", brace-matched
+    the same way convert_sqrt/convert_frac already are."""
+    out = []
+    i = 0
+    pattern = re.compile(r"\\sqrt\[(\d+)\]")
+    while i < len(s):
+        m = pattern.search(s, i)
+        if not m:
+            out.append(s[i:])
+            break
+        out.append(s[i:m.start()])
+        n = m.group(1)
+        j = m.end()
+        if j < len(s) and s[j] == "{":
+            depth = 1
+            k = j + 1
+            while k < len(s) and depth > 0:
+                if s[k] == "{":
+                    depth += 1
+                elif s[k] == "}":
+                    depth -= 1
+                k += 1
+            inner = s[j + 1:k - 1]
+            out.append(f"(({inner}))**(1/({n}))")
+            i = k
+        else:
+            # No brace group after the index -- leave the command alone
+            # for convert_sqrt's own (unrelated) fallback rather than guessing.
+            out.append(s[m.start():j])
+            i = j
+    return "".join(out)
+
+
 def convert_sqrt(s: str) -> str:
     """Gap 10: \\sqrt{X} -> sqrt((X)), handling nested braces."""
     out = []
@@ -217,7 +260,7 @@ _TRIG_LITERAL_DEGREE = re.compile(r"\\(sin|cos|tan)\(?\s*(\d+(?:\.\d+)?)\s*\u00b
 
 
 def convert_trig_of_literal_degrees(s: str) -> str:
-    """Gap 16 (found 13 Nov 2026 via live Physical Sciences testing):
+    r"""Gap 16 (found 13 Nov 2026 via live Physical Sciences testing):
     different from gap 4's bare-symbol case (sin(theta), where CAPS
     convention assumes degrees with no literal degree sign written at
     all). A Physical Sciences worked example evaluates a trig function
@@ -270,6 +313,7 @@ def normalize_latex(raw: str) -> str:
     s = convert_times(s)
     s = convert_trig_of_literal_degrees(s)  # gap 16 -- must run before strip_latex_cruft
     s = convert_frac(s)
+    s = convert_nth_root(s)  # gap 18 -- must run before convert_sqrt
     s = convert_sqrt(s)
     s = convert_pi(s)
     s = convert_power(s)
@@ -317,12 +361,47 @@ def convert_relation_operators(s: str) -> str:
     return s
 
 
+_ALL_REL_OP_PATTERNS = [pat for pat, _ in _REL_OPERATORS]
+
+
+def _contains_relation_operator(s: str) -> bool:
+    """Gap 19 helper: true if ANY relational-operator pattern still
+    appears in s. Safe as a plain substring/regex scan -- in this
+    domain, <, >, =, <=, >=, != never appear for any reason other than
+    marking a relation, so finding one left over in what's supposed to
+    be a single side means the block wasn't actually one relation."""
+    return any(re.search(pat, s) for pat in _ALL_REL_OP_PATTERNS)
+
+
 def split_relation(normalized: str) -> tuple[str, str, str] | None:
-    """Finds the first top-level relational operator and splits on it."""
+    """Finds the first top-level relational operator and splits on it.
+
+    Gap 19 (new, found 13 Nov 2026 while scoping Grade 11's quadratic
+    inequalities, e.g. "x < -2 \\text{ or } x > 3"): once gap 14 strips
+    "\\text{ or }" entirely, a compound/union answer like that collapses
+    to "x < -2  x > 3" -- two relations with nothing left connecting
+    them. The naive first-operator split used to hand "-2  x > 3" to
+    sympy as a RHS; sympy's parser doesn't reject that, it happily
+    parses it AS ITS OWN relational expression (an inequality), which
+    then crashed downstream code (build_relation_expr's "l < r") with a
+    raw TypeError the moment it tried to compare that relational object
+    as if it were a plain numeric expression -- a real crash risk for
+    the live /tutor/message endpoint, not just a lost verification. Now
+    explicitly detected and rejected here: if either side still
+    contains another relational operator after the split, this isn't
+    one relation at all, so it's treated exactly like any other
+    unparseable block (returns None) -- an honest "left unverified" via
+    the normal path, never a crash. Compound/union inequality ANSWERS
+    are consequently a known, accepted, new "unverified" case, the same
+    category as a multi-symbol identity -- not something this fix
+    claims to actually verify."""
     for pat, op in _REL_OPERATORS:
         m = re.search(pat, normalized)
         if m:
-            return normalized[:m.start()].strip(), op, normalized[m.end():].strip()
+            lhs, rhs = normalized[:m.start()].strip(), normalized[m.end():].strip()
+            if _contains_relation_operator(lhs) or _contains_relation_operator(rhs):
+                return None
+            return lhs, op, rhs
     return None
 
 
