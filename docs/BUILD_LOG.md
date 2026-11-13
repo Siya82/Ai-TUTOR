@@ -1464,6 +1464,55 @@ confirms" handoff as every previous content expansion.
 - `THUTOra_Project_Report.md` not yet updated for this -- due once
   Grade 11 is confirmed working end-to-end.
 
+## 2026-11-13 -- Scoping Grade 11 Physical Sciences: 2 more real MathGuard gaps found proactively
+
+**Goal:** continuing the "deepen, don't just widen" direction -- after
+Grade 11 Pure Mathematics, add Grade 11 Physical Sciences (Physics
+strand, matching ADR-013's existing scope boundary). Researched the
+official CAPS Grade 11 Physical Sciences topic list before writing any
+seed data, same discipline as the Grade 11 Maths pass two commits ago.
+
+**Findings:** Grade 11 Physics is smaller than Grade 10 (6 topics, not
+8 -- the Waves/Sound/Light strand moves entirely to Grade 12) and only
+2 of 6 topics get a clean cross-grade link back to Grade 10 (Vectors in
+Two Dimensions, Electrostatics); Newton's Laws and Newton's Universal
+Law of Gravitation are genuinely new content with no Grade 10
+counterpart, and Electromagnetism's link to Grade 10 Magnetism is too
+inexact to use directly (within-grade only).
+
+Two notational risks were flagged going in (scientific notation with a
+negative exponent, Greek Delta/Phi symbols) -- checked proactively in a
+sandbox and turned out fine, already handled by the existing pipeline.
+But that same sandbox check surfaced two DIFFERENT, more serious gaps
+neither had been looking for:
+
+- Gap 20: `\cos\theta` (trig applied directly to a bare angle symbol,
+  no space, no parens) -- a pattern this tutor's own live output
+  already uses (the Vectors worked example literally wrote
+  `d\cos\theta`). Mangled into the nonsense token `costheta`, which
+  sympy shattered into single-letter symbols.
+- Gap 21 (worse -- found testing gap 20's own fix): once gap 20 (or
+  gap 16) produces a real `cos(...)` call, a letter glued directly
+  against it with no space (`d\cos\theta` -> `dcos(theta)`) made sympy
+  DROP the trig function entirely and shatter the whole expression into
+  single letters multiplied together -- not a naming collision, a
+  silently wrong equation. Fixed by inserting explicit multiplication
+  between a letter and an adjacent trig call (a leading digit was
+  already fine).
+
+See `docs/REBUILD_SPEC.md` Section 1 (now gaps 20-21) for full detail.
+
+**Verification:** both reproduced and fixed in a sandbox against the
+real files; full existing gap 1-19 suite (44 tests) re-run with zero
+regressions; 4 new unit tests added to `test_math_validator.py` (48
+total now).
+
+**Not done yet:**
+- Grade 11 Physical Sciences seed data itself -- next, now that the
+  parsing gaps it would have hit are already fixed.
+- Grade 12 Pure Mathematics and Grade 12 Physical Sciences remain out
+  of scope for this pass.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

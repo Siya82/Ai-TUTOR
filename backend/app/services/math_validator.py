@@ -277,6 +277,66 @@ def convert_trig_of_literal_degrees(s: str) -> str:
     return _TRIG_LITERAL_DEGREE.sub(lambda m: f"{m.group(1)}(({m.group(2)})*pi/180)", s)
 
 
+_TRIG_OF_BARE_SYMBOL_NO_PARENS = re.compile(r"\\(sin|cos|tan)\\([a-zA-Z]+)")
+
+
+def convert_trig_of_bare_symbol_no_parens(s: str) -> str:
+    """Gap 20 (new, found 13 Nov 2026 while scoping Grade 11 Physical
+    Sciences): "\\cos\\theta" (a trig function applied directly to a
+    bare angle SYMBOL, no space and no parentheses) is a real, previously
+    seen pattern from this tutor's own live output (the Vectors worked
+    example wrote "d\\cos\\theta" this way) -- different from gap 4
+    (sin(theta), already has explicit parens) and gap 16 (a literal
+    numeric degree value, not a symbol). Left alone, the generic
+    backslash-stripping fallback concatenates "\\cos" and "\\theta" with
+    nothing between them into the single nonsense token "costheta",
+    which sympy's implicit-multiplication parser then shatters into one
+    bogus single-letter symbol per character (c, o, s, t, h, e, t, a).
+    Converts to "cos(theta)" before that fallback ever runs. Explicitly
+    does NOT match when the following command is "left"/"right" (e.g.
+    "\\cos\\left(\\theta\\right)"), which is real LaTeX sizing syntax
+    around an already-explicit paren, not a bare angle name -- left
+    alone so strip_latex_cruft's existing \\left/\\right handling (and the
+    real parens already present) can do their normal job instead.
+    Deliberately does NOT touch "\\cos \\theta" (WITH a space) -- that
+    case already parses correctly today via sympy's own
+    implicit_multiplication_application transformation, which recognizes
+    a known function name followed by a space-separated argument as a
+    function call, not a product."""
+    def repl(m):
+        func, name = m.group(1), m.group(2)
+        if name in ("left", "right"):
+            return m.group(0)
+        return f"{func}({name})"
+    return _TRIG_OF_BARE_SYMBOL_NO_PARENS.sub(repl, s)
+
+
+_LETTER_ADJACENT_TRIG_CALL = re.compile(r"(?<!arc)(?<=[a-zA-Z])(sin|cos|tan)\(")
+
+
+def insert_multiplication_before_adjacent_trig_call(s: str) -> str:
+    """Gap 21 (new, found 13 Nov 2026 alongside gap 20, same Grade 11
+    Physical Sciences scoping pass): once a trig command has been
+    converted to an actual function call -- "cos(...)" -- by gap 16
+    (literal degree) or gap 20 (bare symbol, no parens) above, a letter
+    glued directly against it with no space or operator (e.g. the "d"
+    in "d\\cos\\theta", or the "BA" in a flux formula "BA\\cos\\theta")
+    is FAR worse than the naming-collision risk gap 13/20 already guard
+    against: sympy's implicit-multiplication parser doesn't just misname
+    the result, it drops the trig call ENTIRELY and shatters the whole
+    run into single-letter symbols multiplied together ("dcos(theta)"
+    parses as "c*d*o*s*theta", with no cos() anywhere in the result).
+    A single digit immediately before a trig call ("2cos(theta)") does
+    NOT need this -- sympy's own implicit_multiplication_application
+    already handles a leading digit correctly; only a LETTER directly
+    before "sin("/"cos("/"tan(" is the broken case. Explicitly excludes
+    "arccos(" (and arcsin/arctan) via a fixed-width negative lookbehind,
+    since that would otherwise be misread as "arc" times "cos(...)" --
+    this project doesn't currently use inverse trig notation at all, but
+    there's no reason to silently break it if that ever changes."""
+    return _LETTER_ADJACENT_TRIG_CALL.sub(r"*\1(", s)
+
+
 def strip_bare_degree_sign(s: str) -> str:
     """Gap 16 (continued): runs AFTER convert_trig_of_literal_degrees has
     already consumed every degree sign that was actually part of a trig
@@ -312,6 +372,8 @@ def normalize_latex(raw: str) -> str:
     s = convert_relation_operators(s)  # gap 15 -- must run before strip_latex_cruft
     s = convert_times(s)
     s = convert_trig_of_literal_degrees(s)  # gap 16 -- must run before strip_latex_cruft
+    s = convert_trig_of_bare_symbol_no_parens(s)  # gap 20 -- also before strip_latex_cruft
+    s = insert_multiplication_before_adjacent_trig_call(s)  # gap 21 -- after gaps 16/20 produce cos(...) calls
     s = convert_frac(s)
     s = convert_nth_root(s)  # gap 18 -- must run before convert_sqrt
     s = convert_sqrt(s)

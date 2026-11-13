@@ -106,7 +106,7 @@ two copies — see the recovery note at the top of the recovered
   textbook and four official NSC Physical Sciences Data Sheets.
 
 ### `math_guard.py` + `math_validator.py` — MathGuard
-**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 via the Physical Sciences live-test pass; gaps 18-19 proactively, while scoping Grade 11 Pure Mathematics) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
+**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 via the Physical Sciences live-test pass; gaps 18-21 proactively, while scoping Grade 11 Pure Mathematics then Grade 11 Physical Sciences) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
 
 This is a protected core differentiator (ADR-011) — rebuild carefully and
 re-run the adversarial test suite at every stage, don't assume.
@@ -252,6 +252,37 @@ discipline — see `docs/CAPABILITY-EVIDENCE-LOG.md`):
     verification-only failure. Compound/union inequality answers are
     now a known, accepted "left unverified" case, the same category as
     a multi-symbol identity.
+20. (New, found 13 Nov 2026 while scoping Grade 11 Physical Sciences --
+    before any live test again, same proactive discipline as gaps
+    18-19.) `\cos\theta` (trig applied directly to a bare angle SYMBOL,
+    no space and no parentheses) is a real pattern this tutor's own
+    live output already uses (the Vectors worked example wrote
+    `d\cos\theta` this way) -- different from gap 4 (`sin(theta)`,
+    explicit parens) and gap 16 (a literal numeric degree, not a
+    symbol). Left unhandled, the generic backslash-stripping fallback
+    concatenated `\cos` and `\theta` into the single nonsense token
+    `costheta`, which sympy's implicit-multiplication parser then
+    shattered into one bogus single-letter symbol per character. Fixed
+    with a dedicated conversion to `cos(theta)`, run before the generic
+    fallback (same slot as gap 16); explicitly leaves `\cos\left(...)`
+    alone, since `left`/`right` there are LaTeX sizing syntax around an
+    already-explicit paren, not an angle name.
+21. (New, found 13 Nov 2026 immediately alongside gap 20 -- worse than a
+    naming collision, this one drops real content.) Once gap 16 or gap
+    20 converts a trig command into an actual `cos(...)` call, a letter
+    glued directly against it with no space or operator (the `d` in
+    `d\cos\theta`, or `BA` in a flux formula `BA\cos\theta`) made
+    sympy's implicit-multiplication parser DROP the trig call entirely
+    and shatter the whole run into single-letter symbols multiplied
+    together (`dcos(theta)` parsed as `c*d*o*s*theta`, with no `cos()`
+    anywhere in the result) -- not just a wrong name, a wrong equation.
+    A single digit directly before a trig call (`2cos(theta)`) was
+    already fine, via sympy's own implicit-multiplication handling of a
+    leading digit; only a letter needed fixing. Fixed by inserting an
+    explicit `*` between a letter and an immediately-following
+    `sin(`/`cos(`/`tan(`, with an explicit carve-out for `arccos(` (and
+    `arcsin`/`arctan`) so inverse trig notation isn't broken if this
+    project ever adds it, even though nothing uses it today.
 
 Exposed on `POST /tutor/message` as `math_verified: bool` and
 `verification_warnings: list[str]`; shown as a visible badge in the chat

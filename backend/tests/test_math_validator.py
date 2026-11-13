@@ -271,3 +271,45 @@ def test_gap19_does_not_reject_a_normal_single_inequality():
     # ordinary single relation -- only a side that ITSELF still
     # contains a relational operator gets rejected.
     assert split_relation(normalize_latex(r"-2x > 6")) == ("-2x", ">", "6")
+
+
+def test_gap20_trig_of_bare_symbol_no_parens_no_space():
+    r"""Found 13 Nov 2026 while scoping Grade 11 Physical Sciences: a
+    real, previously-seen pattern from this tutor's own live output
+    (the Vectors worked example wrote "d\cos\theta" this way) -- trig
+    applied directly to a bare angle SYMBOL with no space and no
+    parens. Left unhandled, the generic backslash-stripping fallback
+    concatenated "\cos" and "\theta" into one nonsense token
+    "costheta", which sympy's implicit-multiplication parser then
+    shattered into one bogus single-letter symbol per character."""
+    assert normalize_latex(r"\cos\theta") == "cos(theta)"
+    rel = build_relation_expr(r"d_x = 50\cos\theta", None)
+    assert rel == sympy.Eq(Symbol("d_x"), 50 * sympy.cos(theta))
+
+
+def test_gap20_does_not_mishandle_cos_left_right_sizing():
+    # Regression guard: "\cos\left(\theta\right)" must NOT have "left"
+    # mistaken for the angle name -- it's real LaTeX sizing syntax
+    # around an already-explicit paren, left for the normal path.
+    assert normalize_latex(r"\cos\left(\theta\right)") == "cos(theta)"
+
+
+def test_gap21_letter_glued_directly_against_a_trig_call_still_multiplies():
+    r"""Found 13 Nov 2026 alongside gap 20: once "\cos\theta" becomes
+    "cos(theta)", a letter glued directly against it with no space or
+    operator (e.g. the "d" in "d\cos\theta", or "BA" in a flux formula)
+    is worse than a naming collision -- sympy's implicit-multiplication
+    parser DROPS the trig call entirely and shatters the whole run into
+    single-letter symbols multiplied together ("dcos(theta)" parsed as
+    "c*d*o*s*theta", with no cos() anywhere in the result)."""
+    free_syms, parts = free_symbols_of(r"d_x = d\cos\theta")
+    assert free_syms == {Symbol("d_x"), Symbol("d"), theta}
+    assert normalize_latex(r"\Phi = BA\cos\theta") == "Phi = BA*cos(theta)"
+
+
+def test_gap21_does_not_double_insert_or_break_a_leading_digit():
+    # Regression guard: a digit directly before a trig call already
+    # parses correctly via sympy's own implicit multiplication and must
+    # not be touched; an already-explicit "*" must not be duplicated.
+    assert normalize_latex(r"2\cos\theta") == "2cos(theta)"
+    assert normalize_latex(r"d*\cos\theta") == "d*cos(theta)"
