@@ -141,13 +141,18 @@ export default function ChatScreen() {
         setSubjects(fetchedSubjects);
         setTopics(fetchedTopics);
         if (fetchedLearners.length > 0) setLearnerId(fetchedLearners[0].id);
-        // Default to Pure Mathematics specifically when it's seeded, rather than
-        // whichever subject happens to sort first alphabetically (NEW 12 Nov
-        // 2026, multi-subject support -- keeps the existing default experience
-        // for the one subject that was already live before Physical Sciences).
+        // Default to Pure Mathematics, Grade 10 specifically when it's seeded,
+        // rather than whichever subject happens to sort first alphabetically
+        // (NEW 12 Nov 2026, multi-subject support -- keeps the existing
+        // default experience for the one subject that was already live
+        // before Physical Sciences). UPDATED 13 Nov 2026: Grade 11 Pure
+        // Mathematics now shares the same name, so matching on name alone
+        // was no longer specific enough to guarantee landing on Grade 10 --
+        // now matches both name AND grade explicitly.
         if (fetchedSubjects.length > 0) {
           const defaultSubject =
-            fetchedSubjects.find((s) => s.name === "Pure Mathematics") || fetchedSubjects[0];
+            fetchedSubjects.find((s) => s.name === "Pure Mathematics" && s.grade === 10) ||
+            fetchedSubjects[0];
           setSubjectId(defaultSubject.id);
           const firstTopicForSubject = fetchedTopics.find((t) => t.subject_id === defaultSubject.id);
           if (firstTopicForSubject) setTopicId(firstTopicForSubject.id);

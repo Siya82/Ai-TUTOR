@@ -19,6 +19,13 @@ router = APIRouter(prefix="/subjects", tags=["subjects"])
 
 @router.get("/", response_model=list[SubjectResponse])
 async def list_subjects(db: AsyncSession = Depends(get_db)) -> list[Subject]:
-    """All subjects, ordered by name. No auth yet -- same documented caveat as /topics and /learners."""
-    result = await db.execute(select(Subject).order_by(Subject.name))
+    """All subjects, ordered by name then grade. No auth yet -- same documented
+    caveat as /topics and /learners.
+
+    FIX 13 Nov 2026 (Grade 11 added, ADR-014): name-only ordering gave no
+    guaranteed, stable order between two rows sharing a name (e.g. "Pure
+    Mathematics" grade 10 and grade 11) -- added grade as a secondary sort
+    key so the frontend's default-subject pick and the picker's own listed
+    order are both deterministic, not incidentally-whatever-Postgres-returned."""
+    result = await db.execute(select(Subject).order_by(Subject.name, Subject.grade))
     return list(result.scalars().all())
