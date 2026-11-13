@@ -31,6 +31,11 @@ function topicNameById(topics, id) {
   return topic ? topic.name : id;
 }
 
+function subjectNameById(subjects, id) {
+  const subject = subjects.find((s) => s.id === id);
+  return subject ? subject.name : null;
+}
+
 // Three states instead of a play/stop boolean, since pause/resume
 // (distinct from stop/cancel) is the whole point of this update: a
 // learner who wants to read instead of listen pauses, rather than
@@ -280,7 +285,11 @@ export default function ChatScreen() {
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask THUTOra a maths question…"
+          placeholder={
+            subjectNameById(subjects, subjectId)
+              ? `Ask THUTOra a ${subjectNameById(subjects, subjectId)} question…`
+              : "Ask THUTOra a question…"
+          }
           disabled={sending || !learnerId || !topicId}
         />
         <button type="submit" disabled={sending || !draft.trim() || !learnerId || !topicId}>
