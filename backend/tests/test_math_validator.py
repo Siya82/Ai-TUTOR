@@ -313,3 +313,42 @@ def test_gap21_does_not_double_insert_or_break_a_leading_digit():
     # not be touched; an already-explicit "*" must not be duplicated.
     assert normalize_latex(r"2\cos\theta") == "2cos(theta)"
     assert normalize_latex(r"d*\cos\theta") == "d*cos(theta)"
+
+
+def test_gap22_braced_text_subscript_normalizes_to_valid_identifier():
+    r"""Found 13 Nov 2026 via the live Electric Circuits stress test (a
+    real series-parallel resistor problem): a multi-character LaTeX
+    subscript wrapped in braces, with a nested \text{...} naming it
+    (e.g. "R_{\text{parallel}}"), was never converted into a valid
+    sympy identifier at all. Worse, it collided with gap 14's
+    strip_text_commands -- which runs first and unconditionally drops a
+    \text{...} group wherever it appears -- so "R_{\text{parallel}}"
+    lost its \text{parallel} entirely but kept the subscript's own
+    now-empty braces behind, producing the literal "R_{}", which
+    sympy's parser cannot accept as syntax at all (a bare "{" is not
+    valid). convert_braced_subscript must run BEFORE strip_text_commands
+    to avoid this."""
+    assert normalize_latex(r"R_{\text{parallel}}") == "R_parallel"
+    assert normalize_latex(r"I_{\text{each}} = \frac{I_{\text{total}}}{2}") == (
+        "I_each = ((I_total))/((2))"
+    )
+
+
+def test_gap22_braced_digit_and_unit_symbol_subscript_normalizes_too():
+    r"""Same gap, the other common shape: a subscript combining a
+    literal digit with a unit-symbol LaTeX command, e.g. "V_{3\Omega}"
+    (the resistor's own ohm value folded into its variable name). No
+    \text{...} is involved here, but the braces themselves were still
+    never stripped before this fix -- "V_{3\Omega}" normalized to the
+    syntactically invalid "V_{3Omega}" (braces intact), not a bare
+    identifier."""
+    assert normalize_latex(r"V_{3\Omega}") == "V_3Omega"
+    free_syms, parts = free_symbols_of(r"P_{3\Omega} = I^2 \times R_{3\Omega}")
+    assert free_syms == {Symbol("P_3Omega"), Symbol("I"), Symbol("R_3Omega")}
+    assert parts == ("P_3Omega", "=", "I**2 * R_3Omega")
+
+
+def test_gap22_does_not_touch_an_already_simple_digit_subscript():
+    # Regression guard: a single-digit subscript with NO braces (R_1,
+    # R_2) was already a legal identifier as-is and must be left alone.
+    assert normalize_latex(r"R_1 + R_2") == "R_1 + R_2"

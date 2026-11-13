@@ -175,3 +175,36 @@ def test_gap18_cube_root_surd_in_a_real_reply_verifies_cleanly():
     result = verify_tutor_response(text)
     assert result.verified is True
     assert not any("Could not parse" in w or "does not follow" in w for w in result.warnings)
+
+
+def test_gap22_braced_subscript_variables_verify_cleanly():
+    r"""Found 13 Nov 2026 via the live Electric Circuits stress test on a
+    real series-parallel resistor problem: multi-character LaTeX
+    subscripts wrapped in braces (R_{\text{parallel}}, R_{\text{total}},
+    V_{3\Omega}, I_{\text{each}}, P_{3\Omega}) turned nearly every single
+    step of that reply into an unparseable block -- 34 warnings out of
+    one live call, by far the most consequential gap found this session.
+    Confirms a correct multi-symbol chain built from these names now
+    verifies with no parse-failure warnings at all."""
+    text = (
+        "$$R_{\\text{total}} = 3 + 1$$\n"
+        "$$R_{\\text{total}} = 4$$\n"
+        "$$V_{3\\Omega} = 10 \\times 3$$\n"
+        "$$V_{3\\Omega} = 30$$\n"
+    )
+    result = verify_tutor_response(text)
+    assert result.verified is True
+    assert not any("Could not parse" in w for w in result.warnings)
+
+
+def test_gap22_wrong_step_with_braced_subscript_is_now_caught():
+    """Before gap 22's fix, every step using a braced-subscript variable
+    silently failed to parse at all, so MathGuard was blind to errors
+    inside them -- a wrong value would have come back with
+    'math_verified: true' purely because nothing could be checked, not
+    because it was correct. Confirms the fix actually restores real
+    verification, not just removes the parse-failure noise."""
+    text = "$$R_{\\text{total}} = 3 + 1$$\n$$R_{\\text{total}} = 40$$"
+    result = verify_tutor_response(text)
+    assert result.verified is False
+    assert any("does not follow from the previous one" in w for w in result.warnings)

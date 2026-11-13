@@ -1582,6 +1582,62 @@ used for every previous live check this session.
 
 **Not done yet:** result of the live stress test -- pending.
 
+## 2026-11-13 -- Live Electric Circuits stress test result: gap 22 (braced-subscript variables), the most consequential MathGuard gap found this session
+
+**Goal:** Analyze the result of the live `/tutor/message` stress test
+prepared in the previous entry (a real series-parallel resistor
+problem, sourced from the supplied past-paper worksheet, run by Siya
+against the real backend).
+
+**Result received:** `math_verified: true`, but with **34
+`verification_warnings`** -- nearly every single `$$...$$` block in the
+reply came back "Could not parse this step for verification". The
+reply's own maths was correct throughout; MathGuard simply could not
+check almost any of it.
+
+**Root cause (gap 22):** the worked reply named its intermediate
+quantities with multi-character LaTeX subscripts wrapped in braces --
+`R_{\text{parallel}}`, `R_{\text{total}}`, `V_{3\Omega}`,
+`I_{\text{each}}`, `P_{3\Omega}` -- a pattern no previous Maths or
+Physical Sciences content had exercised (a single-digit, brace-free
+subscript like `R_1` is already a legal identifier and was never a
+problem). Worse, this collided with gap 14's `strip_text_commands`:
+since that step unconditionally drops a `\text{...}` group wherever it
+finds one, `R_{\text{parallel}}` -- where the `\text` group is nested
+*inside* the subscript's own braces, not a standalone unit label --
+lost `\text{parallel}` but kept the subscript's own now-empty braces
+behind, producing the literal, doubly-unparseable `R_{}`.
+`math_verified: true` was technically accurate (no contradiction was
+ever found) but deeply misleading here -- it reflected "nothing could
+be checked", not "everything was checked and correct".
+
+**Fix:** a new `convert_braced_subscript` normalization, run BEFORE
+`strip_text_commands`, that strips any nested `\text{...}`/backslash
+command inside a `BASE_{...}` subscript and rebuilds a plain, valid
+sympy identifier (`R_{\text{parallel}}` -> `R_parallel`, `V_{3\Omega}`
+-> `V_3Omega`). Confirmed in a sandbox against the exact failing
+strings from the live response before touching the real module (same
+discipline as gaps 18-21), then verified it also restores *real*
+error-catching for these variable names -- not just quieter warnings
+-- by confirming a deliberately wrong `R_{\text{total}}` step is now
+correctly flagged, where before the fix it silently passed unexamined.
+
+**Tests added:** 3 new unit tests in `test_math_validator.py` (gap 22)
+plus 2 new integration tests in `test_math_guard.py` (a clean braced-
+subscript chain verifies with zero parse warnings; a wrong step with a
+braced-subscript variable is now caught). Full suite: 53/53 passing.
+
+**Not done yet:**
+- Siya still needs to re-run the original stress-test prompt against
+  the live backend to directly confirm the fix end-to-end (the fix
+  itself was verified via sandbox + pytest, not yet via another live
+  call).
+- The redirect behavior observed in the same response (the diagnosis
+  engine redirected the Electric Circuits question to a "Magnetism"
+  prerequisite gap check) is noted but out of scope for this entry --
+  MathGuard-focused, not a diagnosis-engine change.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

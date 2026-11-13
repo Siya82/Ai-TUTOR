@@ -106,7 +106,7 @@ two copies — see the recovery note at the top of the recovered
   textbook and four official NSC Physical Sciences Data Sheets.
 
 ### `math_guard.py` + `math_validator.py` — MathGuard
-**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 via the Physical Sciences live-test pass; gaps 18-21 proactively, while scoping Grade 11 Pure Mathematics then Grade 11 Physical Sciences) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
+**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 via the Physical Sciences live-test pass; gaps 18-21 proactively, while scoping Grade 11 Pure Mathematics then Grade 11 Physical Sciences; gap 22 via a live Electric Circuits stress test sourced from a real past-paper worksheet) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
 
 This is a protected core differentiator (ADR-011) — rebuild carefully and
 re-run the adversarial test suite at every stage, don't assume.
@@ -283,6 +283,38 @@ discipline — see `docs/CAPABILITY-EVIDENCE-LOG.md`):
     `sin(`/`cos(`/`tan(`, with an explicit carve-out for `arccos(` (and
     `arcsin`/`arctan`) so inverse trig notation isn't broken if this
     project ever adds it, even though nothing uses it today.
+22. (New, found 13 Nov 2026 via a LIVE `/tutor/message` call -- a
+    deliberate stress test using a real series-parallel resistor
+    problem sourced from an uploaded Grade 10 Electric Circuits
+    worksheet, by far the most consequential gap found this session.)
+    A multi-character LaTeX subscript wrapped in braces -- e.g.
+    `R_{\text{parallel}}`, `V_{3\Omega}`, `I_{\text{each}}` -- was
+    never converted into a valid sympy identifier at all; a
+    single-character digit subscript with no braces (`R_1`, `R_2`) was
+    already a legal Python identifier as-is and had never surfaced
+    this. Worse, it collided badly with gap 14's
+    `strip_text_commands`: because that step runs first and
+    unconditionally drops a `\text{...}` group wherever it appears,
+    `R_{\text{parallel}}` -- where the `\text` group is NESTED one
+    level inside the subscript's own braces, not a top-level unit
+    label -- lost `\text{parallel}` entirely but kept the subscript's
+    own now-empty braces behind, producing the literal,
+    doubly-unparseable `R_{}` (sympy's parser does not accept a bare
+    `{` or `}` as syntax at all). The result: nearly every single step
+    of one real live reply (34 of its `verification_warnings`) came
+    back as "could not parse", while `math_verified` still reported
+    `true` -- not because the maths was checked and correct, but
+    because almost nothing could be checked at all. Fixed with a new
+    `convert_braced_subscript` conversion that runs BEFORE
+    `strip_text_commands`, stripping any nested `\text{...}`/backslash
+    command inside the braces itself and rebuilding a plain, valid
+    identifier (`R_{\text{parallel}}` -> `R_parallel`,
+    `V_{3\Omega}` -> `V_3Omega`) -- the exact spelling doesn't matter,
+    only that the same LaTeX subscript always normalizes to the same
+    identifier. Confirmed this also restores REAL error-catching for
+    these variable names, not just quiets the noise: a deliberately
+    wrong `R_{\text{total}}` step is now correctly flagged, where
+    before the fix it would have silently passed unexamined.
 
 Exposed on `POST /tutor/message` as `math_verified: bool` and
 `verification_warnings: list[str]`; shown as a visible badge in the chat

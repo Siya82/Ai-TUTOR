@@ -65,6 +65,67 @@ def normalize_unicode_minus(s: str) -> str:
     return s.replace(_UNICODE_MINUS, "-")
 
 
+_BASE_BRACED_SUBSCRIPT = re.compile(r"([a-zA-Z]+)_\{")
+
+
+def convert_braced_subscript(s: str) -> str:
+    """Gap 22 (new, found 13 Nov 2026 via the live Electric Circuits stress
+    test on a real series-parallel resistor problem): a MULTI-CHARACTER
+    LaTeX subscript wrapped in braces -- "R_{\\text{parallel}}",
+    "V_{3\\Omega}", "I_{\\text{each}}" -- was never converted into a
+    valid sympy identifier at all. A single-character digit subscript
+    with no braces (R_1, R_2) already happens to be a legal Python
+    identifier as-is and was never a problem; the braced,
+    multi-character form is an entirely different case that had no
+    handling whatsoever. Worse, it collided badly with gap 14's
+    strip_text_commands: because that runs first and unconditionally
+    drops a \\text{...} group (including its content) wherever it
+    appears, "R_{\\text{parallel}}" -- where the \\text group is NESTED
+    one level inside the subscript's own braces, not a top-level unit
+    label -- lost its \\text{parallel} entirely but kept the
+    subscript's own now-empty braces behind, producing the literal,
+    doubly-unparseable "R_{}" (sympy's parser does not accept a bare
+    "{" or "}" as syntax at all). Must therefore run BEFORE
+    strip_text_commands, doing its own \\text{...}-stripping internally
+    as part of building a valid identifier. Converts "BASE_{...}" to
+    "BASE_<sanitized>", where <sanitized> keeps only the alphanumeric
+    characters from the brace content (backslash commands like \\Omega
+    are stripped to their bare name first) -- e.g.
+    "R_{\\text{parallel}}" -> "R_parallel", "V_{3\\Omega}" ->
+    "V_3Omega". The exact spelling of the generated identifier doesn't
+    matter for verification -- only that the SAME LaTeX subscript
+    always normalizes to the SAME valid identifier, consistently,
+    within and across steps. This is what turned nearly every single
+    step of a real worked Electric Circuits reply (34 of the warnings
+    returned by one live call) into an unparseable block -- by far the
+    most consequential gap found this session."""
+    out = []
+    i = 0
+    while i < len(s):
+        m = _BASE_BRACED_SUBSCRIPT.search(s, i)
+        if not m:
+            out.append(s[i:])
+            break
+        out.append(s[i:m.start()])
+        base = m.group(1)
+        j = m.end()  # position right after the subscript's own opening "{"
+        depth = 1
+        k = j
+        while k < len(s) and depth > 0:
+            if s[k] == "{":
+                depth += 1
+            elif s[k] == "}":
+                depth -= 1
+            k += 1
+        inner = s[j:k - 1]
+        inner = re.sub(r"\\text\{([^{}]*)\}", r"\1", inner)
+        inner = re.sub(r"\\([a-zA-Z]+)", r"\1", inner)
+        suffix = re.sub(r"[^0-9a-zA-Z]", "", inner)
+        out.append(f"{base}_{suffix}" if suffix else base)
+        i = k
+    return "".join(out)
+
+
 def strip_text_commands(s: str) -> str:
     """Gap 14 (found 13 Nov 2026 via the first live Physical Sciences
     smoke test -- not from project memory, a genuinely new finding):
@@ -366,6 +427,7 @@ def normalize_latex(raw: str) -> str:
     s = raw
     s = strip_markdown_artifacts(s)
     s = strip_decorative_symbols(s)
+    s = convert_braced_subscript(s)  # gap 22 -- must run before strip_text_commands
     s = strip_text_commands(s)  # gap 14 -- before anything else touches units
     s = normalize_unicode_minus(s)
     s = normalize_decimal_commas(s)
