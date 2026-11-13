@@ -95,6 +95,18 @@ that keeps the differentiator intact.
 
 ## Consequences
 
+- **Update 13 Nov 2026:** the first real pytest run after this change
+  found a genuine (if mundane) regression before the anticipated
+  MathGuard one below ever got a chance to surface: 4 tests in
+  `test_tutor_orchestration.py` failed with `AttributeError:
+  'NoneType' object has no attribute 'name'`, because that test file's
+  own `_topic()` helper builds detached `Topic` objects with no DB
+  session, so `.subject` was never populated -- unlike the real
+  `routers/tutor.py` caller, which eager-loads it. Fixed by having the
+  helper attach a real in-memory `Subject`, matching the contract this
+  ADR's own Implementation section describes, rather than weakening
+  that contract to paper over a test fixture gap. See BUILD_LOG.md's
+  13 Nov 2026 entry.
 - MathGuard has not yet been live-tested against real Physics content
   (units like "m/s" or "N" written inline, rather than inside a $$...$$
   block, are a plausible new parsing edge the Maths-only gap list never

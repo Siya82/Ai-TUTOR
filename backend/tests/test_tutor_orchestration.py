@@ -1,6 +1,18 @@
 """
 Unit tests for app.services.tutor_orchestration.prepare_tutor_turn().
 Pure -- no DB needed, Learner/Topic/Attempt are constructed directly.
+
+FIX 13 Nov 2026 (multi-subject support, ADR-013 follow-up, found via a
+real pytest run after adding Physical Sciences -- not anticipated in
+ADR-013's own "Consequences" section, which only flagged a live-call
+risk): prepare_tutor_turn() now reads recommended_topic.subject.name/
+.grade, which routers/tutor.py guarantees via selectinload(Topic.subject)
+against a real DB session -- but _topic() here builds a detached Topic
+with no session at all, so .subject was simply None, not lazy-loadable.
+Fixed by having _topic() attach a real in-memory Subject directly
+(assigning a relationship attribute on a transient object needs no
+session), rather than loosening prepare_tutor_turn()'s real contract to
+tolerate a subject-less Topic it will never actually see in production.
 """
 
 import uuid
@@ -11,12 +23,21 @@ from datetime import UTC, datetime, timedelta
 def _now_naive() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
-from app.models import Attempt, Learner, Topic
+from app.models import Attempt, Learner, Subject, Topic
 from app.services.tutor_orchestration import prepare_tutor_turn
 
 
-def _topic(name: str, prerequisite_id=None) -> Topic:
-    return Topic(id=uuid.uuid4(), subject_id=uuid.uuid4(), name=name, prerequisite_id=prerequisite_id)
+# Shared in-memory Subject -- mirrors what routers/tutor.py's
+# selectinload(Topic.subject) actually hands prepare_tutor_turn() in
+# production (a real Subject, not None). One default instance is enough
+# since every test below is Pure Mathematics content.
+_DEFAULT_SUBJECT = Subject(id=uuid.uuid4(), name="Pure Mathematics", grade=10)
+
+
+def _topic(name: str, prerequisite_id=None, subject: Subject | None = None) -> Topic:
+    topic = Topic(id=uuid.uuid4(), subject_id=uuid.uuid4(), name=name, prerequisite_id=prerequisite_id)
+    topic.subject = subject or _DEFAULT_SUBJECT
+    return topic
 
 
 def _learner(preferred_modality: str = "balanced") -> Learner:
@@ -83,3 +104,18 @@ def test_pace_tier_is_computed_for_the_topic_actually_taught_not_the_requested_o
 
     assert prep.recommended_topic.id == mult.id
     assert prep.pace_tier == "needs_support"
+
+
+def test_subject_name_and_grade_come_from_the_topics_real_subject():
+    """Regression test for the 13 Nov 2026 fix: prepare_tutor_turn() must
+    read the SUBJECT actually attached to the topic being taught, not
+    assume Pure Mathematics -- this is the orchestration-layer half of
+    what test_tutor_prompt.py already checks at the prompt-builder layer."""
+    physics = Subject(id=uuid.uuid4(), name="Physical Sciences", grade=10)
+    topic = _topic("Motion in One Dimension", subject=physics)
+    learner = _learner()
+
+    prep = prepare_tutor_turn(learner, [topic], {})
+
+    assert "Grade 10 Physical Sciences tutor" in prep.system_prompt
+    assert "Mathematics" not in prep.system_prompt

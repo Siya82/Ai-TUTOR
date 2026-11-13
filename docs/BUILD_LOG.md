@@ -1247,6 +1247,38 @@ ADR-013 for the full decision, including why Chemistry strand and
 - Chemistry strand, Life Sciences, Accounting: still fully out of
   scope, per ADR-013.
 
+## 2026-11-13 -- Multi-subject follow-up: fixed 4 real test failures from the 12 Nov change
+
+**Goal:** Siya ran the full suite after seeding Physical Sciences (seed
+script + `/subjects` all worked correctly first try -- 2 subjects, 20
+topics total, 16 new Physical Sciences questions/chunks). 4 of 56 tests
+failed: `AttributeError: 'NoneType' object has no attribute 'name'` in
+`test_tutor_orchestration.py`.
+
+**Root cause:** NOT the units-written-inline MathGuard risk ADR-013
+anticipated -- a different, simpler gap. `tutor_orchestration.py`'s 12
+Nov change reads `recommended_topic.subject.name`/`.grade`, which is
+safe in production because `routers/tutor.py` eager-loads
+`Topic.subject` via `selectinload` on every DB fetch. But
+`test_tutor_orchestration.py`'s own `_topic()` helper builds a bare,
+detached `Topic(...)` with no DB session at all -- `.subject` was
+simply `None` there, not something that could lazy-load.
+
+**Fix:** `_topic()` now attaches a real in-memory `Subject` directly
+(`topic.subject = subject or _DEFAULT_SUBJECT`) -- a plain attribute
+assignment on a transient object needs no session. This matches what
+the real eager-loaded contract actually looks like, rather than
+loosening `prepare_tutor_turn()` to tolerate a subject-less `Topic` it
+will never see in production. Added one new test
+(`test_subject_name_and_grade_come_from_the_topics_real_subject`,
+using a Physical Sciences subject) covering the orchestration-layer
+half of what `test_tutor_prompt.py` already checked at the
+prompt-builder layer alone.
+
+**Not done yet:** still no live `/tutor/message` call against a
+Physical Sciences topic -- that's next, now that the full suite is
+green again.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
