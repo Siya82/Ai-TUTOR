@@ -16,6 +16,15 @@
  * FIX 12 Nov 2026 (multi-subject support, ADR-013): added entries for
  * the Physical Sciences (Physics strand) topics -- different symbol
  * needs again (Ω, Δ, vector arrows, °) from either Maths bucket above.
+ *
+ * FIX 13 Nov 2026 (Grade 11 added, ADR-014): TOPIC_SYMBOLS is keyed by
+ * topic NAME, not id -- a Grade 11 topic that shares its exact name
+ * with a Grade 10 one (Vectors in Two Dimensions, Electrostatics,
+ * Electric Circuits) automatically reuses that entry, which is
+ * correct here since the symbol needs really are the same. Only the
+ * three genuinely NEW Grade 11 topic names (no Grade 10 namesake) --
+ * Newton's Laws, Newton's Universal Law of Gravitation,
+ * Electromagnetism -- needed their own new entries below.
  */
 
 const COMMON_SYMBOLS = [
@@ -126,6 +135,21 @@ const TOPIC_SYMBOLS = {
     { label: "Ω", insert: "Ω" },
     { label: "V", insert: "V" },
     { label: "A", insert: "A" },
+  ],
+  "Newton's Laws": [
+    { label: "N", insert: "N" },
+    { label: "μ", insert: "μ" },
+    { label: "→", insert: "→" },
+  ],
+  "Newton's Universal Law of Gravitation": [
+    { label: "G", insert: "G" },
+    { label: "×", insert: "×" },
+    { label: "⁻", insert: "⁻" },
+  ],
+  Electromagnetism: [
+    { label: "Φ", insert: "Φ" },
+    { label: "Δ", insert: "Δ" },
+    { label: "ε", insert: "ε" },
   ],
 };
 

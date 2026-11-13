@@ -540,3 +540,22 @@ also not recovered.
     `docs/ADR-014-grade11-expansion.md`. Not yet live-tested against a
     real Claude call, or run against a real Postgres instance at all --
     handed to Siya, same handoff as every previous content expansion.
+12. ~~Add Grade 11 Physical Sciences (Physics strand), same deepen-not-
+    widen direction, right after Grade 11 Pure Mathematics~~ -- **DONE
+    13 Nov 2026.** 6 CAPS Grade 11 topics across two chains (Mechanics;
+    Electricity/Magnetism) -- smaller than Grade 10's 8, since
+    Waves/Sound/Light moves entirely to Grade 12. Unlike Grade 11
+    Maths' clean 1:1 mapping, only 2 of 6 topics (Vectors in Two
+    Dimensions, Electrostatics) have an exact Grade 10 counterpart and
+    get a direct cross-grade prerequisite; Newton's Laws and Newton's
+    Universal Law of Gravitation are genuinely new content, and
+    Electromagnetism's only candidate Grade 10 link was judged too
+    inexact to use directly -- item 11's cross-grade mechanism needed
+    no changes to handle this. Two MORE MathGuard gaps (20: trig of a
+    bare symbol with no parens/space, e.g. \cos\theta -- a pattern
+    this tutor's own live output already uses; 21: a letter glued
+    directly against a trig call dropping the function entirely)
+    found and fixed proactively, again before any seed data was
+    written. See `docs/ADR-015-grade11-physical-sciences.md`. Not yet
+    live-tested or run against a real Postgres instance -- handed to
+    Siya, same handoff as every previous content expansion.

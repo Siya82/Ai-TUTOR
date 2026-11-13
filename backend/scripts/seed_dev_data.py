@@ -254,6 +254,67 @@ _PHYSICAL_SCIENCES_QUESTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# --- Physical Sciences, Grade 11 -- Physics strand only (added 13 Nov 2026, ADR-014) ---
+# Topic names/order follow the DBE CAPS FET Physical Sciences Grades 10-12
+# document, Section 3.2 (Grade 11 Annual Teaching Plan). Smaller than Grade 10
+# (6 topics, not 8) -- the Waves/Sound/Light strand moves entirely to Grade 12.
+# Unlike Grade 11 Maths, NOT every topic maps 1:1 onto a Grade 10 counterpart:
+# Newton's Laws and Newton's Universal Law of Gravitation are genuinely new
+# content with no Grade 10 equivalent at all, and Electromagnetism's only
+# candidate Grade 10 link (Magnetism, which is purely descriptive there vs.
+# quantitative flux/Faraday's-law content here) was judged too inexact to use
+# as a direct cross-grade edge -- within-grade chaining only for those three.
+# Only the two topics that DO have a clean, exact-name Grade 10 counterpart
+# (Vectors in Two Dimensions, Electrostatics) get a cross-grade prerequisite,
+# same "root topics anchor cross-grade, the rest chain within-grade" pattern
+# already used for Grade 11 Pure Mathematics.
+
+_PHYSICAL_SCIENCES_GRADE11_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Vectors in Two Dimensions", ("Physical Sciences", 10, "Vectors in Two Dimensions")),
+    ("Newton's Laws", "Vectors in Two Dimensions"),
+    ("Newton's Universal Law of Gravitation", "Newton's Laws"),
+    ("Electrostatics", ("Physical Sciences", 10, "Electrostatics")),
+    ("Electromagnetism", "Electrostatics"),
+    ("Electric Circuits", "Electromagnetism"),
+]
+
+_PHYSICAL_SCIENCES_GRADE11_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Vectors in Two Dimensions": [
+        ("Calculate the resultant of a 10 N force at 0 degrees and a 10 N force at 90 degrees",
+         "14.14 N at 45 degrees"),
+        ("Resolve a 20 N force acting at 60 degrees above the horizontal into its horizontal and vertical components",
+         "Fx = 10 N, Fy = 17.3 N"),
+    ],
+    "Newton's Laws": [
+        ("Calculate the net force needed to accelerate a 5 kg object at 2 m/s^2", "Fnet = ma = 10 N"),
+        ("State Newton's Third Law of Motion", "For every action there is an equal and opposite reaction"),
+    ],
+    "Newton's Universal Law of Gravitation": [
+        ("Calculate the gravitational force between two 1000 kg masses separated by 10 m (G = 6.67x10^-11 N.m^2/kg^2)",
+         "F = Gm1m2/d^2 = 6.67x10^-7 N"),
+        ("State Newton's Law of Universal Gravitation in words",
+         "Every point mass attracts every other point mass with a force proportional to the product of "
+         "their masses and inversely proportional to the square of the distance between them"),
+    ],
+    "Electrostatics": [
+        ("Calculate the electrostatic force between two charges of 4x10^-6 C and 2x10^-6 C separated by "
+         "0.2 m (k = 9x10^9 N.m^2/C^2)", "F = kq1q2/r^2 = 1.8 N"),
+        ("Calculate the electric field strength 0.5 m from a point charge of 5x10^-6 C (k = 9x10^9 N.m^2/C^2)",
+         "E = kQ/r^2 = 180000 N/C"),
+    ],
+    "Electromagnetism": [
+        ("Calculate the magnetic flux through a 0.1 m^2 coil in a 0.5 T field, field perpendicular to the coil",
+         "Phi = BA = 0.05 Wb"),
+        ("State Lenz's Law",
+         "The induced current flows in a direction that opposes the change in magnetic flux that caused it"),
+    ],
+    "Electric Circuits": [
+        ("Calculate the terminal voltage of a battery with EMF 12 V, internal resistance 0.5 ohm, "
+         "delivering a current of 2 A", "V = EMF - Ir = 11 V"),
+        ("Calculate the total resistance of a 4 ohm and 6 ohm resistor connected in parallel", "R = 2.4 ohm"),
+    ],
+}
+
 SUBJECTS: list[dict] = [
     {
         "name": "Pure Mathematics",
@@ -272,6 +333,12 @@ SUBJECTS: list[dict] = [
         "grade": 11,
         "topics": _MATHS_GRADE11_TOPICS,
         "questions": _MATHS_GRADE11_QUESTIONS,
+    },
+    {
+        "name": "Physical Sciences",
+        "grade": 11,
+        "topics": _PHYSICAL_SCIENCES_GRADE11_TOPICS,
+        "questions": _PHYSICAL_SCIENCES_GRADE11_QUESTIONS,
     },
 ]
 

@@ -1513,6 +1513,52 @@ total now).
 - Grade 12 Pure Mathematics and Grade 12 Physical Sciences remain out
   of scope for this pass.
 
+## 2026-11-13 -- Grade 11 Physical Sciences added (Physics strand)
+
+**Goal:** continuing the deepen-not-widen direction, add Physical
+Sciences grade 11 as a fourth Subject row, matching ADR-013's existing
+Physics-strand-only scope. The 2 proactively-found parsing gaps (20,
+21) from the previous commit were fixed before this content existed.
+
+**Content:** 6 Grade 11 topics (DBE CAPS FET Physical Sciences Grades
+10-12, Section 3.2) across two independent chains -- Mechanics
+(Vectors in Two Dimensions -> Newton's Laws -> Newton's Universal Law
+of Gravitation) and Electricity/Magnetism (Electrostatics ->
+Electromagnetism -> Electric Circuits) -- plus 12 new diagnostic
+questions. Smaller than Grade 10's 8 topics: Waves/Sound/Light moves
+entirely to Grade 12.
+
+**Unlike Grade 11 Maths, the cross-grade mapping here is NOT 1:1**:
+only Vectors in Two Dimensions and Electrostatics have an exact-name
+Grade 10 counterpart and get a direct cross-grade prerequisite edge.
+Newton's Laws and Newton's Universal Law of Gravitation are genuinely
+new content (no Grade 10 equivalent at all); Electromagnetism's only
+candidate Grade 10 link (Magnetism, purely descriptive there vs.
+quantitative here) was judged too inexact to wire directly, so it
+chains within-grade to Electrostatics instead. ADR-014's cross-grade
+mechanism needed no changes to handle this -- a topic tuple just uses
+a plain string (no cross-grade edge) the same way Grade 10's own root
+topics already do. Full reasoning in
+`docs/ADR-015-grade11-physical-sciences.md`.
+
+`SymbolKeyboard.jsx` gained 3 new entries for the topic names with no
+Grade 10 namesake (Newton's Laws, Newton's Universal Law of
+Gravitation, Electromagnetism) -- the other 3 Grade 11 topics share an
+exact name with their Grade 10 counterpart and already work for free,
+since `TOPIC_SYMBOLS` is keyed by name, not id.
+
+**Verification:** `_validate_subject_data` exercised directly (pure
+Python, no DB) against the real `SUBJECTS` list -- all 4 subjects (37
+topics, 74 questions total) validate cleanly, including the new
+inexact cross-grade mapping. ESLint clean on the frontend change.
+
+**Not done yet:**
+- Siya needs to run the seed script, pytest, and a live
+  `/tutor/message` smoke test against a Grade 11 Physical Sciences
+  topic -- same handoff as every previous content expansion.
+- Grade 12 (both Pure Mathematics and Physical Sciences): next, after
+  Grade 11 is confirmed working on both subjects.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
