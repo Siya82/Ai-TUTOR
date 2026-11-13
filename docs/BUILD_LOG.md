@@ -1559,6 +1559,29 @@ inexact cross-grade mapping. ESLint clean on the frontend change.
 - Grade 12 (both Pure Mathematics and Physical Sciences): next, after
   Grade 11 is confirmed working on both subjects.
 
+## 2026-11-13 -- Real Electric Circuits questions added from a supplied past-paper worksheet
+
+**Goal:** Siya supplied a real "Grade 10 Science: Electric circuits
+revision (2014)" worksheet (PDF) -- a past-paper-style revision sheet
+covering series/parallel resistors, voltmeters/ammeters, and
+charge/energy calculations. Added 3 of its questions (adapted from the
+worksheet's own multiple-choice/fill-in format into this seed script's
+open-question style, answers checked against the worksheet's own
+answer key) to the Grade 10 Physical Sciences "Electric Circuits"
+diagnostic question bank, which previously had only 2 synthetic
+examples -- real CAPS revision content now sits alongside them rather
+than replacing them.
+
+**Also used the worksheet's Q9 (a series-plus-parallel resistor
+network) as the basis for a live MathGuard stress test** -- a step up
+in complexity from anything seeded so far (a resistor in series with
+two resistors in parallel, with current split, voltage, and energy all
+asked in sequence) -- handed to Siya to run against the real backend,
+same "I prepare the test, Siya runs it, I analyze the result" pattern
+used for every previous live check this session.
+
+**Not done yet:** result of the live stress test -- pending.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

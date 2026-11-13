@@ -251,6 +251,21 @@ _PHYSICAL_SCIENCES_QUESTIONS: dict[str, list[tuple[str, str]]] = {
         ("Calculate the current through a 10 ohm resistor connected across a 5 V battery.",
          "I = V/R = 0.5 A"),
         ("Calculate the total resistance of two 4 ohm resistors connected in series.", "8 ohm"),
+        # Added 13 Nov 2026 from a real Grade 10 Science: Electric circuits
+        # revision worksheet (2014) Siya supplied -- sourced from real CAPS
+        # revision content rather than synthetic examples, adapted from the
+        # worksheet's own multiple-choice/fill-in format into this seed
+        # script's open-question style. Answers checked against the
+        # worksheet's own answer key.
+        ("A simple circuit has a 24 V battery and a bulb. A current of 0.5 A flows "
+         "through the bulb. Calculate how long it takes for the bulb to transfer 48 J of energy.",
+         "t = W / (V*I) = 48 / (24*0.5) = 4 s"),
+        ("State the name given to an object that opposes the flow of current in a circuit.",
+         "A resistor"),
+        ("Four 10 V cells are connected in series to form a 40 V battery. A 3 ohm resistor is "
+         "connected in series with two 2 ohm resistors connected in parallel with each other. "
+         "Calculate the total resistance of the circuit.",
+         "R_parallel = (2*2)/(2+2) = 1 ohm; R_total = 3 + 1 = 4 ohm"),
     ],
 }
 
