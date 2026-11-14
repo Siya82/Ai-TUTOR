@@ -2119,6 +2119,98 @@ Full reasoning, including why each cross-grade anchor was chosen
   its own ADR, not attempted here.
 
 
+## 2026-11-14 (continued) -- Added English and isiZulu Home Language (Grade 10) as new subjects (ADR-020)
+
+Siya's request, framed around a correct observation: students across
+South Africa don't all study the same subjects, but every official
+language's Home Language curriculum follows the same national CAPS
+framework for a given grade. Checked this against the DBE's own Grade
+10 Home Language Annual Teaching Plans (14 Nov 2026) -- confirmed:
+every language's Grade 10 Home Language plan runs on the same four
+CAPS skill strands (Listening and Speaking, Reading and Viewing,
+Writing and Presenting, Language Structures and Conventions -- the
+last one explicitly "integrated into all skills" rather than a
+standalone block in the official document), and the year-end exam
+scores against the same shape (Language in Context, Literature,
+Writing, Orals). What differs per language is the content hanging off
+that shared skeleton, not the skeleton itself.
+
+**This is the first subject with no equation- or ledger-shaped content
+anywhere in it.** Accounting (ADR-018) at least had a handful of
+numeric-equality checks (VAT, trial balance); Home Language content
+(essay writing, literature analysis, oral performance) has no
+single-correct-answer shape at all. `model_answer` for essay/writing
+questions is rubric-style guidance, an extension of the same
+"guidance, not hard match" pattern Accounting's conceptual questions
+already used informally. No MathGuard verification -- same extended
+honest-limitation posture.
+
+**Architecture: one Subject per language, same shared 5-topic
+template, zero schema changes** -- confirmed by reading the code, same
+finding as every prior addition: `tutor.py`, `topics.py`,
+`SubjectTopicSidebar.jsx` needed nothing. Both "English Home Language"
+and "isiZulu Home Language" (grade 10) use the exact same five topic
+names -- the same "same name, different Subject row" convention
+grades already use, applied here across languages:
+
+1. Language Structures and Conventions (root -- grammar underlies the
+   other four skills, so this is where root-cause diagnosis should
+   land first, despite CAPS describing it as "integrated")
+2. Listening and Speaking
+3. Reading and Viewing: Literature (Poetry and Drama)
+4. Reading and Viewing: Visual and Media Texts
+5. Writing and Presenting
+
+...chained as one linear trunk, 10 new questions per language (20
+total). `SymbolKeyboard.jsx` needed no new entries -- an unmatched
+topic name already falls back to `COMMON_SYMBOLS` alone, which is
+harmless (if not especially useful) for essay-writing topics.
+
+**Literature content deliberately stays text-agnostic** -- genre-
+general (poetic devices, stage-direction conventions, praise-poetry
+form), not tied to a named novel/poem. The actual prescribed-text list
+comes from a separate DBE circular that's revised every few years and
+differs per language; this session doesn't have reliably current data
+on what's currently prescribed for either language, and guessing a
+title risks teaching to a text no longer on the list. If/when Siya
+supplies the current list, it becomes additional seed content under
+the same topic, not a schema change.
+
+**isiZulu content has NOT been reviewed by a fluent isiZulu speaker.**
+This is the headline open item, not a footnote. Three options were on
+the table (ship now flagged for review; build the topic skeleton only
+and leave content to a fluent reviewer; hold off on isiZulu entirely
+until English is live) -- Siya's explicit choice: ship it now, using
+this project's usual "ship then verify" discipline, but applied to
+language accuracy instead of logic, with the flag made loud (this
+BUILD_LOG entry, ADR-020, and an inline comment block in
+`seed_dev_data.py` itself) so it can't be missed later. Examples were
+deliberately kept to simple, well-documented linguistic facts (the
+noun-class system, basic vocabulary like 'incwadi'/book,
+'izibongo'/praise poems) rather than attempting idiomatic or complex
+sentence construction, to bound the risk -- but simple is not the same
+as verified.
+
+Full reasoning in `docs/ADR-020-home-languages.md`.
+
+**Not done yet:**
+- **isiZulu content needs native-speaker review before any real
+  student sees it.** Not a "nice to have" -- treat as a blocker for
+  isiZulu specifically, separate from English Home Language's own
+  readiness.
+- No current prescribed-text list for either language -- Literature
+  topic content stays genre-general until supplied/confirmed.
+- Not live-tested against a real Claude call yet -- handed to Siya
+  next, same discipline as every prior content addition.
+- No rubric-scoring infrastructure for essay-type questions beyond the
+  tutor reading `model_answer` as prompt guidance -- no structured
+  rubric field on `Question` yet.
+- Grade 11/12 Home Languages don't exist yet.
+- Other official languages (isiXhosa, Afrikaans, Sesotho, etc.) are
+  not in scope here -- the architecture generalizes cleanly, but
+  building more languages is a future, explicitly-requested step.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
