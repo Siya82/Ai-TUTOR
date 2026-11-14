@@ -628,6 +628,172 @@ _ACCOUNTING_GRADE11_QUESTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# --- English Home Language / isiZulu Home Language, Grade 10 (added 14
+# Nov 2026, ADR-020) ---
+# The first subject with no equation- or ledger-shaped content anywhere in
+# it (see ADR-020) -- topic names/structure follow the DBE's own national
+# Grade 10 Home Language Annual Teaching Plan, which uses the SAME four
+# CAPS skill strands for every official language's Home Language (checked
+# 14 Nov 2026): Listening and Speaking, Reading and Viewing, Writing and
+# Presenting, and Language Structures and Conventions. Both languages below
+# therefore reuse the exact same five topic names -- the same "same name,
+# different Subject row" convention Grade 10/11 already use across grades,
+# applied here across languages instead, since it's genuinely the same
+# skill. Literature topics stay text-agnostic (genre-general, not tied to
+# a named novel/poem) since the actual prescribed-text list comes from a
+# separate, periodically-revised DBE circular not reliably known here --
+# see ADR-020.
+#
+# *** isiZulu content below has NOT been reviewed by a fluent isiZulu
+# speaker. *** Per Siya's own explicit choice (ADR-020): ship it now using
+# this project's usual "ship then verify" discipline, but flagged loudly
+# because this is unverified CONTENT correctness, not an untested code
+# path -- do not treat it as authoritative until reviewed. Examples were
+# deliberately kept to simple, well-documented linguistic facts (the
+# noun-class system, basic vocabulary) to bound the risk, but simple is
+# not the same as verified.
+
+_ENGLISH_HL_TOPICS: list[tuple[str, str | None]] = [
+    ("Language Structures and Conventions", None),
+    ("Listening and Speaking", "Language Structures and Conventions"),
+    ("Reading and Viewing: Literature (Poetry and Drama)", "Listening and Speaking"),
+    ("Reading and Viewing: Visual and Media Texts", "Reading and Viewing: Literature (Poetry and Drama)"),
+    ("Writing and Presenting", "Reading and Viewing: Visual and Media Texts"),
+]
+
+_ENGLISH_HL_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Language Structures and Conventions": [
+        ("Identify the tense used in this sentence and rewrite it in the "
+         "past tense: 'She writes a letter every morning.'",
+         "Present tense; past tense: 'She wrote a letter every morning.'"),
+        ("Name the figure of speech used in the sentence: 'The wind "
+         "whispered through the trees.'",
+         "Personification -- giving a human quality (whispering) to "
+         "something non-human (the wind)"),
+    ],
+    "Listening and Speaking": [
+        ("List two features that distinguish a prepared speech from an "
+         "unprepared (impromptu) speech.",
+         "E.g. a prepared speech is researched and rehearsed in advance "
+         "with a planned structure, while an unprepared speech is "
+         "delivered with little or no preparation time, relying on the "
+         "speaker's quick thinking"),
+        ("Name one non-verbal technique a speaker can use to engage an "
+         "audience during a speech.",
+         "E.g. eye contact, appropriate gestures, varying tone and pace, "
+         "or purposeful pausing"),
+    ],
+    "Reading and Viewing: Literature (Poetry and Drama)": [
+        ("Explain the difference between a simile and a metaphor, giving "
+         "one example of each.",
+         "A simile compares two things using 'like' or 'as' (e.g. 'brave "
+         "as a lion'); a metaphor states that one thing IS another, "
+         "without 'like' or 'as' (e.g. 'he is a lion in battle')"),
+        ("In a play script, what is the purpose of stage directions?",
+         "They instruct actors and the director on movement, tone, and "
+         "staging -- guiding how the dialogue should be performed, not "
+         "part of the spoken dialogue itself"),
+    ],
+    "Reading and Viewing: Visual and Media Texts": [
+        ("When analysing a print advertisement, name two visual "
+         "techniques an advertiser might use to persuade a viewer.",
+         "E.g. bold colour contrast to draw the eye, a celebrity or "
+         "aspirational image, strategic use of white space, or a slogan "
+         "placed prominently"),
+        ("What is the purpose of a political cartoon?",
+         "To comment critically, often satirically, on a current event, "
+         "person, or issue, using exaggeration and symbolism to make a "
+         "point quickly and memorably"),
+    ],
+    "Writing and Presenting": [
+        ("Name the three essay types typically examined in Grade 10 Home "
+         "Language, and briefly state the purpose of one.",
+         "Narrative (tells a story), descriptive (creates a vivid picture "
+         "of a person/place/experience), and argumentative (persuades the "
+         "reader of a viewpoint) -- e.g. a narrative essay recounts a "
+         "sequence of events, often from personal experience, in an "
+         "engaging way"),
+        ("What is the key difference between a formal letter and an "
+         "informal letter in terms of language register?",
+         "A formal letter uses respectful, impersonal, grammatically "
+         "correct language for an unfamiliar or official reader (e.g. "
+         "'Dear Sir/Madam'), while an informal letter uses casual, "
+         "personal language for someone you know well (e.g. 'Hi Thabo')"),
+    ],
+}
+
+_ISIZULU_HL_TOPICS: list[tuple[str, str | None]] = [
+    ("Language Structures and Conventions", None),
+    ("Listening and Speaking", "Language Structures and Conventions"),
+    ("Reading and Viewing: Literature (Poetry and Drama)", "Listening and Speaking"),
+    ("Reading and Viewing: Visual and Media Texts", "Reading and Viewing: Literature (Poetry and Drama)"),
+    ("Writing and Presenting", "Reading and Viewing: Visual and Media Texts"),
+]
+
+_ISIZULU_HL_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Language Structures and Conventions": [
+        ("Identify the noun class of 'umfundi' (student) and give one "
+         "other isiZulu noun from the same class.",
+         "Class 1 (umu-/aba- class, singular/plural human nouns); "
+         "another noun in this class: 'umfana' (boy) -- plural "
+         "'abafana'"),
+        ("What is the isiZulu word for 'book', and what is its plural "
+         "form?",
+         "'incwadi' (book); plural: 'izincwadi' (books) -- class 9/10"),
+    ],
+    "Listening and Speaking": [
+        ("Name one traditional isiZulu oral form used for public or "
+         "ceremonial speech.",
+         "E.g. izibongo (praise poetry) -- a traditional oral form that "
+         "praises a person's, clan's, or significant event's lineage and "
+         "deeds, traditionally performed aloud rather than read silently"),
+        ("List two features that distinguish a prepared speech from an "
+         "unprepared (impromptu) speech.",
+         "E.g. a prepared speech is researched and rehearsed in advance "
+         "with a planned structure, while an unprepared speech is "
+         "delivered with little or no preparation time, relying on the "
+         "speaker's quick thinking"),
+    ],
+    "Reading and Viewing: Literature (Poetry and Drama)": [
+        ("What are 'izibongo', and what role do they traditionally play "
+         "in isiZulu culture?",
+         "Praise poems -- a traditional oral poetic form that praises a "
+         "person's (often a chief's or ancestor's) lineage, deeds, and "
+         "character"),
+        ("In a play script (umdlalo), what is the purpose of stage "
+         "directions?",
+         "They instruct actors and the director on movement, tone, and "
+         "staging -- guiding how the dialogue should be performed, not "
+         "part of the spoken dialogue itself"),
+    ],
+    "Reading and Viewing: Visual and Media Texts": [
+        ("When analysing a print advertisement, name two visual "
+         "techniques an advertiser might use to persuade a viewer.",
+         "E.g. bold colour contrast to draw the eye, a celebrity or "
+         "aspirational image, strategic use of white space, or a slogan "
+         "placed prominently"),
+        ("What is the purpose of a political cartoon (ikhathuni "
+         "yezombangazwe)?",
+         "To comment critically, often satirically, on a current event, "
+         "person, or issue, using exaggeration and symbolism to make a "
+         "point quickly and memorably"),
+    ],
+    "Writing and Presenting": [
+        ("Name the three essay types typically examined in Grade 10 Home "
+         "Language, and briefly state the purpose of one.",
+         "Narrative (tells a story), descriptive (creates a vivid picture "
+         "of a person/place/experience), and argumentative (persuades the "
+         "reader of a viewpoint) -- e.g. a narrative essay recounts a "
+         "sequence of events, often from personal experience, in an "
+         "engaging way"),
+        ("What isiZulu greeting might open an informal letter to someone "
+         "you know well, and what is its English equivalent register?",
+         "'Sawubona' (hello/greetings to one person) -- an informal "
+         "opening, matching the register of an English informal letter "
+         "opening such as 'Hi' rather than the formal 'Dear Sir/Madam'"),
+    ],
+}
+
 SUBJECTS: list[dict] = [
     {
         "name": "Pure Mathematics",
@@ -646,6 +812,18 @@ SUBJECTS: list[dict] = [
         "grade": 11,
         "topics": _ACCOUNTING_GRADE11_TOPICS,
         "questions": _ACCOUNTING_GRADE11_QUESTIONS,
+    },
+    {
+        "name": "English Home Language",
+        "grade": 10,
+        "topics": _ENGLISH_HL_TOPICS,
+        "questions": _ENGLISH_HL_QUESTIONS,
+    },
+    {
+        "name": "isiZulu Home Language",
+        "grade": 10,
+        "topics": _ISIZULU_HL_TOPICS,
+        "questions": _ISIZULU_HL_QUESTIONS,
     },
     {
         "name": "Physical Sciences",
