@@ -151,6 +151,55 @@ const TOPIC_SYMBOLS = {
     { label: "Δ", insert: "Δ" },
     { label: "ε", insert: "ε" },
   ],
+  // NEW 14 Nov 2026 (ADR-018, Accounting added): no trig/Greek-letter
+  // needs here, but every Accounting topic deals in Rand amounts and
+  // VAT/deduction percentages, neither of which is on a standard
+  // keyboard as a single keystroke -- same "small, topic-specific
+  // convenience row" idea as the Physics entries above, just for
+  // currency instead of units/constants. Shared across every
+  // Accounting topic rather than varied per-topic, since the actual
+  // need (Rand sign, percent) genuinely doesn't change topic to topic
+  // the way it does between, say, Electrostatics and Electromagnetism.
+  "Accounting Concepts, GAAP and Internal Control": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "The Accounting Equation": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Cash Journals (CRJ, CPJ, PCJ)": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Credit Journals (DJ, DAJ, CJ, CAJ, GJ)": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "General Ledger and Trial Balance": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Value-Added Tax (VAT)": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Salaries and Wages": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Year-End Adjustments": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Financial Statements (Income Statement and Balance Sheet)": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Budgeting (Cash Budget)": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
 };
 
 export default function SymbolKeyboard({ topicName, onInsert }) {

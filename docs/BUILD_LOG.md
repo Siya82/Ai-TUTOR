@@ -1932,6 +1932,90 @@ so BUILD_LOG stays the single place to scan):**
 
 **Addendum (same day) -- "remember password" on `LoginScreen.jsx`:** asked for directly by Siya. Deliberately NOT a custom password store (that would mean a plaintext password sitting in browser storage on what's plausibly a shared school/lab device -- a worse POPIA posture than this feature already took a stance on). Instead added the correct `name`/`autoComplete` tokens (`username`/`current-password` on the login fields, `new-password` on both fields of the forced password-change step) so the browser's own password manager recognizes this as a real login form and offers its native save/autofill -- the password itself never touches THUTOra's own code or storage either way. Unmounting the form on a successful login (App.jsx swapping to ChatScreen) is exactly the signal most browsers' save-password heuristic looks for.
 
+## 2026-11-14 (continued) -- Added Accounting (Grade 10) as a new subject (ADR-018)
+
+Siya's chosen next subject (via `AskUserQuestion`, over Grade 12 Pure
+Mathematics, Grade 12 Physical Sciences, and Life Sciences). Researched
+the real DBE CAPS Grade 10 Accounting Annual Teaching Plan and the Via
+Afrika Grade 10 Accounting Study Guide's topic breakdown before writing
+any seed data, same discipline as every prior subject addition.
+
+**Scope decision, a deliberate departure from ADR-013's precedent:**
+shipped the full CAPS Grade 10 syllabus (ten topics, following the
+ATP's own term order below) rather than narrowing to an
+equation-shaped subset the way Physical Sciences narrowed to the
+Physics strand. Reasoning: Accounting doesn't have a clean
+equation-shaped/non-equation-shaped split the way Physics/Chemistry
+did -- the whole subject shares the same basic verification shape
+(ledger/balance-style correctness, not "solve this equation"), so
+narrowing the curriculum itself would only lose real content without
+buying back any verification coverage.
+
+**Verification decision:** taught WITHOUT MathGuard-style checking for
+now -- not silently claimed as verified. Same "honest, permanent-
+until-revisited limitation" posture REBUILD_SPEC.md already documents
+for Euclidean Geometry proofs, chosen over ADR-013's "exclude the
+unverifiable part" because an accounting-shaped checker would need new
+verification infrastructure spanning nearly all ten topics, not a
+tweak to MathGuard's existing equation-solving machinery -- building
+that before a single real Accounting reply has been live-tested would
+repeat the exact mistake this project's own build discipline exists to
+avoid (every real MathGuard gap found so far was found by testing
+against real content, never by guessing upfront what a checker needs).
+`math_guard.py`/`math_validator.py` are unchanged in this pass.
+
+**10 new topics added to `backend/scripts/seed_dev_data.py`** (one
+linear Term 1 backbone, then three Term 2 branches off General Ledger
+and Trial Balance -- same "shared trunk, multiple branches" shape
+Grade 10 Maths already uses):
+1. Accounting Concepts, GAAP and Internal Control
+2. The Accounting Equation
+3. Cash Journals (CRJ, CPJ, PCJ)
+4. Credit Journals (DJ, DAJ, CJ, CAJ, GJ)
+5. General Ledger and Trial Balance
+6. Value-Added Tax (VAT)
+7. Salaries and Wages
+8. Year-End Adjustments
+9. Financial Statements (Income Statement and Balance Sheet)
+10. Budgeting (Cash Budget)
+
+20 new diagnostic questions (2 per topic), a mix of numeric
+(accounting-equation arithmetic, VAT percentages, net-salary
+calculations) and conceptual (GAAP principles, which journal a
+transaction belongs in) -- matching the mix Euclidean Geometry already
+has between numeric angle-sum problems and "state the theorem"
+questions. No DB migration needed (`Subject`/`Topic`/`Question` are
+already subject-agnostic, ADR-013); no cross-subject prerequisite
+links to Maths or Physical Sciences, since Accounting has no natural
+foundational dependency on either.
+
+**Confirmed via reading, not assumed:** `app/services/tutor.py`'s
+subject-aware system prompt builder, `app/routers/topics.py`'s
+`subject_id` filter, and `frontend/src/components/SubjectTopicSidebar.jsx`
+all needed zero changes -- they already key off the DB's own
+`Subject`/`Topic` rows, the exact design ADR-013 put in place for this
+reason. `frontend/src/components/SymbolKeyboard.jsx` got a small
+two-button (R, %) convenience row added across all ten topics, since
+it already falls back to `COMMON_SYMBOLS` alone for any unmatched
+topic name and would have worked with zero changes otherwise.
+
+Full reasoning, the deferred-topics list (Debtors/Creditors
+Reconciliation, ratio analysis, Cost Accounting -- real CAPS content,
+not silently dropped), and the open-items list in
+`docs/ADR-018-accounting-grade10.md`.
+
+**Not done yet:**
+- Not live-tested against a real Claude call -- handed to Siya next,
+  same discipline as every prior content addition: run the updated
+  `seed_dev_data.py`, then try a real `/tutor/message` call against an
+  Accounting topic.
+- No Accounting-specific verifier exists or is designed yet -- what it
+  should even check is an open question, deliberately left open until
+  live testing shows what's worth checking.
+- Debtors/Creditors Reconciliation, ratio analysis, and Cost
+  Accounting are real CAPS Grade 10 content not yet seeded.
+- Grade 11/12 Accounting doesn't exist yet.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

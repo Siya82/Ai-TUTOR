@@ -338,12 +338,142 @@ _PHYSICAL_SCIENCES_GRADE11_QUESTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# --- Accounting, Grade 10 (added 14 Nov 2026, ADR-018) ---
+# Topic names/order follow the DBE CAPS Grade 10 Accounting Annual Teaching
+# Plan (education.gov.za) and the Via Afrika Grade 10 Accounting Study Guide's
+# topic breakdown (checked 14 Nov 2026) -- the full Grade 10 scope, not a
+# narrowed subset: unlike Physical Sciences' Physics-strand-only cut (ADR-013),
+# there is no equation-shaped/non-equation-shaped split clean enough to carve
+# out a worse-coverage subset of Accounting itself. What IS narrowed, and
+# explicitly flagged in ADR-018, is verification: MathGuard's sympy-based
+# equation-solving doesn't apply to most of this content as-is (a trial
+# balance "balancing" or a ledger account's running balance isn't the same
+# verification shape as "solve this equation for x"), so these topics are
+# taught WITHOUT math_verified-style checking for now -- same "honest,
+# permanent-until-revisited limitation" posture Euclidean Geometry proofs
+# already have, not silently claimed as verified. A handful of topics
+# (Accounting Equation, VAT, Trial Balance) genuinely ARE numeric-equality
+# checks a future accounting-specific verifier could cover -- see ADR-018's
+# open-items list.
+#
+# One linear backbone (Concepts -> Equation -> Cash Journals -> Credit
+# Journals -> Ledger/Trial Balance) matching the CAPS Term 1 teaching order,
+# then three branches off the Ledger/Trial Balance topic for Term 2 content
+# (VAT, Salaries and Wages, and Year-End Adjustments chained off Salaries) --
+# same "shared trunk, multiple branches" shape Grade 10 Maths already uses
+# off Algebraic Expressions.
+
+_ACCOUNTING_TOPICS: list[tuple[str, str | None]] = [
+    ("Accounting Concepts, GAAP and Internal Control", None),
+    ("The Accounting Equation", "Accounting Concepts, GAAP and Internal Control"),
+    ("Cash Journals (CRJ, CPJ, PCJ)", "The Accounting Equation"),
+    ("Credit Journals (DJ, DAJ, CJ, CAJ, GJ)", "Cash Journals (CRJ, CPJ, PCJ)"),
+    ("General Ledger and Trial Balance", "Credit Journals (DJ, DAJ, CJ, CAJ, GJ)"),
+    ("Value-Added Tax (VAT)", "General Ledger and Trial Balance"),
+    ("Salaries and Wages", "General Ledger and Trial Balance"),
+    ("Year-End Adjustments", "Salaries and Wages"),
+    ("Financial Statements (Income Statement and Balance Sheet)", "Year-End Adjustments"),
+    ("Budgeting (Cash Budget)", "Value-Added Tax (VAT)"),
+]
+
+_ACCOUNTING_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Accounting Concepts, GAAP and Internal Control": [
+        ("Name the GAAP principle that requires a business's financial affairs "
+         "to be kept completely separate from the owner's personal affairs.",
+         "The business entity principle (business entity concept/rule)"),
+        ("Give one example of an internal control measure a business can use "
+         "to protect its cash.",
+         "E.g. requiring two authorised signatures on cheques, or separating the "
+         "duties of the person who handles cash from the person who records it"),
+    ],
+    "The Accounting Equation": [
+        ("A business has Assets of R85 000 and Liabilities of R25 000. Use the "
+         "accounting equation to calculate Owner's Equity.",
+         "Owner's Equity = R60 000 (A = OE + L, so OE = A - L = 85 000 - 25 000)"),
+        ("The owner deposits R10 000 of her own cash into the business bank "
+         "account. State the effect of this transaction on the accounting equation.",
+         "Assets (Bank) increase by R10 000 and Owner's Equity (Capital) increases "
+         "by R10 000 -- the equation stays balanced"),
+    ],
+    "Cash Journals (CRJ, CPJ, PCJ)": [
+        ("In which journal would a cash sale be recorded?",
+         "The Cash Receipts Journal (CRJ)"),
+        ("In which journal would a small cash payment for stationery, paid out "
+         "of petty cash, be recorded?",
+         "The Petty Cash Journal (PCJ)"),
+    ],
+    "Credit Journals (DJ, DAJ, CJ, CAJ, GJ)": [
+        ("In which journal would goods sold on credit to a debtor be recorded?",
+         "The Debtors Journal (DJ)"),
+        ("A debtor returns damaged goods that were originally sold to them on "
+         "credit. Which journal is used to record this?",
+         "The Debtors Allowances Journal (DAJ)"),
+    ],
+    "General Ledger and Trial Balance": [
+        ("What must always be true of the total debit column and the total "
+         "credit column of a correctly prepared Trial Balance?",
+         "They must be equal"),
+        ("A Trial Balance's debit column totals R142 500 and its credit column "
+         "totals R138 900. What does this tell you?",
+         "The trial balance does not balance, so there is an error somewhere in "
+         "the ledger -- a posting is missing, duplicated, or on the wrong side"),
+    ],
+    "Value-Added Tax (VAT)": [
+        ("Calculate the VAT amount on goods sold for R1 000 (VAT-exclusive), "
+         "with VAT at 15%.",
+         "R150 (1000 * 0.15)"),
+        ("Goods are sold for a VAT-inclusive price of R1 150, with VAT at 15%. "
+         "Calculate the VAT-exclusive price.",
+         "R1 000 (1150 / 1.15)"),
+    ],
+    "Salaries and Wages": [
+        ("Name two deductions that are typically subtracted from an employee's "
+         "gross salary to arrive at their net salary.",
+         "E.g. PAYE (income tax) and UIF (Unemployment Insurance Fund) contributions"),
+        ("An employee's gross salary is R12 000 and total deductions are "
+         "R2 400. Calculate the employee's net salary.",
+         "R9 600 (12 000 - 2 400)"),
+    ],
+    "Year-End Adjustments": [
+        ("At year-end, R500 of stationery bought during the year has not yet "
+         "been used. What type of adjustment is required?",
+         "A consumable stores on hand adjustment -- the unused stationery is an "
+         "asset, not yet an expense, until it is actually used"),
+        ("Rent income of R1 200 was received in advance for the next financial "
+         "year. Name the adjustment this requires.",
+         "Income received in advance (a liability) -- the R1 200 must be removed "
+         "from this year's rent income and carried over to next year"),
+    ],
+    "Financial Statements (Income Statement and Balance Sheet)": [
+        ("Which financial statement shows a business's income and expenses "
+         "for a financial period?",
+         "The Income Statement (Statement of Comprehensive Income)"),
+        ("Which financial statement shows a business's assets, liabilities, "
+         "and owner's equity at a specific point in time?",
+         "The Balance Sheet (Statement of Financial Position)"),
+    ],
+    "Budgeting (Cash Budget)": [
+        ("What is the main purpose of preparing a Cash Budget?",
+         "To plan and predict a business's expected cash receipts and cash "
+         "payments over a future period, so it can manage its cash flow"),
+        ("A business expects cash receipts of R45 000 and cash payments of "
+         "R52 000 for a month. Calculate the expected cash surplus or shortfall.",
+         "A shortfall (deficit) of R7 000 (45 000 - 52 000 = -7 000)"),
+    ],
+}
+
 SUBJECTS: list[dict] = [
     {
         "name": "Pure Mathematics",
         "grade": 10,
         "topics": _MATHS_TOPICS,
         "questions": _MATHS_QUESTIONS,
+    },
+    {
+        "name": "Accounting",
+        "grade": 10,
+        "topics": _ACCOUNTING_TOPICS,
+        "questions": _ACCOUNTING_QUESTIONS,
     },
     {
         "name": "Physical Sciences",
