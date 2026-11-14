@@ -2211,6 +2211,102 @@ Full reasoning in `docs/ADR-020-home-languages.md`.
   building more languages is a future, explicitly-requested step.
 
 
+## 2026-11-14 (continued) -- Real RAG content ingestion/retrieval, isiZulu Home Language first (ADR-021)
+
+Motivated by a real, confirmed isiZulu accuracy failure: Siya live-tested the
+isiZulu Home Language content (ADR-020) against a real past-paper matching
+exercise ("1.6 Qondanisa uHlu A noHlu B" -- idiomatic isiZulu expressions
+matched to the emotion/attitude they express) and the tutor got some matches
+wrong. This is the first time this project has acted on a reported CONTENT
+accuracy problem (as opposed to a logic bug) by building real infrastructure
+for it, rather than just re-flagging the same "unreviewed" caveat again.
+
+**Two real complications surfaced before any code was written, both resolved
+with Siya directly rather than assumed:** he has no past papers on hand to
+supply directly, and -- on checking -- South Africa's DBE only centrally
+publishes NSC (Grade 12 matric) past papers; Grade 10/11 papers are
+provincial/school-level and only exist via third-party aggregator sites with
+unclear redistribution rights. Siya's explicit choice: use official Grade 12
+NSC papers for grounding now, accepting this gives general isiZulu
+grammar/idiom/literary-device grounding (which genuinely carries across
+grades -- the same claim that justified ADR-020's shared-skeleton
+architecture), not grade-exact content. **This explicitly does not claim to
+fix the specific "Qondanisa" exercise shown** -- the 2023 Nov Grade 12 papers
+checked don't contain that exact exercise type. It's a general accuracy
+backstop, not a targeted patch for one screenshot.
+
+**Built, this session:**
+- `app/services/embeddings.py` (NEW) -- OpenAI `text-embedding-3-small` via
+  raw `httpx` (already a dependency; no new SDK). 1536-dim, matching
+  `content_chunks.embedding`'s `pgvector(1536)` column -- which is almost
+  certainly why 1536 was chosen for that column in the first place, long
+  before this file existed.
+- `app/services/retrieval.py` (NEW) -- `get_grounding_text()`: given a topic
+  and the learner's message, finds real (non-placeholder) `ContentChunk` rows
+  for that topic, ranks them by cosine distance to the embedded query (plain
+  Python, not a pgvector SQL `ORDER BY` -- fine at today's volume), and
+  formats the top few into a grounding block. Returns `None` whenever a topic
+  has no real ingested content yet (still true for every topic except the
+  ones actually ingested) -- callers fall back to the existing placeholder.
+  Embedding/network failures are swallowed here, not raised -- a tutor turn
+  should never fail just because grounding retrieval had a bad moment.
+- `scripts/ingest_content.py` (NEW) -- the real implementation of the
+  long-deferred placeholder (REBUILD_SPEC.md Section 8). Reads real local PDF
+  files (does NOT fabricate source text -- see below), extracts via `pypdf`
+  (already a dependency), chunks on paragraph boundaries (~1000 chars, ~150
+  overlap), embeds, writes `ContentChunk` rows. Idempotent by `(topic_id,
+  source)`. A `MANIFEST` list maps six expected local filenames (2023 Nov
+  isiZulu HL NSC Papers 1/2/3 + memos) to the three Home Language topics they
+  actually ground.
+- `app/services/tutor.py` / `app/services/tutor_orchestration.py` /
+  `app/routers/tutor.py` -- `build_tutor_system_prompt()` gained an optional
+  `grounding_text` parameter (falls back to the existing placeholder when
+  `None`, i.e. for every un-ingested topic -- no behaviour change there).
+  `prepare_tutor_turn()` forwards it through, staying DB-free as designed.
+  `send_tutor_message()` now runs `diagnose_root_gap()` once itself (cheap,
+  pure) before `prepare_tutor_turn()`, purely to learn which topic will
+  actually be taught in time to fetch its grounding -- a deliberate doubled
+  call, documented inline, rather than threading a DB session through the
+  orchestration layer's existing DB-free contract.
+- `app/core/config.py` -- new optional `openai_api_key` (defaults to `None`;
+  app keeps starting and every existing tutor turn is unchanged until it's
+  set).
+- New tests: `test_embeddings.py`, `test_retrieval.py`, `test_ingest_content.py`
+  -- pure-logic only (chunking boundaries, cosine distance incl. the
+  zero-vector/placeholder edge case, grounding-text formatting), no DB or
+  network, same posture as this project's other DB-touching modules.
+
+**I could not download the source PDFs myself.** Web-fetching here returns a
+processed answer to a prompt, not raw bytes -- getting genuine, unparaphrased
+isiZulu text into the pipeline needs the real PDF files, which only Siya
+downloading them (or attaching them to chat) can provide. A WebFetch summary
+of a PDF would still be Claude's own paraphrase passed off as "real grounding,"
+which quietly recreates the exact unverified-content risk this feature exists
+to reduce. The six official URLs (all education.gov.za,
+`tabid=4682&portalid=0&mid=12651`) are documented as comments directly above
+`MANIFEST` in `ingest_content.py`.
+
+Full reasoning in `docs/ADR-021-rag-content-ingestion.md`.
+
+**Not done yet:**
+- **The six source PDFs are not downloaded or ingested yet.** Siya needs to
+  download them from the URLs in `ingest_content.py`, save them under
+  `backend/content_sources/` with the exact expected filenames, add
+  `OPENAI_API_KEY` to `backend/.env`, then run
+  `python -m scripts.ingest_content` from `backend/`.
+- English Home Language has no ingestion manifest yet -- architecture
+  generalizes immediately, just needs a source picked.
+- Licensing of official past papers for product (not personal-study) use is
+  a real open question, not resolved here -- flagged for Siya's awareness.
+- Retrieval ranks in plain Python, not a pgvector SQL query -- fine at
+  today's volume, not built to scale past it yet.
+- Not live-tested against a real Claude call -- same handoff as every prior
+  content addition; needs Siya's local DB/backend.
+- No automatic cleanup of placeholder `ContentChunk` rows once real content
+  exists for a topic -- they're excluded from retrieval by source prefix, not
+  deleted.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

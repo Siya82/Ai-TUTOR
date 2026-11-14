@@ -11,6 +11,16 @@ recommended_topic.subject.name/.grade to build a subject-aware system
 prompt (see tutor.py's own fix note). Since this module is deliberately
 DB-free, it requires the caller to have already eager-loaded
 Topic.subject -- it does not, and must not, trigger a lazy load itself.
+
+FIX 14 Nov 2026 (ADR-021, real RAG content grounding): prepare_tutor_turn()
+now takes an optional grounding_text, forwarded straight through to
+build_tutor_system_prompt(). This module stays deliberately DB-free --
+fetching grounding_text (which needs both a DB query and an embeddings
+API call, see app/services/retrieval.py) is the caller's job
+(routers/tutor.py), done via a second, cheap call to diagnose_root_gap()
+before this function runs, so the caller knows which topic will
+actually be taught in time to look up its grounding. See
+routers/tutor.py's own comment on that doubled call.
 """
 
 import uuid
@@ -40,6 +50,7 @@ def prepare_tutor_turn(
     learner: Learner,
     prerequisite_chain: list[Topic],
     attempts_by_topic: dict[uuid.UUID, list[Attempt]],
+    grounding_text: str | None = None,
 ) -> TutorTurnPrep:
     """
     prerequisite_chain[0] is the topic the learner actually asked about;
@@ -90,6 +101,7 @@ def prepare_tutor_turn(
         subject_name=recommended_topic.subject.name,
         grade=recommended_topic.subject.grade,
         diagnosis_note=diagnosis_note,
+        grounding_text=grounding_text,
     )
 
     return TutorTurnPrep(

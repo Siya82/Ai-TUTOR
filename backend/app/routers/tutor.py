@@ -14,8 +14,20 @@ get_current_learner. This was REBUILD_SPEC.md Section 2 step 8's
 long-deferred gap; it's the real fix, not just documentation of the
 caveat.
 
-Deliberately NOT included yet (later steps, not this one):
-- RAG grounding -- content_chunks ingestion is still a placeholder.
+FIX 14 Nov 2026 (ADR-021, real RAG content grounding): content_chunks
+ingestion is no longer purely a placeholder -- scripts/ingest_content.py
+can now write real grounding content for a topic (isiZulu/English Home
+Language first, see ADR-021), and app/services/retrieval.py can look
+it up. This endpoint now calls diagnose_root_gap() once itself, BEFORE
+prepare_tutor_turn(), specifically to learn which topic will actually
+be taught in time to fetch its grounding text -- tutor_orchestration.py
+stays deliberately DB-free (see its own docstring), so this doubled,
+cheap, pure-Python diagnosis call lives here instead of threading a DB
+session through that module. grounding_text is None whenever a topic
+has no real ingested content yet (still true for most topics), in
+which case prepare_tutor_turn/build_tutor_system_prompt fall back to
+the same "not yet wired" placeholder as before -- no behaviour change
+for any topic that hasn't been ingested.
 """
 
 import uuid
@@ -30,7 +42,9 @@ from app.core.security import get_current_learner
 from app.models import Attachment, Attempt, Learner, Question, Topic, TutorMessage, TutorSession
 from app.schemas.tutor import TutorMessageRequest, TutorMessageResponse
 from app.services.attachments import build_attachment_content_blocks, history_summary_for
+from app.services.diagnosis import diagnose_root_gap
 from app.services.math_guard import verify_tutor_response
+from app.services.retrieval import get_grounding_text
 from app.services.tutor import TutorClient
 from app.services.tutor_orchestration import prepare_tutor_turn
 
@@ -165,7 +179,22 @@ async def send_tutor_message(
         db, learner.id, [t.id for t in prerequisite_chain]
     )
 
-    prep = prepare_tutor_turn(learner, prerequisite_chain, attempts_by_topic)
+    # NEW 14 Nov 2026 (ADR-021, real RAG content grounding): diagnose_root_gap
+    # is pure/cheap (no I/O over an already-fetched, small prerequisite
+    # chain), so calling it here -- just to learn which topic will
+    # actually be taught, in time to look up its grounding text -- and
+    # then again inside prepare_tutor_turn() is a deliberate, documented
+    # doubled call rather than threading a DB session through that
+    # module's otherwise DB-free contract (see tutor_orchestration.py).
+    diagnosis_preview = diagnose_root_gap(prerequisite_chain, attempts_by_topic)
+    grounding_query_text = payload.message.strip() or requested_topic.name
+    grounding_text = await get_grounding_text(
+        db, diagnosis_preview.recommended_topic.id, grounding_query_text
+    )
+
+    prep = prepare_tutor_turn(
+        learner, prerequisite_chain, attempts_by_topic, grounding_text=grounding_text
+    )
 
     session = await _get_or_create_session(db, learner.id, prep.recommended_topic.id)
 

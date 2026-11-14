@@ -26,6 +26,17 @@ and the RAG-grounding placeholder were hardcoded to "Mathematics". Both
 now take subject_name/grade so a second subject (Physical Sciences,
 Physics strand) introduces itself correctly instead of every tutor turn
 claiming to be a Maths tutor regardless of the real topic's subject.
+
+FIX 14 Nov 2026 (ADR-021, real RAG content grounding): build_tutor_system_prompt()
+now takes an optional grounding_text -- when the caller (ultimately
+routers/tutor.py, via app/services/retrieval.py) found real ingested
+content for the topic being taught, that text replaces
+_build_rag_grounding_placeholder()'s "not yet wired" notice. When
+grounding_text is None (still true for every topic except the ones
+scripts/ingest_content.py has actually been run against), the exact
+same placeholder behaviour as before applies -- test_tutor_prompt.py's
+existing assertions about "content_chunks" appearing in the prompt are
+unchanged for every call that doesn't pass grounding_text.
 """
 
 from anthropic import AsyncAnthropic
@@ -83,6 +94,9 @@ def _build_rag_grounding_placeholder(subject_name: str, grade: int) -> str:
     Sciences) was seeded, since every tutor turn for every subject would
     still claim to be grounded in "Mathematics curriculum knowledge."
     Turned into a function parameterized by the real Subject row instead.
+
+    Still the fallback for every topic without real ingested content --
+    see build_tutor_system_prompt's grounding_text parameter (ADR-021).
     """
     return (
         f"[CAPS content grounding: not yet wired to real retrieval -- content_chunks "
@@ -98,6 +112,7 @@ def build_tutor_system_prompt(
     subject_name: str = "Pure Mathematics",
     grade: int = 10,
     diagnosis_note: str | None = None,
+    grounding_text: str | None = None,
 ) -> str:
     """
     Builds the full tutor system prompt. Always includes, in order: a
@@ -106,7 +121,9 @@ def build_tutor_system_prompt(
     note; subject_name/grade default to the original Pure Mathematics
     values so any caller not yet updated keeps its old behaviour), the
     worked-example calibration anchor, the non-negotiable "explain why"
-    rule, the RAG-grounding placeholder block, an optional diagnosis note
+    rule, a grounding block (FIX 14 Nov 2026, ADR-021: grounding_text
+    when the caller found real ingested content for this topic, else
+    the same placeholder as before), an optional diagnosis note
     (present only when tutor_orchestration.prepare_tutor_turn() redirected
     teaching to a prerequisite topic), and the personalization block from
     personalization.py.
@@ -120,13 +137,14 @@ def build_tutor_system_prompt(
     Physical Sciences rebuild started with the Physics strand only --
     see ADR-013.
     """
+    grounding_section = grounding_text or _build_rag_grounding_placeholder(subject_name, grade)
     sections = [
         f"You are THUTOra, a CAPS-aligned Grade {grade} {subject_name} tutor. The current "
         f"topic is: {topic_name}.",
         _WORKED_EXAMPLE_ANCHOR,
         _MATH_FORMATTING_RULE,
         _EXPLAIN_WHY_RULE,
-        _build_rag_grounding_placeholder(subject_name, grade),
+        grounding_section,
     ]
     if diagnosis_note:
         sections.append(diagnosis_note)

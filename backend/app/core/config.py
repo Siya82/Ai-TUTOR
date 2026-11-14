@@ -36,5 +36,17 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
 
+    # NEW 14 Nov 2026 (ADR-021, RAG content ingestion/retrieval). Unlike
+    # anthropic_api_key/jwt_secret_key above, this one DOES default to
+    # None rather than being required -- the app must keep starting and
+    # serving every existing tutor turn with no change in behaviour for
+    # everyone who hasn't set it. Only app/services/embeddings.py reads
+    # this, and only once scripts/ingest_content.py has actually written
+    # real (non-placeholder) ContentChunk rows for a topic -- see
+    # app/services/retrieval.py's short-circuit. Add OPENAI_API_KEY to
+    # backend/.env yourself to use it; same standing rule as every other
+    # secret in this file, Claude never reads or writes .env contents.
+    openai_api_key: str | None = None
+
 
 settings = Settings()
