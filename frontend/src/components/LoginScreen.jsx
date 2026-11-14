@@ -4,6 +4,20 @@
  * student is logging in with a temporary password for the first time
  * (must_change_password). See App.jsx for how the resulting session
  * (token + learner + school) is stored and handed to ChatScreen.
+ *
+ * "Remember password" (Siya's request, same day): deliberately NOT a
+ * custom localStorage password store -- that'd mean a plaintext
+ * password sitting in browser storage on what may well be a shared
+ * school/lab device, which is a much worse POPIA posture than this
+ * app already took a stance on in the ADR. Instead the student
+ * number/password fields carry the right `name`/`autoComplete`
+ * tokens so the browser's OWN password manager (Chrome/Edge/etc, or
+ * the OS keychain it's backed by) recognizes this as a login form and
+ * offers its native "save password?" prompt + autofill -- the
+ * password itself never touches THUTOra's own code or storage either
+ * way. Unmounting this form on a successful login (App.jsx swaps to
+ * ChatScreen) is exactly the signal most browsers' save-password
+ * heuristic looks for.
  */
 
 import { useEffect, useState } from "react";
@@ -103,11 +117,13 @@ export default function LoginScreen({ onLogin }) {
           <p className="login-screen__subtitle">
             You logged in with a temporary password — set your own before continuing.
           </p>
-          <form className="login-screen__form" onSubmit={handleChangePassword}>
+          <form className="login-screen__form" onSubmit={handleChangePassword} autoComplete="on">
             <label className="login-screen__field">
               <span>New password</span>
               <input
                 type="password"
+                name="new-password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 minLength={8}
@@ -119,6 +135,8 @@ export default function LoginScreen({ onLogin }) {
               <span>Confirm new password</span>
               <input
                 type="password"
+                name="new-password-confirm"
+                autoComplete="new-password"
                 value={newPasswordConfirm}
                 onChange={(e) => setNewPasswordConfirm(e.target.value)}
                 minLength={8}
@@ -141,10 +159,11 @@ export default function LoginScreen({ onLogin }) {
         {brand}
         <h1 className="login-screen__title">Log in</h1>
         {loadError && <div className="login-screen__error">{loadError}</div>}
-        <form className="login-screen__form" onSubmit={handleSubmit}>
+        <form className="login-screen__form" onSubmit={handleSubmit} autoComplete="on">
           <label className="login-screen__field">
             <span>School</span>
             <select
+              name="organization"
               value={schoolId}
               onChange={(e) => setSchoolId(e.target.value)}
               disabled={schools.length === 0}
@@ -160,6 +179,8 @@ export default function LoginScreen({ onLogin }) {
             <span>Student number</span>
             <input
               type="text"
+              name="username"
+              autoComplete="username"
               value={studentNumber}
               onChange={(e) => setStudentNumber(e.target.value)}
               autoFocus
@@ -170,6 +191,8 @@ export default function LoginScreen({ onLogin }) {
             <span>Password</span>
             <input
               type="password"
+              name="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

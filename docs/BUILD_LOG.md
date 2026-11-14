@@ -1930,6 +1930,8 @@ so BUILD_LOG stays the single place to scan):**
   string specifically so teacher/parent/admin can be added later
   without a schema change, but none of those are built.
 
+**Addendum (same day) -- "remember password" on `LoginScreen.jsx`:** asked for directly by Siya. Deliberately NOT a custom password store (that would mean a plaintext password sitting in browser storage on what's plausibly a shared school/lab device -- a worse POPIA posture than this feature already took a stance on). Instead added the correct `name`/`autoComplete` tokens (`username`/`current-password` on the login fields, `new-password` on both fields of the forced password-change step) so the browser's own password manager recognizes this as a real login form and offers its native save/autofill -- the password itself never touches THUTOra's own code or storage either way. Unmounting the form on a successful login (App.jsx swapping to ChatScreen) is exactly the signal most browsers' save-password heuristic looks for.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
