@@ -44,6 +44,24 @@ body {
   letter-spacing: 0.04em;
 }
 
+.subject-sidebar__grade-group {
+  margin-bottom: 0.75rem;
+}
+
+.subject-sidebar__grade-heading {
+  padding: 0.4rem 1rem 0.2rem;
+  color: var(--color-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-top: 1px solid var(--color-border);
+}
+
+.subject-sidebar__grade-group:first-of-type .subject-sidebar__grade-heading {
+  border-top: none;
+}
+
 .subject-group {
   margin-bottom: 0.5rem;
 }
@@ -67,12 +85,6 @@ body {
 
 .subject-group__header--active {
   color: var(--color-accent);
-}
-
-.subject-group__grade {
-  font-weight: 400;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
 }
 
 .subject-group__caret {

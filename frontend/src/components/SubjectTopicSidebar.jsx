@@ -21,9 +21,21 @@
  * unused, rather than deleted -- an easy revert if neither layout
  * holds up (REBUILD_SPEC.md's usual "don't delete, just stop wiring it
  * in" discipline).
+ *
+ * UPDATED 14 Nov 2026 (Siya's own navigation request, ahead of the
+ * Grade 12 scale-up that's about to roughly double the subject count):
+ * grouped into visible "Grade N" sections instead of a flat list with
+ * the grade as a small inline suffix on each subject button -- with 6
+ * subject rows already (3 subjects x 2 grades) and 9 coming once
+ * Grade 12 lands, a flat list stops being scannable at a glance.
+ * Grades are sorted ascending, and subjects within a grade are sorted
+ * alphabetically by name (so Accounting, then Physical Sciences, then
+ * Pure Mathematics) -- the same (grade, name) ordering this component
+ * already used internally, just rendered as actual section headings
+ * now rather than left for the eye to group on its own.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export default function SubjectTopicSidebar({
   subjects,
@@ -33,9 +45,19 @@ export default function SubjectTopicSidebar({
   onSelectTopic,
   disabled,
 }) {
-  const orderedSubjects = [...subjects].sort(
-    (a, b) => a.grade - b.grade || a.name.localeCompare(b.name)
-  );
+  const gradeGroups = useMemo(() => {
+    const byGrade = new Map();
+    for (const subject of subjects) {
+      if (!byGrade.has(subject.grade)) byGrade.set(subject.grade, []);
+      byGrade.get(subject.grade).push(subject);
+    }
+    return [...byGrade.entries()]
+      .sort(([gradeA], [gradeB]) => gradeA - gradeB)
+      .map(([grade, subjectsInGrade]) => [
+        grade,
+        [...subjectsInGrade].sort((a, b) => a.name.localeCompare(b.name)),
+      ]);
+  }, [subjects]);
 
   const [expandedSubjectId, setExpandedSubjectId] = useState(selectedSubjectId);
 
@@ -59,46 +81,54 @@ export default function SubjectTopicSidebar({
   return (
     <nav className="subject-sidebar">
       <div className="subject-sidebar__heading">Subjects &amp; Topics</div>
-      {orderedSubjects.map((subject) => {
-        const subjectTopics = topics.filter((t) => t.subject_id === subject.id);
-        const isActiveSubject = subject.id === selectedSubjectId;
-        const isExpanded = subject.id === expandedSubjectId;
-        return (
-          <div key={subject.id} className="subject-group">
-            <button
-              type="button"
-              className={
-                "subject-group__header" + (isActiveSubject ? " subject-group__header--active" : "")
-              }
-              onClick={() => toggleSubject(subject.id, subjectTopics[0]?.id ?? null)}
-              disabled={disabled}
-              aria-expanded={isExpanded}
-            >
-              <span className="subject-group__caret">{isExpanded ? "▾" : "▸"}</span>{" "}
-              {subject.name} <span className="subject-group__grade">(Grade {subject.grade})</span>
-            </button>
-            {isExpanded && (
-              <ul className="subject-group__topics">
-                {subjectTopics.map((topic) => (
-                  <li key={topic.id}>
-                    <button
-                      type="button"
-                      className={
-                        "topic-item" + (topic.id === selectedTopicId ? " topic-item--active" : "")
-                      }
-                      onClick={() => onSelectTopic(subject.id, topic.id)}
-                      disabled={disabled}
-                    >
-                      {topic.name}
-                    </button>
-                  </li>
-                ))}
-                {subjectTopics.length === 0 && <li className="subject-group__empty">No topics yet</li>}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+      {gradeGroups.map(([grade, subjectsInGrade]) => (
+        <div key={grade} className="subject-sidebar__grade-group">
+          <div className="subject-sidebar__grade-heading">Grade {grade}</div>
+          {subjectsInGrade.map((subject) => {
+            const subjectTopics = topics.filter((t) => t.subject_id === subject.id);
+            const isActiveSubject = subject.id === selectedSubjectId;
+            const isExpanded = subject.id === expandedSubjectId;
+            return (
+              <div key={subject.id} className="subject-group">
+                <button
+                  type="button"
+                  className={
+                    "subject-group__header" +
+                    (isActiveSubject ? " subject-group__header--active" : "")
+                  }
+                  onClick={() => toggleSubject(subject.id, subjectTopics[0]?.id ?? null)}
+                  disabled={disabled}
+                  aria-expanded={isExpanded}
+                >
+                  <span className="subject-group__caret">{isExpanded ? "▾" : "▸"}</span>{" "}
+                  {subject.name}
+                </button>
+                {isExpanded && (
+                  <ul className="subject-group__topics">
+                    {subjectTopics.map((topic) => (
+                      <li key={topic.id}>
+                        <button
+                          type="button"
+                          className={
+                            "topic-item" + (topic.id === selectedTopicId ? " topic-item--active" : "")
+                          }
+                          onClick={() => onSelectTopic(subject.id, topic.id)}
+                          disabled={disabled}
+                        >
+                          {topic.name}
+                        </button>
+                      </li>
+                    ))}
+                    {subjectTopics.length === 0 && (
+                      <li className="subject-group__empty">No topics yet</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
