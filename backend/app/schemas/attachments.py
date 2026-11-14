@@ -1,10 +1,10 @@
 """
 Pydantic schemas for POST /attachments.
 
-NEW 13 Nov 2026 (ADR-016, student file attachments). Same posture as
-every other endpoint in this API today: no authentication yet (step 8,
-not done) -- learner_id in the request is a basic sanity check, not a
-real permission boundary.
+NEW 13 Nov 2026 (ADR-016, student file attachments).
+FIX 14 Nov 2026 (ADR-017, student login): the endpoint itself no longer
+takes learner_id from the request -- it's resolved from the
+Authorization bearer token instead (app/core/security.py).
 """
 
 import uuid

@@ -6,6 +6,13 @@
  * recommended fetching them dynamically instead. fetchTopics() and
  * fetchLearners() below do that, against the two new endpoints added
  * in this same step (backend/app/routers/topics.py, learners.py).
+ *
+ * UPDATED 14 Nov 2026 (ADR-017, student login): learner_id is no longer
+ * passed by the frontend at all -- the backend resolves it from the
+ * Authorization bearer token instead (app/core/security.py). login(),
+ * fetchMe(), and changePassword() below are the new auth calls;
+ * uploadAttachment()/sendTutorMessage() now take a token instead of a
+ * learnerId.
  */
 
 const API_BASE_URL = "http://localhost:8000";
@@ -26,10 +33,25 @@ function formatErrorDetail(detail, fallback) {
   return fallback;
 }
 
-async function getJson(path) {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+// NEW 14 Nov 2026 (ADR-017): every thrown error below carries the HTTP
+// status (where there is one) as `.status`, so a caller can tell a 401
+// (expired/invalid token -- time to log out again) apart from any
+// other failure without string-matching the message.
+function httpError(message, status) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+async function getJson(path, token) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
   if (!response.ok) {
-    throw new Error(`GET ${path} failed with status ${response.status}`);
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `GET ${path} failed with status ${response.status}`),
+      response.status
+    );
   }
   return response.json();
 }
@@ -44,9 +66,67 @@ export function fetchTopics() {
   return getJson("/topics/");
 }
 
-/** All seeded learners, e.g. [{ id, display_name, grade, preferred_modality }, ...]. */
+/**
+ * All seeded learners, e.g. [{ id, display_name, grade, preferred_modality }, ...].
+ * NOT used by the student chat flow since ADR-017 (a student's own
+ * learner comes from login()/fetchMe() instead) -- kept for a future
+ * teacher/admin dashboard that needs to list learners.
+ */
 export function fetchLearners() {
   return getJson("/learners/");
+}
+
+/** All schools, e.g. [{ id, name }, ...] -- for the login screen's school picker. NEW 14 Nov 2026 (ADR-017). */
+export function fetchSchools() {
+  return getJson("/schools/");
+}
+
+/*
+ * NEW 14 Nov 2026 (ADR-017, student login). Returns the backend's
+ * LoginResponse: { access_token, token_type, must_change_password,
+ * learner: {...}, school: {...} }.
+ */
+export async function login({ schoolId, studentNumber, password }) {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ school_id: schoolId, student_number: studentNumber, password }),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `Login failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.json();
+}
+
+/**
+ * NEW 14 Nov 2026 (ADR-017). Re-hydrates a stored token on page load --
+ * returns { learner, school, must_change_password }, or throws if the
+ * token is missing/expired/invalid (the caller should treat that as
+ * "not logged in" and show the login screen again).
+ */
+export function fetchMe(token) {
+  return getJson("/auth/me", token);
+}
+
+/** NEW 14 Nov 2026 (ADR-017). First-login (or any-time) password change. */
+export async function changePassword({ token, currentPassword, newPassword }) {
+  const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `Password change failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.json();
 }
 
 /*
@@ -56,35 +136,41 @@ export function fetchLearners() {
  * e.g. a scanned PDF with no text layer) before the student actually
  * sends their question. Returns the backend's AttachmentUploadResponse:
  * { id, kind, original_filename, extraction_warning }.
+ *
+ * FIX 14 Nov 2026 (ADR-017): takes a bearer token instead of a
+ * learnerId -- the backend resolves the learner from the token now.
  */
-export async function uploadAttachment(file, learnerId) {
-  if (!learnerId) {
-    throw new Error("uploadAttachment requires a real learnerId.");
+export async function uploadAttachment(file, token) {
+  if (!token) {
+    throw new Error("uploadAttachment requires an auth token.");
   }
 
   const formData = new FormData();
-  formData.append("learner_id", learnerId);
   formData.append("file", file);
 
   const response = await fetch(`${API_BASE_URL}/attachments/`, {
     method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(formatErrorDetail(errorBody.detail, `Upload failed with status ${response.status}`));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `Upload failed with status ${response.status}`),
+      response.status
+    );
   }
 
   return response.json();
 }
 
-export async function sendTutorMessage({ message, sessionId, learnerId, topicId, attachmentIds }) {
-  if (!learnerId || !topicId) {
-    throw new Error("sendTutorMessage requires a real learnerId and topicId (fetch them first).");
+export async function sendTutorMessage({ message, sessionId, topicId, attachmentIds, token }) {
+  if (!token || !topicId) {
+    throw new Error("sendTutorMessage requires an auth token and a real topicId (fetch them first).");
   }
 
-  const payload = { learner_id: learnerId, topic_id: topicId, message };
+  const payload = { topic_id: topicId, message };
   if (sessionId) {
     payload.session_id = sessionId;
   }
@@ -97,13 +183,16 @@ export async function sendTutorMessage({ message, sessionId, learnerId, topicId,
 
   const response = await fetch(`${API_BASE_URL}/tutor/message`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(formatErrorDetail(errorBody.detail, `Request failed with status ${response.status}`));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `Request failed with status ${response.status}`),
+      response.status
+    );
   }
 
   return response.json();

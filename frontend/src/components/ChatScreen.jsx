@@ -23,10 +23,19 @@
  * file uploads immediately via POST /attachments so its preview chip
  * (and any extraction_warning, e.g. a scanned PDF with no text layer)
  * shows before the student actually sends their question.
+ *
+ * UPDATED 14 Nov 2026 (ADR-017, student login): this component no
+ * longer fetches/picks a learner itself -- it's handed one via the
+ * `auth` prop ({ token, learner, school }) by App.jsx, which gates
+ * this whole screen behind LoginScreen.jsx. Every API call that used
+ * to send a bare learner_id now sends `auth.token` instead; a 401 from
+ * any of them (an expired/invalid token) calls the `onLogout` prop
+ * rather than just showing an error, since the whole session -- not
+ * just that one request -- is no longer valid.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { fetchLearners, fetchSubjects, fetchTopics, sendTutorMessage, uploadAttachment } from "../api";
+import { fetchSubjects, fetchTopics, sendTutorMessage, uploadAttachment } from "../api";
 import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking } from "../utils/tts";
 import ModalitySwitcher from "./ModalitySwitcher";
 import SubjectTopicSidebar from "./SubjectTopicSidebar";
@@ -178,11 +187,9 @@ function AttachmentChip({ attachment, onRemove }) {
   );
 }
 
-export default function ChatScreen() {
-  const [learners, setLearners] = useState([]);
+export default function ChatScreen({ auth, onLogout }) {
   const [subjects, setSubjects] = useState([]);
   const [topics, setTopics] = useState([]);
-  const [learnerId, setLearnerId] = useState(null);
   const [subjectId, setSubjectId] = useState(null);
   const [topicId, setTopicId] = useState(null);
   const [modality, setModality] = useState("text");
@@ -206,15 +213,9 @@ export default function ChatScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [fetchedLearners, fetchedSubjects, fetchedTopics] = await Promise.all([
-          fetchLearners(),
-          fetchSubjects(),
-          fetchTopics(),
-        ]);
-        setLearners(fetchedLearners);
+        const [fetchedSubjects, fetchedTopics] = await Promise.all([fetchSubjects(), fetchTopics()]);
         setSubjects(fetchedSubjects);
         setTopics(fetchedTopics);
-        if (fetchedLearners.length > 0) setLearnerId(fetchedLearners[0].id);
         // Default to Pure Mathematics, Grade 10 specifically when it's seeded,
         // rather than whichever subject happens to sort first alphabetically
         // (NEW 12 Nov 2026, multi-subject support -- keeps the existing
@@ -231,9 +232,9 @@ export default function ChatScreen() {
           const firstTopicForSubject = fetchedTopics.find((t) => t.subject_id === defaultSubject.id);
           if (firstTopicForSubject) setTopicId(firstTopicForSubject.id);
         }
-        if (fetchedLearners.length === 0 || fetchedSubjects.length === 0 || fetchedTopics.length === 0) {
+        if (fetchedSubjects.length === 0 || fetchedTopics.length === 0) {
           setLoadError(
-            "No seeded learners/subjects/topics found. Run backend/scripts/seed_dev_data.py against your database first."
+            "No seeded subjects/topics found. Run backend/scripts/seed_dev_data.py against your database first."
           );
         }
       } catch (err) {
@@ -285,7 +286,7 @@ export default function ChatScreen() {
   // "upload happens before the message" persistence model.
   const handleFilesSelected = (fileList) => {
     const files = Array.from(fileList || []);
-    if (files.length === 0 || !learnerId) return;
+    if (files.length === 0) return;
 
     files.forEach((file) => {
       const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -301,13 +302,20 @@ export default function ChatScreen() {
         { tempId, original_filename: file.name, uploading: true, previewUrl },
       ]);
 
-      uploadAttachment(file, learnerId)
+      uploadAttachment(file, auth.token)
         .then((result) => {
           setPendingAttachments((prev) =>
             prev.map((a) => (a.tempId === tempId ? { ...a, ...result, uploading: false } : a))
           );
         })
         .catch((err) => {
+          // FIX 14 Nov 2026 (ADR-017): a 401 here means the whole
+          // session has expired/is invalid, not just this one upload --
+          // log out rather than leaving a confusing per-chip error.
+          if (err.status === 401) {
+            onLogout();
+            return;
+          }
           setPendingAttachments((prev) =>
             prev.map((a) => (a.tempId === tempId ? { ...a, uploading: false, error: err.message } : a))
           );
@@ -369,7 +377,7 @@ export default function ChatScreen() {
   const handleSend = async (e) => {
     e.preventDefault();
     const text = draft.trim();
-    if ((!text && readyAttachments.length === 0) || !learnerId || !topicId || sending || attachmentsUploading) {
+    if ((!text && readyAttachments.length === 0) || !topicId || sending || attachmentsUploading) {
       return;
     }
 
@@ -388,7 +396,13 @@ export default function ChatScreen() {
     setPendingAttachments([]);
 
     try {
-      const response = await sendTutorMessage({ message: text, sessionId, learnerId, topicId, attachmentIds });
+      const response = await sendTutorMessage({
+        message: text,
+        sessionId,
+        topicId,
+        attachmentIds,
+        token: auth.token,
+      });
       setSessionId(response.session_id);
       setMessages((prev) => [
         ...prev,
@@ -405,6 +419,13 @@ export default function ChatScreen() {
         },
       ]);
     } catch (err) {
+      // FIX 14 Nov 2026 (ADR-017): same reasoning as handleFilesSelected
+      // above -- a 401 means the session itself is done, not just this
+      // one message.
+      if (err.status === 401) {
+        onLogout();
+        return;
+      }
       setSendError(err.message);
     } finally {
       setSending(false);
@@ -414,9 +435,6 @@ export default function ChatScreen() {
   return (
     <div className="app-shell">
       <aside className="app-shell__sidebar">
-        {learners.length > 0 && (
-          <div className="app-shell__learner">Learner: {learners.find((l) => l.id === learnerId)?.display_name}</div>
-        )}
         <SubjectTopicSidebar
           subjects={subjects}
           topics={topics}
@@ -433,7 +451,18 @@ export default function ChatScreen() {
           <img src="/thutora-logo.png" alt="" className="chat-screen__brand-logo" />
           THUTOra<span className="chat-screen__brand-dot">.</span>
         </div>
-        <ModalitySwitcher modality={modality} onChange={setModality} />
+        <div className="chat-screen__header-right">
+          <ModalitySwitcher modality={modality} onChange={setModality} />
+          {/* NEW 14 Nov 2026 (ADR-017): the student's own name + a
+              logout button, where the Learner badge used to sit in the
+              sidebar before real login existed. */}
+          <div className="chat-screen__profile">
+            <span className="chat-screen__profile-name">{auth.learner.display_name}</span>
+            <button type="button" className="chat-screen__logout" onClick={onLogout}>
+              Log out
+            </button>
+          </div>
+        </div>
       </header>
 
       {loadError && <div className="chat-screen__error">{loadError}</div>}
@@ -495,7 +524,7 @@ export default function ChatScreen() {
           type="button"
           className="chat-screen__attach-button"
           onClick={handleAttachButtonClick}
-          disabled={sending || !learnerId}
+          disabled={sending}
           title="Attach a photo, PDF, or Word document"
           aria-label="Attach a file"
         >
@@ -512,7 +541,7 @@ export default function ChatScreen() {
               ? `Ask THUTOra a ${subjectNameById(subjects, subjectId)} question… (or attach/paste a photo of your work)`
               : "Ask THUTOra a question…"
           }
-          disabled={sending || !learnerId || !topicId}
+          disabled={sending || !topicId}
         />
         <button
           type="submit"
@@ -520,7 +549,6 @@ export default function ChatScreen() {
             sending ||
             attachmentsUploading ||
             (!draft.trim() && readyAttachments.length === 0) ||
-            !learnerId ||
             !topicId
           }
         >

@@ -36,14 +36,6 @@ body {
   padding: 1rem 0 1.25rem;
 }
 
-.app-shell__learner {
-  padding: 0 1rem 0.75rem;
-  margin-bottom: 0.5rem;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-}
-
 .subject-sidebar__heading {
   padding: 0 1rem 0.5rem;
   color: var(--color-text-muted);
@@ -179,9 +171,10 @@ body {
 }
 
 /* NEW 14 Nov 2026: app logo next to the wordmark, on the same header
-   row Siya wants to eventually also hold the learner's login/profile
-   (chat-screen__header is already flex/space-between, so that lands on
-   the right of this same line later -- no layout change needed then). */
+   row that now also holds the modality switcher and (ADR-017) the
+   logged-in student's name + logout button on its right, via
+   .chat-screen__header-right below -- chat-screen__header is already
+   flex/space-between so this needed no layout change. */
 .chat-screen__brand-logo {
   height: 32px;
   width: 32px;
@@ -189,6 +182,45 @@ body {
 }
 
 .chat-screen__brand-dot {
+  color: var(--color-accent);
+}
+
+/* NEW 14 Nov 2026 (ADR-017, student login). Groups the modality
+   switcher and the profile/logout block as the header's single
+   second flex child, so .chat-screen__header's existing
+   space-between rule still only ever sees two children. */
+.chat-screen__header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.chat-screen__profile {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.chat-screen__profile-name {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.chat-screen__logout {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.chat-screen__logout:hover {
+  border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
@@ -663,4 +695,126 @@ body {
 .markdown-message th {
   background: var(--color-surface);
   font-weight: 600;
+}
+
+/* NEW 14 Nov 2026 (ADR-017, student login). Shown by App.jsx while a
+   stored token is still being checked against GET /auth/me on first
+   load -- deliberately brief/plain since it's rarely on screen long
+   enough to need real styling. */
+.app-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  background: var(--color-background);
+}
+
+/* NEW 14 Nov 2026 (ADR-017, student login). LoginScreen.jsx -- a
+   centered card, same visual language (tokens, radii, accent) as the
+   rest of the app rather than a separate "auth page" look. */
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--color-background);
+  padding: 1.5rem;
+}
+
+.login-screen__card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 2rem 1.75rem;
+}
+
+.login-screen__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text);
+  margin-bottom: 1.25rem;
+}
+
+.login-screen__brand-logo {
+  height: 32px;
+  width: 32px;
+  display: block;
+}
+
+.login-screen__brand-dot {
+  color: var(--color-accent);
+}
+
+.login-screen__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  color: var(--color-text);
+}
+
+.login-screen__subtitle {
+  margin: 0 0 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.login-screen__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-screen__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.login-screen__field input,
+.login-screen__field select {
+  background: var(--color-background);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.login-screen__field input:focus,
+.login-screen__field select:focus {
+  outline: 2px solid var(--color-accent);
+}
+
+.login-screen__error {
+  padding: 0.65rem 0.85rem;
+  background: rgba(255, 159, 28, 0.12);
+  border: 1px solid var(--color-warning);
+  border-radius: 8px;
+  color: var(--color-warning);
+  font-size: 0.8rem;
+}
+
+.login-screen__form button {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border: none;
+  border-radius: 999px;
+  padding: 0.65rem 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-screen__form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

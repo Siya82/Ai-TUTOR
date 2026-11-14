@@ -1820,6 +1820,116 @@ exactly how these got caught quickly instead of shipping silently.
   land on the header row the logo now sits on.
 - Grade 12 content expansion is still queued behind that.
 
+## 2026-11-14 (continued) -- Student login/profile (ADR-017): schools, users, JWT, frontend gating
+
+Siya's chosen next priority after the attachment/UI pass above: real
+student authentication, closing REBUILD_SPEC.md Section 2's "no
+auth on endpoints" gap for good (previously `/tutor/message` and
+`/attachments` both just trusted whatever `learner_id` the client
+sent). Scoped via three `AskUserQuestion` answers from Siya: students
+log in linked to their school ("you decide" on student-number-vs-
+system-generated -- built both, system-generated as the fallback);
+accounts are provisioned for scalability+security with POPIA in mind
+("you decide" again -- built as pre-provisioned, not self-signup);
+and a dedicated `User`+role table now, not bolted onto `Learner`
+("User+role table now (Recommended)").
+
+**Backend (full detail in `docs/ADR-017-student-login.md`):**
+- New `schools` and `users` tables (`User`: role, school_id,
+  student_number, password_hash, is_active, must_change_password) --
+  migration `0003_add_schools_and_users`. `Learner` gets a nullable,
+  unique `user_id` FK to `User` rather than any auth field itself, so
+  the pedagogical `Learner` row and the login identity stay separable
+  (teacher/parent/admin roles can be added to `User` later without
+  touching `Learner`).
+- `student_number` is unique **per school**
+  (`UniqueConstraint("school_id", "student_number")`), not globally --
+  matches how a real school-issued number works.
+- Accounts are **pre-provisioned**, not self-signup -- a deliberate
+  call on two grounds, both written up in the ADR: POPIA (South
+  Africa's Protection of Personal Information Act has stricter
+  provisions for minors' data, and self-signup by a minor with no
+  verified responsible adult in the loop is legally riskier than a
+  school provisioning accounts from its own records), and scalability
+  (bulk provisioning fits how a school actually operates).
+- `app/services/auth.py`: `hash_password`/`verify_password` (passlib
+  `bcrypt`, already-pinned `bcrypt==4.0.1`), `create_access_token`/
+  `decode_access_token` (JWT via `python-jose`, HS256), and
+  `provision_student()` -- one function that creates the `User`,
+  generates a temp password and/or student number when not supplied,
+  and links to a new or an `existing_learner` (used by
+  `seed_dev_data.py` to attach a login to the already-seeded dev
+  Learner instead of creating a duplicate one).
+- `app/core/security.py`: `get_current_user`/`get_current_learner`
+  FastAPI dependencies, decoding the bearer token and 401-ing on
+  missing/bad/expired/inactive. These now gate `POST /tutor/message`
+  and `POST /attachments` in place of the old client-supplied
+  `learner_id` -- the actual fix for the long-flagged gap.
+- New `POST /auth/login`, `GET /auth/me`, `POST /auth/change-password`
+  (`app/routers/auth.py`) and `GET /schools/` (for the login screen's
+  school picker). `TutorMessageRequest.learner_id` removed entirely.
+- `backend/.env` needs a new `JWT_SECRET_KEY` -- `config.py` requires
+  it with no default (same posture as `ANTHROPIC_API_KEY`). **Siya
+  still needs to add this himself** (`python -c "import secrets;
+  print(secrets.token_hex(32))"`), run the new migration, and re-run
+  `seed_dev_data.py` to get a demo School + student + password before
+  any of this runs locally.
+
+**Frontend:**
+- New `LoginScreen.jsx` -- school picker + student number + password,
+  with a forced "choose a new password" sub-step when
+  `must_change_password` comes back true (a freshly-provisioned
+  student's temp password).
+- `App.jsx` now gates `ChatScreen` behind auth: a stored token
+  (`sessionStorage`, not `localStorage` -- deliberate simplification,
+  flagged honestly in the ADR; survives a refresh, clears on tab
+  close) is re-checked against `GET /auth/me` on load before showing
+  anything, so a dead/expired token doesn't flash the chat screen
+  first.
+- `ChatScreen.jsx` no longer fetches or picks a learner itself -- it
+  takes one via an `auth` prop. Every call that used to carry a bare
+  `learner_id` (`uploadAttachment`, `sendTutorMessage`) now carries
+  `auth.token` instead, and the backend resolves the learner from it.
+  The sidebar's old "Learner:" badge is gone; the student's name and a
+  "Log out" button now sit on the header's right side, next to the
+  modality switcher -- the exact spot the logo's placement earlier
+  today was deliberately left room for.
+- Both `handleSend` and the attachment-upload path now check for a
+  `401` response (via a new `httpError()` helper in `api.js` that
+  attaches `.status` to every thrown error) and call `onLogout()`
+  automatically -- an expired/invalid token now ends the whole
+  session cleanly instead of surfacing as a confusing generic error.
+- New CSS: `.login-screen*`, `.app-loading`, `.chat-screen__header-
+  right`/`.chat-screen__profile*`/`.chat-screen__logout`. The now-
+  unused `.app-shell__learner` sidebar rule was removed.
+- New `backend/tests/test_auth.py` -- unit tests for the pure,
+  DB-free pieces (`hash_password`/`verify_password`, token round-trip
+  and rejection of a forged/expired token, both random-value
+  generators). `provision_student()` itself needs a real
+  `AsyncSession` and isn't unit-tested here, matching how this
+  project already draws that line elsewhere (e.g.
+  `test_attachments.py` doesn't unit-test the upload router either).
+
+**Not done yet (all written up as open items in the ADR, repeated here
+so BUILD_LOG stays the single place to scan):**
+- No bulk-provisioning admin endpoint/UI yet -- `provision_student()`
+  exists but there's no way to call it except from `seed_dev_data.py`.
+  A school currently has no way to actually get its students into the
+  system.
+- `sessionStorage` for the token is a simplification, not the hardened
+  version -- a proper httpOnly refresh-token cookie flow is still the
+  real target before this goes anywhere production-like.
+- No rate-limiting on `POST /auth/login` -- a password-guessing
+  concern given `student_number` isn't secret.
+- `/api/v1/dashboard/*` still has no auth at all -- explicitly out of
+  scope for this pass (only the `student` role was provisioned; that
+  router needs a teacher/admin role to check against, which doesn't
+  exist yet) and carried forward as an open item in REBUILD_SPEC.md
+  Section 2 rather than silently dropped.
+- Only `student` role exists end-to-end; `role` on `User` is a free
+  string specifically so teacher/parent/admin can be added later
+  without a schema change, but none of those are built.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

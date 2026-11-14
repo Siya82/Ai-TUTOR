@@ -13,8 +13,14 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class TutorMessageRequest(BaseModel):
-    learner_id: UUID
+    # FIX 14 Nov 2026 (ADR-017, student login): learner_id used to be
+    # taken straight from the request body -- the whole "no auth yet"
+    # gap REBUILD_SPEC.md Section 2 step 8 flagged. It's gone now; the
+    # learner is resolved server-side from the Authorization bearer
+    # token via app/core/security.py's get_current_learner, in
+    # app/routers/tutor.py.
     topic_id: UUID
+    session_id: UUID | None = None
     # FIX 13 Nov 2026 (ADR-016): used to be Field(min_length=1), which
     # rejected a perfectly normal "just attach a photo, no caption"
     # turn with a 422 -- the frontend doesn't force any text when an

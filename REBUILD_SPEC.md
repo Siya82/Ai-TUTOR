@@ -339,6 +339,27 @@ additions happened after that date and are **not** in the recovered file:
   email/username column, most likely unique). A `get_current_learner`
   FastAPI dependency was added to close a prior "no auth on endpoints"
   gap — apply it to the dashboard router in particular, which had none.
+
+  **DONE 14 Nov 2026 — see `docs/ADR-017-student-login.md`. This bullet
+  is now historical context, not a to-do.** Built as a new `School` +
+  `User` table (role/school_id/student_number/password_hash/is_active/
+  must_change_password) rather than fields bolted onto `Learner` — kept
+  separate via a nullable, unique `Learner.user_id` FK specifically so
+  teacher/parent/admin roles can be added later without reworking
+  `Learner`. `student_number` is unique per school
+  (`UniqueConstraint("school_id", "student_number")`), not globally.
+  Accounts are pre-provisioned (`provision_student()` in
+  `app/services/auth.py`), not self-signup — a deliberate call on POPIA
+  grounds (minors' data) and scalability, documented in the ADR.
+  `get_current_user`/`get_current_learner` (`app/core/security.py`) now
+  gate `POST /tutor/message` and `POST /attachments` — both previously
+  trusted a client-supplied `learner_id`, the exact "no auth" gap this
+  bullet originally flagged. **Still open, carried forward rather than
+  silently dropped:** the `/api/v1/dashboard/*` router this bullet
+  specifically called out still has no auth at all — it was out of
+  scope for this pass (a teacher/admin-facing surface, and this feature
+  only provisioned the `student` role) and needs its own pass once a
+  teacher/admin role exists to check against.
 - **`Topic.term`** (1–4) and **`Topic.week_allocation`** fields, aligned
   to the CAPS four-term structure — confirmed as a planned/likely-done
   schema extension.

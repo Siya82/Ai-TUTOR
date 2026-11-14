@@ -9,17 +9,18 @@ tutor.py) is what actually reads the file, builds the Claude content
 blocks, and backfills session_id/message_id onto this row once a real
 TutorMessage exists for it.
 
-No authentication yet (step 8, not done) -- consistent with every other
-endpoint in this API today.
+FIX 14 Nov 2026 (ADR-017, student login): no longer takes learner_id
+from the request at all -- it's resolved from the Authorization bearer
+token via app/core/security.py's get_current_learner, same fix as
+app/routers/tutor.py.
 """
 
-import uuid
-
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import get_current_learner
 from app.models import Attachment, Learner
 from app.schemas.attachments import AttachmentUploadResponse
 from app.services.attachments import (
@@ -35,14 +36,10 @@ router = APIRouter(prefix="/attachments", tags=["attachments"])
 
 @router.post("/", response_model=AttachmentUploadResponse)
 async def upload_attachment(
-    learner_id: uuid.UUID = Form(...),
+    learner: Learner = Depends(get_current_learner),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ) -> Attachment:
-    learner = await db.get(Learner, learner_id)
-    if learner is None:
-        raise HTTPException(status_code=404, detail="Learner not found")
-
     content_type = file.content_type or "application/octet-stream"
     kind = classify_content_type(content_type, file.filename or "upload")
     if kind is None:

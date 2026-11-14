@@ -7,9 +7,14 @@ tutor.py / math_guard.py (all rebuilt from spec, see each file's own
 REBUILD NOTE) into a real endpoint against the recovered 11-table
 schema.
 
+FIX 14 Nov 2026 (ADR-017, student login): this endpoint no longer takes
+learner_id from the request body at all -- it's resolved from the
+Authorization bearer token via app/core/security.py's
+get_current_learner. This was REBUILD_SPEC.md Section 2 step 8's
+long-deferred gap; it's the real fix, not just documentation of the
+caveat.
+
 Deliberately NOT included yet (later steps, not this one):
-- Authentication -- REBUILD_SPEC.md Section 2, step 8. These endpoints
-  are unauthenticated for now, same as the recovered dashboard router.
 - RAG grounding -- content_chunks ingestion is still a placeholder.
 """
 
@@ -21,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.security import get_current_learner
 from app.models import Attachment, Attempt, Learner, Question, Topic, TutorMessage, TutorSession
 from app.schemas.tutor import TutorMessageRequest, TutorMessageResponse
 from app.services.attachments import build_attachment_content_blocks, history_summary_for
@@ -110,9 +116,10 @@ async def _fetch_owned_attachments(
 ) -> list[Attachment]:
     """
     Loads the attachments a student referenced on this turn, filtered by
-    learner_id as a basic sanity check (NOT a real permission boundary --
-    no auth exists yet, step 8, REBUILD_SPEC.md Section 2). Returned in
-    the same order as attachment_ids so build_attachment_content_blocks
+    learner_id -- now a REAL permission boundary (ADR-017), since
+    learner_id itself comes from the authenticated token via
+    get_current_learner, not from anything the client can set. Returned
+    in the same order as attachment_ids so build_attachment_content_blocks
     presents them to Claude in the order the student attached them.
     """
     if not attachment_ids:
@@ -138,12 +145,9 @@ def _attachment_to_dict(attachment: Attachment) -> dict:
 @router.post("/message", response_model=TutorMessageResponse)
 async def send_tutor_message(
     payload: TutorMessageRequest,
+    learner: Learner = Depends(get_current_learner),
     db: AsyncSession = Depends(get_db),
 ) -> TutorMessageResponse:
-    learner = await db.get(Learner, payload.learner_id)
-    if learner is None:
-        raise HTTPException(status_code=404, detail="Learner not found")
-
     requested_topic = await db.get(
         Topic, payload.topic_id, options=[selectinload(Topic.subject)]
     )

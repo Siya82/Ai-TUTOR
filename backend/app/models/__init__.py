@@ -16,6 +16,14 @@ RECOVERY NOTE: this file is reconstructed verbatim from a read performed on
 password hash, JWT-related columns) and CAPS `term` / `week_allocation`
 fields on `Topic` were added after this snapshot and are NOT reflected
 below — see REBUILD_SPEC.md for what's known about those additions.
+
+NEW 14 Nov 2026 (ADR-017, student login): `School` and `User` below are
+a fresh, greenfield addition for this rebuild (not a recovery of
+whatever the original app did for auth, if anything) -- a real
+identity/credential layer kept deliberately separate from `Learner`
+(the pedagogical profile), linked by `Learner.user_id`. See the ADR for
+why this shape was chosen over bolting auth fields onto `Learner`
+directly.
 """
 
 import uuid
@@ -96,6 +104,61 @@ class ContentChunk(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class School(Base):
+    """
+    NEW 14 Nov 2026 (ADR-017, student login). Deliberately minimal --
+    just enough to scope students to the institution that enrolled
+    them. `name` is not unique: two schools can share a name in
+    practice (common South African school names repeat across
+    provinces), so students are scoped by `school_id`, never by name
+    matching.
+    """
+
+    __tablename__ = "schools"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    users: Mapped[list["User"]] = relationship(back_populates="school")
+
+
+class User(Base):
+    """
+    NEW 14 Nov 2026 (ADR-017, student login). The auth/identity row --
+    deliberately separate from `Learner` (the pedagogical profile) so
+    teacher/parent/admin roles can be added later without reworking
+    this table or migrating `Learner` itself. `role` is a plain string,
+    not a DB enum, for the same reason: adding a new role later is a
+    data change, not a migration.
+
+    `student_number` only has to be unique WITHIN its own school (see
+    the UniqueConstraint below), matching how real school-issued
+    numbers work -- two different schools will reuse the same numbers.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="student")
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False)
+    student_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Set True whenever a temporary password was issued at provisioning
+    # time (app/services/auth.py's provision_student) -- cleared the
+    # moment the student successfully calls POST /auth/change-password.
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    school: Mapped["School"] = relationship(back_populates="users")
+    learner: Mapped["Learner"] = relationship(back_populates="user", uselist=False)
+
+    __table_args__ = (
+        UniqueConstraint("school_id", "student_number", name="uq_user_school_student_number"),
+    )
+
+
 class Learner(Base):
     __tablename__ = "learners"
 
@@ -111,15 +174,21 @@ class Learner(Base):
 
     attempts: Mapped[list["Attempt"]] = relationship(back_populates="learner")
 
+    # NEW 14 Nov 2026 (ADR-017, student login). Nullable so existing dev
+    # data doesn't need a forced migration path immediately -- but every
+    # real student going forward gets both rows created together by
+    # app/services/auth.py's provision_student(). This is the seam
+    # between the pedagogical profile (this table) and the auth/identity
+    # row (User): one Learner is owned by at most one User.
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id"), unique=True, nullable=True
+    )
+    user: Mapped["User | None"] = relationship(back_populates="learner")
+
     # Note: pace/difficulty tier ("slower"/"gifted" in everyday terms) is
     # deliberately NOT a stored column. It's computed on the fly from
     # `attempts` by app.services.personalization.compute_pace_tier(), so it
     # can never go stale and can differ per topic. See ADR-002.
-
-    # RECOVERY NOTE: per later project memory, real auth was added after
-    # this snapshot — expect additional columns here on rebuild, e.g. a
-    # hashed_password (bcrypt via passlib) and whatever fields the JWT
-    # (python-jose) flow needs (likely an email/username unique column).
 
 
 class Question(Base):

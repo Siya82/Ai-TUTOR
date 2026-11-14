@@ -14,16 +14,14 @@ pypdf==5.1.0          # PDF text extraction for student attachments (ADR-016)
 python-docx==1.1.2    # Word (.docx) text extraction for student attachments (ADR-016)
 python-multipart==0.0.17  # required by FastAPI File()/Form() uploads (ADR-016 attachments)
 
-# Added after this Aug-26 snapshot, per later project memory (not verified
-# verbatim here -- re-pin exact versions on rebuild):
-# bcrypt==4.0.1        # pinned specifically due to a passlib/bcrypt 5.x incompatibility
-# passlib
-# python-jose          # JWT handling for auth
-#
-# Also per later memory: the `openai` package was present in this file as a
-# leftover from the original DeepSeek integration (ADR-010) even after the
-# code moved to the `anthropic` SDK -- do not re-add it unless something
-# still imports it; grep the codebase first before pinning it on rebuild.
+# NEW 14 Nov 2026 (ADR-017, student login). bcrypt pinned specifically
+# due to a passlib 1.7.4 / bcrypt 5.x incompatibility (passlib reads an
+# __about__.__version__ attribute bcrypt 5.x removed) -- this exact pin
+# was already anticipated in requirements-baseline.txt on Siya's new
+# laptop before this feature was built.
+passlib==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0
 
 # Test dependencies (step 2 of REBUILD_SPEC.md's rebuild priority order
 # added real unit tests -- pinning versions compatible with Python 3.12).

@@ -41,10 +41,18 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.database import async_session_factory
-from app.models import ContentChunk, Learner, Question, Subject, Topic
+from app.models import ContentChunk, Learner, Question, School, Subject, Topic, User
+from app.services.auth import provision_student
 
 DEV_LEARNER_GRADE = 10
 DEV_LEARNER_NAME = "Test Learner"
+
+# NEW 14 Nov 2026 (ADR-017, student login). Fixed, well-known values --
+# never used for a real deployed school -- so local login is
+# predictable across re-runs of this idempotent script.
+DEV_SCHOOL_NAME = "THUTOra Demo School"
+DEV_STUDENT_NUMBER = "100001"
+DEV_STUDENT_PASSWORD = "DevPass123!"
 
 PLACEHOLDER_EMBEDDING = [0.0] * 1536
 
@@ -440,6 +448,43 @@ async def get_or_create_dev_learner(session) -> Learner:
     return learner
 
 
+async def get_or_create_demo_school(session) -> School:
+    """NEW 14 Nov 2026 (ADR-017, student login)."""
+    result = await session.execute(select(School).where(School.name == DEV_SCHOOL_NAME))
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        return existing
+    school = School(name=DEV_SCHOOL_NAME)
+    session.add(school)
+    await session.flush()
+    return school
+
+
+async def get_or_create_demo_student_account(session, school: School, learner: Learner) -> User:
+    """
+    NEW 14 Nov 2026 (ADR-017, student login). Links the dev Learner to
+    a real User account for local login testing -- idempotent: if the
+    learner already has a user_id (a previous run of this script), the
+    existing User is reused rather than provisioning a second one.
+    Uses provision_student()'s existing_learner= parameter specifically
+    so this reuses the already-seeded dev Learner instead of creating a
+    duplicate one -- see app/services/auth.py.
+    """
+    if learner.user_id is not None:
+        return await session.get(User, learner.user_id)
+
+    user, _, _ = await provision_student(
+        session,
+        school=school,
+        display_name=learner.display_name,
+        grade=learner.grade,
+        student_number=DEV_STUDENT_NUMBER,
+        raw_password=DEV_STUDENT_PASSWORD,
+        existing_learner=learner,
+    )
+    return user
+
+
 def _validate_subject_data(subject_spec: dict, known_subjects: set[tuple[str, int]]) -> None:
     """Fails fast on a typo'd prerequisite name/reference or a question-dict
     key that doesn't match a real topic name, instead of half-seeding the
@@ -531,6 +576,8 @@ async def main() -> None:
             all_seeded_topics[(subject.name, subject.grade)] = topics_by_name
 
         learner = await get_or_create_dev_learner(session)
+        demo_school = await get_or_create_demo_school(session)
+        demo_user = await get_or_create_demo_student_account(session, demo_school, learner)
 
         await session.commit()
 
@@ -551,8 +598,12 @@ async def main() -> None:
 
         print(f"Dev learner: {learner.display_name} -- id {learner.id}")
         print()
-        print("Use these ids for a live POST /tutor/message smoke test, e.g.:")
-        print(f'  learner_id = "{learner.id}"')
+        print("Log in at the frontend's login screen with (ADR-017):")
+        print(f"  School:         {demo_school.name}  (id {demo_school.id})")
+        print(f"  Student number: {demo_user.student_number}")
+        print(f"  Password:       {DEV_STUDENT_PASSWORD}")
+        print()
+        print("Use these ids for a direct API smoke test (after logging in for a token), e.g.:")
         for subject, topics_by_name, _, _ in results:
             example_name, example_topic = next(iter(topics_by_name.items()))
             print(

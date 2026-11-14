@@ -27,5 +27,14 @@ class Settings(BaseSettings):
     # not source.
     upload_dir: str = "uploads/attachments"
 
+    # NEW 14 Nov 2026 (ADR-017, student login). No default on purpose --
+    # the app refuses to start without a real secret, same posture as
+    # anthropic_api_key above. Add JWT_SECRET_KEY to backend/.env; a
+    # strong random value can be generated with:
+    #   python -c "import secrets; print(secrets.token_hex(32))"
+    jwt_secret_key: str
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60
+
 
 settings = Settings()
