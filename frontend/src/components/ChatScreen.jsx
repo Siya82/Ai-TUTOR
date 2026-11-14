@@ -29,8 +29,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchLearners, fetchSubjects, fetchTopics, sendTutorMessage, uploadAttachment } from "../api";
 import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking } from "../utils/tts";
 import ModalitySwitcher from "./ModalitySwitcher";
-import SubjectPicker from "./SubjectPicker";
-import TopicPicker from "./TopicPicker";
+import SubjectTopicSidebar from "./SubjectTopicSidebar";
 import MarkdownMessage from "./MarkdownMessage";
 import MathVerifiedBadge from "./MathVerifiedBadge";
 import SymbolKeyboard from "./SymbolKeyboard";
@@ -88,7 +87,7 @@ function AssistantMessage({ message, topics }) {
 
   const playbackLabel = {
     [PLAYBACK.PLAYING]: "⏸ Pause",
-    [PLAXBACK.PAUSED]: "▶ Resume",
+    [PLAYBACK.PAUSED]: "▶ Resume",
     [PLAYBACK.IDLE]: "🔊 Read aloud",
   }[playback];
 
@@ -131,7 +130,31 @@ function AssistantMessage({ message, topics }) {
 const ATTACHMENT_KIND_LABEL = { image: "Image", pdf: "PDF", docx: "Word" };
 
 function AttachmentChip({ attachment, onRemove }) {
-  const { original_filename, kind, uploading, error, extraction_warning } = attachment;
+  const { original_filename, kind, uploading, error, extraction_warning, previewUrl } = attachment;
+
+  // NEW 14 Nov 2026: an image attachment now shows the actual picture
+  // (via a client-side object URL created the moment the file is
+  // picked -- see handleFilesSelected) instead of just its filename.
+  // Click it to open the full-size image in a new tab. PDF/docx stay
+  // as a plain filename pill below -- there's no cheap inline preview
+  // for those without a dedicated viewer.
+  if (kind === "image" && previewUrl) {
+    return (
+      <div className={"attachment-thumb" + (error ? " attachment-thumb--error" : "")}>
+        <a href={previewUrl} target="_blank" rel="noreferrer" title={`Open ${original_filename} full-size`}>
+          <img src={previewUrl} alt={original_filename} className="attachment-thumb__img" />
+        </a>
+        {uploading && <span className="attachment-thumb__uploading">Uploading…</span>}
+        {error && <span className="attachment-thumb__detail">{error}</span>}
+        {onRemove && (
+          <button type="button" className="attachment-thumb__remove" onClick={onRemove} aria-label={`Remove ${original_filename}`}>
+            ×
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className={
@@ -219,15 +242,14 @@ export default function ChatScreen() {
     })();
   }, []);
 
-  // When the subject changes, jump the topic to the first one in that
-  // subject instead of leaving a stale topic from the previous subject
-  // selected (NEW 12 Nov 2026, multi-subject support).
-  const topicsForSubject = topics.filter((t) => t.subject_id === subjectId);
-
-  const handleSubjectChange = (newSubjectId) => {
+  // NEW 14 Nov 2026: the sidebar (SubjectTopicSidebar.jsx) always
+  // hands back both ids together -- clicking a subject heading selects
+  // its first topic (same "jump to the first topic" behaviour the old
+  // dropdown had on a subject change), clicking a topic selects that
+  // topic within its subject.
+  const handleSelectTopic = (newSubjectId, newTopicId) => {
     setSubjectId(newSubjectId);
-    const firstTopic = topics.find((t) => t.subject_id === newSubjectId);
-    setTopicId(firstTopic ? firstTopic.id : null);
+    setTopicId(newTopicId);
   };
 
   useEffect(() => {
@@ -267,9 +289,16 @@ export default function ChatScreen() {
 
     files.forEach((file) => {
       const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      // NEW 14 Nov 2026: a client-side object URL for images, so the
+      // real picture shows immediately (even mid-upload) instead of
+      // just a filename -- see AttachmentChip's image-thumbnail
+      // branch. Revoked in removePendingAttachment if removed before
+      // sending; otherwise kept alive for the rest of this page's
+      // session so the sent-message history can still show it.
+      const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
       setPendingAttachments((prev) => [
         ...prev,
-        { tempId, original_filename: file.name, uploading: true },
+        { tempId, original_filename: file.name, uploading: true, previewUrl },
       ]);
 
       uploadAttachment(file, learnerId)
@@ -287,7 +316,11 @@ export default function ChatScreen() {
   };
 
   const removePendingAttachment = (tempId) => {
-    setPendingAttachments((prev) => prev.filter((a) => a.tempId !== tempId));
+    setPendingAttachments((prev) => {
+      const removed = prev.find((a) => a.tempId === tempId);
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+      return prev.filter((a) => a.tempId !== tempId);
+    });
   };
 
   const handleAttachButtonClick = () => fileInputRef.current?.click();
@@ -334,7 +367,7 @@ export default function ChatScreen() {
   const readyAttachments = pendingAttachments.filter((a) => a.id && !a.error);
 
   const handleSend = async (e) => {
-    e.preventDefalt();
+    e.preventDefault();
     const text = draft.trim();
     if ((!text && readyAttachments.length === 0) || !learnerId || !topicId || sending || attachmentsUploading) {
       return;
@@ -347,7 +380,7 @@ export default function ChatScreen() {
       {
         role: "user",
         text,
-        attachments: readyAttachments.map((a) => ({ original_filename: a.original_filename, kind: a.kind })),
+        attachments: readyAttachments.map((a) => ({ original_filename: a.original_filename, kind: a.kind, previewUrl: a.previewUrl })),
       },
     ]);
     setDraft("");
@@ -379,26 +412,29 @@ export default function ChatScreen() {
   };
 
   return (
-    <div className="chat-screen">
+    <div className="app-shell">
+      <aside className="app-shell__sidebar">
+        {learners.length > 0 && (
+          <div className="app-shell__learner">Learner: {learners.find((l) => l.id === learnerId)?.display_name}</div>
+        )}
+        <SubjectTopicSidebar
+          subjects={subjects}
+          topics={topics}
+          selectedSubjectId={subjectId}
+          selectedTopicId={topicId}
+          onSelectTopic={handleSelectTopic}
+          disabled={sending}
+        />
+      </aside>
+
+      <div className="chat-screen">
       <header className="chat-screen__header">
         <div className="chat-screen__brand">
+          <img src="/thutora-logo.png" alt="" className="chat-screen__brand-logo" />
           THUTOra<span className="chat-screen__brand-dot">.</span>
         </div>
         <ModalitySwitcher modality={modality} onChange={setModality} />
       </header>
-
-      <div className="chat-screen__controls">
-        <SubjectPicker
-          subjects={subjects}
-          selectedSubjectId={subjectId}
-          onChange={handleSubjectChange}
-          disabled={sending}
-        />
-        <TopicPicker topics={topicsForSubject} selectedTopicId={topicId} onChange={setTopicId} disabled={sending} />
-        {learners.length > 0 && (
-          <span className="chat-screen__learner">Learner: {learners.find((l) => l.id === learnerId)?.display_name}</span>
-        )}
-      </div>
 
       {loadError && <div className="chat-screen__error">{loadError}</div>}
 
@@ -491,6 +527,7 @@ export default function ChatScreen() {
           Send
         </button>
       </form>
+      </div>
     </div>
   );
 }

@@ -1728,6 +1728,98 @@ change and nothing in this diff should affect them.
 - Grade 12 content expansion resumes after this, per Siya's explicit
   priority call.
 
+## 2026-11-14 -- Live-tested ADR-016 attachments end-to-end on Siya's machine; fixed 4 real bugs it surfaced; subject/topic sidebar nav; attachment thumbnails + real markdown tables; `start-thutora.ps1`
+
+**Context:** the first live run of the attachments feature (ADR-016),
+via a new `start-thutora.ps1` helper script (Postgres via
+`docker compose`, `alembic upgrade head`, `uvicorn`, `npm run dev`, all
+in one go). Every bug below was only found by actually using the
+running app, not by the unit tests added in the previous entry -- a
+reminder that this project's "hand live testing to Siya" discipline is
+exactly how these got caught quickly instead of shipping silently.
+
+**Bugs fixed, in the order they were hit:**
+1. `backend/requirements.txt` was missing `python-multipart` --
+   FastAPI's `File()`/`Form()` need it at runtime even though no
+   project code imports it directly, so `uvicorn` crashed on startup
+   the first time `app/routers/attachments.py` was reached. Added it,
+   with a comment explaining why it's there.
+2. `frontend/src/components/ChatScreen.jsx`'s `handleSend` had
+   `e.preventDefalt()` (typo for `preventDefault`) -- since that
+   method doesn't exist, every form submit threw immediately and
+   `sendTutorMessage` never ran. Fixed the typo.
+3. Same file's `AssistantMessage` had `PLAXBACK.PAUSED` (typo for
+   `PLAYBACK.PAUSED`) in the read-aloud label map -- `PLAXBACK` isn't
+   defined, so every assistant reply threw a `ReferenceError` while
+   rendering. With no error boundary, React 18+'s behaviour on an
+   uncaught render error is to unmount the whole tree -- this is what
+   looked like "the screen goes blank after Thinking...". Fixed the
+   typo.
+4. `TutorMessageRequest.message` required `min_length=1`, so attaching
+   a photo with no caption text (a completely normal way to use this
+   feature) 422'd. Fixed by relaxing `message` to default `""` and
+   adding a `model_validator` that requires EITHER a non-blank message
+   OR at least one `attachment_id` -- not both unconditionally.
+   `routers/tutor.py` now substitutes a plain default instruction text
+   ("Please look at the attached file and help me with it.") for
+   Claude and for the persisted history summary when the caption is
+   blank but an attachment is present. Separately, `frontend/src/api.js`
+   was turning FastAPI's 422 `detail` (a LIST of `{loc, msg, type}` for
+   a validation error, not a string) into the literal text
+   `[object Object]` via `new Error(detail)` -- added
+   `formatErrorDetail()` so any future validation error shows real text
+   instead.
+
+**UI follow-ups from the same testing session:**
+- `MarkdownMessage.jsx` was missing `remark-gfm` -- base
+  remark/CommonMark has no concept of GFM pipe tables, so a reply
+  comparing circuits A/B/C/D rendered its table as literal
+  `| Circuit | ... |` text. Added `remark-gfm` (installed into
+  `frontend/`, confirmed the existing Windows-native `@rolldown`
+  binaries weren't disturbed by installing from the Linux-VM side of
+  the device bridge) and basic `.markdown-message table/th/td` CSS.
+- Attachment chips only ever showed a filename, even for an image --
+  `AttachmentChip` now shows an actual thumbnail (via a client-side
+  `URL.createObjectURL(file)`, created the moment a file is picked, not
+  round-tripped through the backend) for the `image` kind, both while
+  uploading and in sent-message history; click it to open full-size in
+  a new tab. PDF/docx attachments are unchanged (filename pill) -- no
+  cheap inline preview exists for those yet.
+- New `frontend/src/components/SubjectTopicSidebar.jsx`, replacing the
+  `SubjectPicker`/`TopicPicker` dropdowns in the header controls row --
+  Siya's own usability call: a student can forget a dropdown exists at
+  all, but an always-visible list doesn't depend on that. Subjects are
+  grouped with their grade; each subject's topic list is an accordion
+  (only one open at a time) so the pane doesn't grow unbounded once
+  Grade 12 content is seeded. Clicking a closed subject opens it and
+  jumps to its first topic (mirrors the old dropdown's "pick a subject,
+  land on topic 1" behaviour); re-toggling the already-active subject
+  just shows/hides its topics without changing the selection.
+  `SubjectPicker.jsx`/`TopicPicker.jsx` are left in the codebase,
+  unused, as an easy revert.
+- New `frontend/public/thutora-logo.png` (resized from a 1254x1254,
+  ~1.1MB source down to 256x256) next to the "THUTOra." wordmark in the
+  header. The header row is already `justify-content: space-between`,
+  so Siya's stated plan -- putting learner login/credentials/profile on
+  the same line -- has a ready spot on the right without any layout
+  rework.
+- New `start-thutora.ps1` at the repo root: starts Postgres
+  (`docker compose up -d`), opens a window that activates
+  `backend\.venv`, runs `pip install -r requirements.txt` then
+  `alembic upgrade head` then `uvicorn`, opens a second window for
+  `npm run dev`, and opens the browser once both have had a moment to
+  start.
+
+**Not done yet:**
+- No automated test covers `TutorMessageRequest`'s new
+  message-or-attachment `model_validator` -- this pass was live
+  bug-fixing, not TDD; worth a quick unit test alongside
+  `test_attachments.py` next time that file is touched.
+- Still no real authentication/login -- REBUILD_SPEC.md Section 2 step
+  8. Student login/profile is the next priority Siya called out, to
+  land on the header row the logo now sits on.
+- Grade 12 content expansion is still queued behind that.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

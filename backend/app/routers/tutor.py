@@ -182,14 +182,25 @@ async def send_tutor_message(
     # plain-text summary instead (history_summary_for), so replaying this
     # turn in a later turn's history doesn't re-spend tokens resending an
     # image that was already answered.
+    # FIX 13 Nov 2026 (ADR-016): payload.message can legitimately be ""
+    # now (schema only requires message OR an attachment -- see
+    # TutorMessageRequest's model_validator) -- an attachment-only turn
+    # still needs SOME text block for Claude and for the persisted
+    # history summary, so default to a plain instruction in that case.
+    message_text = payload.message.strip() or (
+        "Please look at the attached file and help me with it."
+        if attachment_dicts
+        else payload.message
+    )
+
     if attachment_dicts:
         user_content = build_attachment_content_blocks(attachment_dicts)
-        user_content.append({"type": "text", "text": payload.message})
+        user_content.append({"type": "text", "text": message_text})
     else:
-        user_content = payload.message
+        user_content = message_text
     claude_messages.append({"role": "user", "content": user_content})
 
-    persisted_content = history_summary_for(attachment_dicts, payload.message)
+    persisted_content = history_summary_for(attachment_dicts, message_text)
     user_message = TutorMessage(session_id=session.id, role="user", content=persisted_content)
     db.add(user_message)
     await db.flush()  # need user_message.id to backfill the attachments below

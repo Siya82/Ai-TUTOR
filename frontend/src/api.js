@@ -10,6 +10,22 @@
 
 const API_BASE_URL = "http://localhost:8000";
 
+// FIX 13 Nov 2026 (ADR-016): FastAPI's `detail` is a plain string for a
+// raised HTTPException, but for a pydantic validation error (422) it's
+// a LIST of {loc, msg, type} objects -- `new Error(thatArray)` used to
+// stringify straight to the useless literal "[object Object]". This
+// turns either shape into one readable line.
+function formatErrorDetail(detail, fallback) {
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d) => (typeof d === "string" ? d : d.msg || JSON.stringify(d)))
+      .join("; ");
+  }
+  return fallback;
+}
+
 async function getJson(path) {
   const response = await fetch(`${API_BASE_URL}${path}`);
   if (!response.ok) {
@@ -57,7 +73,7 @@ export async function uploadAttachment(file, learnerId) {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.detail || `Upload failed with status ${response.status}`);
+    throw new Error(formatErrorDetail(errorBody.detail, `Upload failed with status ${response.status}`));
   }
 
   return response.json();
@@ -87,7 +103,7 @@ export async function sendTutorMessage({ message, sessionId, learnerId, topicId,
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.detail || `Request failed with status ${response.status}`);
+    throw new Error(formatErrorDetail(errorBody.detail, `Request failed with status ${response.status}`));
   }
 
   return response.json();
