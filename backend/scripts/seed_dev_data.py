@@ -462,6 +462,172 @@ _ACCOUNTING_QUESTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# --- Accounting, Grade 11 (added 14 Nov 2026, ADR-019) ---
+# Topic names/order follow the DBE CAPS Grade 11 Accounting Annual Teaching
+# Plan (education.gov.za, checked 14 Nov 2026). Unlike Grade 11 Pure
+# Mathematics' clean 1:1 name mapping (ADR-014), most of Grade 11 Accounting
+# is genuinely new content (a partnership is a different business entity
+# from Grade 10's sole trader; ratio analysis and manufacturing costing don't
+# exist in Grade 10 at all) -- closer in shape to Grade 11 Physical Sciences
+# (ADR-015), where only some topics got an exact-name cross-grade anchor.
+#
+# Four independent branches, each rooted in its OWN Grade 10 Accounting
+# topic (not one shared Grade 10 trunk, unlike Grade 10 Accounting's own
+# single-trunk-with-branches shape) -- see ADR-019 for why each cross-grade
+# root was chosen (a real prerequisite skill, not a same-grade coincidence)
+# and why Fixed Assets deliberately does NOT get a cross-grade anchor (no
+# clean Grade 10 counterpart exists for depreciation/asset-register content,
+# same "don't force an inexact mapping" judgment call ADR-015 made for
+# Electromagnetism/Magnetism).
+#
+# "Budgeting (Cash Budget)" and "Value-Added Tax (VAT)" reuse their exact
+# Grade 10 names (same convention Maths/Physical Sciences already use for a
+# deepened skill) -- this also means SymbolKeyboard.jsx needs zero new
+# entries for either, since TOPIC_SYMBOLS keys purely by name.
+
+_ACCOUNTING_GRADE11_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Bank Reconciliation", ("Accounting", 10, "Cash Journals (CRJ, CPJ, PCJ)")),
+    ("Creditors' Reconciliation", ("Accounting", 10, "Credit Journals (DJ, DAJ, CJ, CAJ, GJ)")),
+    ("Fixed Assets", "Creditors' Reconciliation"),
+    ("Partnerships: Concepts and Formation", ("Accounting", 10, "The Accounting Equation")),
+    ("Partnership Final Accounts and Year-End Adjustments", "Partnerships: Concepts and Formation"),
+    ("Partnership Financial Statements", "Partnership Final Accounts and Year-End Adjustments"),
+    ("Analysis and Interpretation of Financial Statements", "Partnership Financial Statements"),
+    ("Budgeting (Cash Budget)", ("Accounting", 10, "Budgeting (Cash Budget)")),
+    ("Inventory Systems", "Budgeting (Cash Budget)"),
+    ("Manufacturing Cost Accounting", "Inventory Systems"),
+    ("Value-Added Tax (VAT)", ("Accounting", 10, "Value-Added Tax (VAT)")),
+]
+
+_ACCOUNTING_GRADE11_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Bank Reconciliation": [
+        ("A debit order of R450 for insurance appears on the bank statement but "
+         "has not yet been entered in the business's Cash Book. State the effect "
+         "this has on the Cash Book's bank balance once it is recorded.",
+         "The bank balance in the Cash Book decreases by R450"),
+        ("Why must items appearing only on the bank statement (such as bank "
+         "charges or debit orders) first be recorded in the Cash Book before a "
+         "Bank Reconciliation Statement is drawn up?",
+         "Because the Cash Book must reflect every transaction that has actually "
+         "happened; only once it is updated does its balance represent the true, "
+         "correct bank balance to reconcile against the bank statement"),
+    ],
+    "Creditors' Reconciliation": [
+        ("A creditor's statement shows a balance owing of R3 200, but the "
+         "Creditors Ledger account for that creditor shows R2 750. Invoice "
+         "number 118 for R450 appears on the creditor's statement but has not "
+         "yet been recorded in the Creditors Ledger. After recording this "
+         "invoice, will the two balances agree?",
+         "Yes -- R2 750 + R450 = R3 200, which matches the creditor's statement"),
+        ("Name one reason a creditor's statement and the Creditors Ledger might "
+         "legitimately differ at month-end, other than an error.",
+         "E.g. a payment made by the business near month-end that the creditor "
+         "had not yet processed or received (an outstanding payment), or an "
+         "invoice/credit note still in transit"),
+    ],
+    "Fixed Assets": [
+        ("A business buys equipment for R20 000 and depreciates it at 10% p.a. "
+         "using the straight-line method. Calculate the depreciation for the "
+         "first full year.",
+         "R2 000 (R20 000 x 10%)"),
+        ("A business buys a vehicle for R150 000 and uses the diminishing-"
+         "balance method at 20% p.a. Calculate the depreciation for the second "
+         "year, given the vehicle's book value at the start of that year is "
+         "R120 000.",
+         "R24 000 (R120 000 x 20%)"),
+    ],
+    "Partnerships: Concepts and Formation": [
+        ("Name the two accounts kept for each partner in a partnership's books "
+         "to record their equity.",
+         "The Capital account and the Current account"),
+        ("Partner A contributes R80 000 and Partner B contributes R40 000 to "
+         "form a partnership, agreeing to share profits equally. State whether "
+         "their profit share must be in the same ratio as their capital "
+         "contributions.",
+         "No -- partners may agree to share profits in any ratio they choose "
+         "(e.g. equally), regardless of their capital contribution ratio; this "
+         "must be set out in the partnership agreement"),
+    ],
+    "Partnership Final Accounts and Year-End Adjustments": [
+        ("A partnership's Profit and Loss account shows a net profit of "
+         "R120 000 for the year, before appropriation. Partner salaries total "
+         "R60 000 and interest on capital totals R20 000. Calculate the amount "
+         "remaining to be shared between the partners according to their "
+         "profit-sharing ratio.",
+         "R40 000 (R120 000 - R60 000 - R20 000)"),
+        ("At year-end, a partnership has an outstanding electricity account of "
+         "R900 that has not yet been paid or recorded. What type of year-end "
+         "adjustment does this require?",
+         "An accrued expense (expense payable) adjustment -- the R900 must be "
+         "added as an expense for the current year even though it hasn't been "
+         "paid yet"),
+    ],
+    "Partnership Financial Statements": [
+        ("Which section of a partnership's Statement of Financial Position "
+         "shows each partner's Capital and Current account balances?",
+         "The Owner's/Partners' Equity section"),
+        ("A partnership's Statement of Comprehensive Income is prepared for the "
+         "business as a single entity, not split between partners. Which later "
+         "section of the accounts DOES split amounts between the individual "
+         "partners?",
+         "The Appropriation account (the profit distribution/appropriation "
+         "section)"),
+    ],
+    "Analysis and Interpretation of Financial Statements": [
+        ("A business has current assets of R90 000 and current liabilities of "
+         "R45 000. Calculate the current ratio.",
+         "2:1 (90 000 / 45 000)"),
+        ("A business's stock turnover rate increases from 6 times per year to "
+         "9 times per year. State whether this is generally a favourable or "
+         "unfavourable change, and why.",
+         "Favourable -- stock is being sold and replaced more often, meaning it "
+         "is moving faster and less cash is tied up in unsold stock"),
+    ],
+    "Budgeting (Cash Budget)": [
+        ("A business's Cash Budget projects total cash receipts of R85 000 and "
+         "total cash payments of R97 000 for March. Calculate the expected "
+         "bank balance at the end of March if the bank balance at the start of "
+         "March was R15 000.",
+         "R3 000 (15 000 + 85 000 - 97 000)"),
+        ("State one key difference between a Cash Budget and a Projected "
+         "Income Statement.",
+         "A Cash Budget shows only actual cash expected to be received and "
+         "paid (e.g. excludes depreciation, includes loan capital repayments), "
+         "while a Projected Income Statement shows expected income and "
+         "expenses on the accrual basis (e.g. includes depreciation, excludes "
+         "loan capital repayments)"),
+    ],
+    "Inventory Systems": [
+        ("Name the two stock systems a business can use to record its "
+         "inventory.",
+         "The perpetual (continuous) inventory system and the periodic "
+         "inventory system"),
+        ("Under the perpetual inventory system, which ledger account is "
+         "updated immediately every time stock is bought or sold?",
+         "The Trading Stock account"),
+    ],
+    "Manufacturing Cost Accounting": [
+        ("A factory's fixed costs for the month are R40 000 and its variable "
+         "cost per unit is R25. Calculate the total production cost for 1 000 "
+         "units.",
+         "R65 000 (R40 000 + (1 000 x R25))"),
+        ("Name the three categories of cost that make up the total cost of a "
+         "manufactured product.",
+         "Direct material cost, direct labour cost, and factory overhead cost"),
+    ],
+    "Value-Added Tax (VAT)": [
+        ("Name one type of item that is zero-rated for VAT purposes in South "
+         "Africa.",
+         "E.g. basic foodstuffs such as brown bread, maize meal, or milk (any "
+         "correct zero-rated item)"),
+        ("A debtor's account of R1 150 (VAT-inclusive, at 15%) is written off "
+         "as a bad debt. Calculate how much of this amount relates to VAT, "
+         "which the business can claim back from SARS.",
+         "R150 (1 150 / 1.15 x 0.15, i.e. the VAT portion of the written-off "
+         "amount)"),
+    ],
+}
+
 SUBJECTS: list[dict] = [
     {
         "name": "Pure Mathematics",
@@ -474,6 +640,12 @@ SUBJECTS: list[dict] = [
         "grade": 10,
         "topics": _ACCOUNTING_TOPICS,
         "questions": _ACCOUNTING_QUESTIONS,
+    },
+    {
+        "name": "Accounting",
+        "grade": 11,
+        "topics": _ACCOUNTING_GRADE11_TOPICS,
+        "questions": _ACCOUNTING_GRADE11_QUESTIONS,
     },
     {
         "name": "Physical Sciences",

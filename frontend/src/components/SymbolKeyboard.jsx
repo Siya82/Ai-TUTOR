@@ -200,6 +200,48 @@ const TOPIC_SYMBOLS = {
     { label: "R", insert: "R" },
     { label: "%", insert: "%" },
   ],
+  // NEW 14 Nov 2026 (ADR-019, Accounting Grade 11 added): same R/%
+  // convenience row as the Grade 10 Accounting entries above. Only 9
+  // new entries needed, not 11 -- "Budgeting (Cash Budget)" and
+  // "Value-Added Tax (VAT)" reuse their exact Grade 10 topic names
+  // (ADR-019's cross-grade deepening design), so they already match
+  // the two entries above and need nothing added here.
+  "Bank Reconciliation": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Creditors' Reconciliation": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Fixed Assets": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Partnerships: Concepts and Formation": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Partnership Final Accounts and Year-End Adjustments": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Partnership Financial Statements": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Analysis and Interpretation of Financial Statements": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Inventory Systems": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Manufacturing Cost Accounting": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
 };
 
 export default function SymbolKeyboard({ topicName, onInsert }) {

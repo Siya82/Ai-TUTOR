@@ -2016,6 +2016,109 @@ not silently dropped), and the open-items list in
   Accounting are real CAPS Grade 10 content not yet seeded.
 - Grade 11/12 Accounting doesn't exist yet.
 
+## 2026-11-14 (continued) -- Added Accounting (Grade 11) as a new grade (ADR-019)
+
+Siya's explicit next step (ahead of resuming Grade 12 content for the
+other subjects, which he's flagged as the step after this one):
+deepen Accounting into Grade 11, the same move already made for Pure
+Mathematics (ADR-014) and Physical Sciences (ADR-015). Checked the
+real DBE CAPS Grade 11 Accounting Annual Teaching Plan
+(education.gov.za) before writing any seed data, same discipline as
+every prior addition.
+
+**Grade 11 Accounting is a bigger step up than Grade 11 Maths was.**
+Grade 11 Maths mapped its topics 1:1 onto Grade 10 by name (ADR-014).
+Grade 11 Accounting mostly doesn't: it introduces a whole new
+business entity (a partnership, not a sole trader) with its own
+capital/current-account and profit-appropriation mechanics, plus
+ratio analysis and manufacturing cost accounting, neither of which
+exists in Grade 10 Accounting at all. Only two topics are a clean
+deepening of an exact Grade 10 skill (Budgeting, VAT) -- closer in
+shape to Grade 11 Physical Sciences (ADR-015, only 2 of 6 topics had
+an exact Grade 10 counterpart) than to Grade 11 Maths' clean mapping.
+
+**11 new topics added to `backend/scripts/seed_dev_data.py`**,
+following the ATP's own term order, as **four independent branches**
+rather than one shared Grade 10 trunk (a deliberate departure from
+Grade 10 Accounting's own single-trunk-with-branches shape):
+
+1. Bank Reconciliation -- cross-grade root: Grade 10's "Cash Journals
+   (CRJ, CPJ, PCJ)" (you can't reconcile a cash journal you don't
+   know how to keep)
+2. Creditors' Reconciliation -- cross-grade root: Grade 10's "Credit
+   Journals (DJ, DAJ, CJ, CAJ, GJ)"
+3. Fixed Assets -- chains within-grade off Creditors' Reconciliation,
+   deliberately NOT given a cross-grade anchor: nothing in the
+   seeded Grade 10 Year-End Adjustments content is specifically about
+   depreciation or an asset register, so forcing one would repeat the
+   same "inexact mapping" mistake ADR-015 explicitly avoided for
+   Electromagnetism/Magnetism
+4. Partnerships: Concepts and Formation -- cross-grade root: Grade
+   10's "The Accounting Equation" (a partner's Capital/Current
+   account is a direct extension of owner's equity, just split
+   across two or more owners)
+5. Partnership Final Accounts and Year-End Adjustments -- within-
+   grade, chains off #4
+6. Partnership Financial Statements -- within-grade, chains off #5
+7. Analysis and Interpretation of Financial Statements (ratios) --
+   within-grade, chains off #6
+8. Budgeting (Cash Budget) -- cross-grade root: Grade 10's own
+   "Budgeting (Cash Budget)" (exact-name deepening, now including the
+   Projected Income Statement)
+9. Inventory Systems -- within-grade, chains off #8 (matching the
+   ATP's own Term 3 order: budgeting, then inventory systems, then
+   manufacturing costing)
+10. Manufacturing Cost Accounting -- within-grade, chains off #9
+11. Value-Added Tax (VAT) -- cross-grade root: Grade 10's own
+    "Value-Added Tax (VAT)" (exact-name deepening, now including
+    zero-rated/exempt items and the effect of bad debts/discounts/
+    returns)
+
+"Budgeting (Cash Budget)" and "Value-Added Tax (VAT)" deliberately
+reuse their exact Grade 10 names -- same convention Maths/Physical
+Sciences already use for a deepened skill (a topic name is the name
+of the skill, not "the grade 11 version of it"). Verified the full
+chain resolves correctly: 11 topics, 22 new questions (2 per topic,
+numeric + conceptual mix matching every prior subject's pattern), all
+cross-grade references point at real Grade 10 Accounting topic names,
+and the `SUBJECTS` list places the new Accounting-grade-11 entry
+after the existing Accounting-grade-10 entry (required for
+`_validate_subject_data`'s cross-grade check).
+
+**Verification: unchanged from ADR-018.** Nothing about Grade 11
+content changes the equation-shaped/non-equation-shaped analysis
+ADR-018 already made -- if anything Grade 11 leans further into
+non-equation-shaped territory (reconciliation statements, ratio
+interpretation, qualitative GAAP/ethics questions) than Grade 10 did.
+`math_guard.py`/`math_validator.py` are unchanged in this pass.
+
+**Confirmed via reading, not assumed:** `app/services/tutor.py`,
+`app/routers/topics.py`, and
+`frontend/src/components/SubjectTopicSidebar.jsx` all needed zero
+changes, same finding as every prior subject/grade addition.
+`frontend/src/components/SymbolKeyboard.jsx` got 9 new `TOPIC_SYMBOLS`
+entries (R, %) -- not 11 -- since "Budgeting (Cash Budget)" and
+"Value-Added Tax (VAT)" already match the Grade 10 entries added
+under ADR-018, by name alone.
+
+Full reasoning, including why each cross-grade anchor was chosen
+(and why Fixed Assets deliberately wasn't given one), in
+`docs/ADR-019-accounting-grade11.md`.
+
+**Not done yet:**
+- Not live-tested against a real Claude call -- handed to Siya next,
+  same discipline as every prior content addition: re-run
+  `seed_dev_data.py` (idempotent, so it also picks up Grade 10
+  Accounting if that hasn't successfully run yet), then try a real
+  `/tutor/message` call against a Grade 11 Accounting topic.
+- No Accounting-specific verifier exists for either grade --
+  unchanged open item from ADR-018.
+- Grade 12 Accounting doesn't exist yet. Siya's own stated next step
+  after this is scaling Pure Mathematics, Physical Sciences, and
+  Accounting to Grade 12 -- each needs its own CAPS research pass and
+  its own ADR, not attempted here.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
