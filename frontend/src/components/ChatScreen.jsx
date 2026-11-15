@@ -213,7 +213,10 @@ export default function ChatScreen({ auth, onLogout }) {
   useEffect(() => {
     (async () => {
       try {
-        const [fetchedSubjects, fetchedTopics] = await Promise.all([fetchSubjects(), fetchTopics()]);
+        const [fetchedSubjects, fetchedTopics] = await Promise.all([
+          fetchSubjects(auth.token),
+          fetchTopics(auth.token),
+        ]);
         setSubjects(fetchedSubjects);
         setTopics(fetchedTopics);
         // Default to Pure Mathematics, Grade 10 specifically when it's seeded,
@@ -241,7 +244,7 @@ export default function ChatScreen({ auth, onLogout }) {
         setLoadError(`Could not reach the backend at http://localhost:8000 (${err.message}). Is uvicorn running?`);
       }
     })();
-  }, []);
+  }, [auth.token]);
 
   // NEW 14 Nov 2026: the sidebar (SubjectTopicSidebar.jsx) always
   // hands back both ids together -- clicking a subject heading selects

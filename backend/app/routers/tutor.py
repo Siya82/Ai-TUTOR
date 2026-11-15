@@ -168,6 +168,18 @@ async def send_tutor_message(
     if requested_topic is None:
         raise HTTPException(status_code=404, detail="Topic not found")
 
+    # FIX 15 Nov 2026 (grade-scoped visibility, ADR-026): /subjects and
+    # /topics now hide any topic above the learner's own grade from the
+    # picker, but a hidden-from-the-UI topic_id could still be POSTed
+    # here directly -- this is the actual enforcement point, not just
+    # the UI affordance. 403, not 404: the topic is real, the learner
+    # just isn't allowed to be taught it yet.
+    if requested_topic.subject.grade > learner.grade:
+        raise HTTPException(
+            status_code=403,
+            detail="This topic is above your current grade.",
+        )
+
     # NEW 13 Nov 2026 (ADR-016, student file attachments). Loaded before
     # the prerequisite/diagnosis work below so a bad attachment_ids entry
     # fails fast, before any other work on this turn.

@@ -2478,6 +2478,24 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 **Still needed from Siya:** live-test a real redirect (e.g. a Grade 12 question with no attempt history, so it redirects to a known Grade 10/11 gap) and confirm Claude's actual sentence names the grades, not just the topics -- the system prompt now INSTRUCTS this but the live model response is the real verification, same "ship then verify" discipline as everything else.
 
 
+## 2026-11-15 -- Grade-scoped subject/topic visibility and access (ADR-026)
+
+**Goal:** Siya's next live-test finding: `GET /subjects`/`GET /topics` have never filtered by grade or required auth (documented gaps since 12/8 Nov 2026 respectively), so the sidebar currently shows a student every subject at every seeded grade -- a Grade 10 student can browse and manually select Grade 11/12 content directly. Siya's explicit requirement for the live product: a student should only see their own grade's subjects/topics and the grades below it, never a grade ahead.
+
+**Done:**
+- `app/routers/subjects.py` -- `GET /subjects` now requires `get_current_learner` and filters to `Subject.grade <= learner.grade`.
+- `app/routers/topics.py` -- `GET /topics` same change, via a join to `Subject` (Topic itself has no grade column).
+- `app/routers/tutor.py` -- `POST /tutor/message` gained the real enforcement point, not just the picker: `send_tutor_message()` now 403s if `requested_topic.subject.grade > learner.grade`, right next to the existing 404-if-missing check. Hiding a topic from the picker alone would have been cosmetic only -- a client could still POST a Grade 12 `topic_id` directly without this.
+- `frontend/src/api.js` -- `fetchSubjects()`/`fetchTopics()` now take and forward a `token` (previously called with none at all, even though the student is always logged in by the time `ChatScreen` mounts).
+- `frontend/src/components/ChatScreen.jsx` -- passes `auth.token` to both calls; the loading effect's dependency array now includes `auth.token`. No change needed to `SubjectTopicSidebar.jsx` itself -- it just renders whatever list it's handed.
+- Verified with `ast.parse` on all three backend files (same sandbox limitation as always -- no `pgvector`/`pydantic_settings` env here) and `esbuild` bundling both edited frontend files (clean, ChatScreen.jsx 1.1mb/api.js 5.4kb).
+- Full reasoning in `docs/ADR-026-grade-scoped-content-visibility.md`.
+
+**Not done:** no new test coverage -- neither router had existing tests to extend, and this sandbox can't run a real DB-backed pytest session to write new ones against. A Grade 12 learner can still see Grade 10/11 content, by design (the diagnosis engine's redirects legitimately need to teach a lower-grade prerequisite) -- this only removes visibility/access to grades *ahead*.
+
+**Still needed from Siya:** live-test as the dev student (Grade 10) and confirm the sidebar no longer shows Grade 11/12 subjects at all, then confirm a direct `POST /tutor/message` with a Grade 11/12 `topic_id` now 403s.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

@@ -56,14 +56,26 @@ async function getJson(path, token) {
   return response.json();
 }
 
-/** All seeded subjects, e.g. [{ id, name, grade }, ...]. NEW 12 Nov 2026, multi-subject support. */
-export function fetchSubjects() {
-  return getJson("/subjects/");
+/**
+ * Subjects at or below the logged-in learner's own grade, e.g.
+ * [{ id, name, grade }, ...]. NEW 12 Nov 2026, multi-subject support.
+ * UPDATED 15 Nov 2026 (grade-scoped visibility, ADR-026): now requires
+ * a token -- the backend resolves the learner from it and filters to
+ * their own grade and below, so a student can no longer see (or pick)
+ * a subject from a grade ahead of their own.
+ */
+export function fetchSubjects(token) {
+  return getJson("/subjects/", token);
 }
 
-/** All seeded topics, e.g. [{ id, subject_id, name, caps_reference, prerequisite_id }, ...]. */
-export function fetchTopics() {
-  return getJson("/topics/");
+/**
+ * Topics at or below the logged-in learner's own grade, e.g.
+ * [{ id, subject_id, name, caps_reference, prerequisite_id }, ...].
+ * UPDATED 15 Nov 2026 (grade-scoped visibility, ADR-026): same change
+ * as fetchSubjects() -- now requires a token and is grade-filtered.
+ */
+export function fetchTopics(token) {
+  return getJson("/topics/", token);
 }
 
 /**
