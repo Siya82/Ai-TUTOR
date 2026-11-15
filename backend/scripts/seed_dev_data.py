@@ -60,7 +60,17 @@ DEV_STUDENT_NUMBER = "100001"
 # existed to provision one.
 DEV_TEACHER_NUMBER = "T00001"
 DEV_STUDENT_PASSWORD = "DevPass123!"
-DEV_TEACHER_PASSWORD = "DevTeachPass123!"
+# NEW 15 Nov 2026 (live-test convenience). Deliberately the SAME value as
+# DEV_STUDENT_PASSWORD, not a separate password -- Siya asked to use one
+# password across every THUTOra role while live-testing by hand. The LOGIN
+# NUMBER still can't be shared: student_number doubles as the login
+# identifier for every role and is uniquely constrained per school
+# regardless of role (uq_user_school_student_number on (school_id,
+# student_number)), so a teacher and a student in the same school can
+# never carry the same number -- that is a real collision, not a style
+# choice, and changing it would mean loosening a schema constraint that
+# exists to catch a real school accidentally issuing one number twice.
+DEV_TEACHER_PASSWORD = DEV_STUDENT_PASSWORD
 
 PLACEHOLDER_EMBEDDING = [0.0] * 1536
 

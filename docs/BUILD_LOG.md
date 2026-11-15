@@ -2414,6 +2414,17 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 - CONNECT and INSIGHTS remain unbuilt and undesigned beyond the shape flagged above -- this is a naming/planning pass, not an implementation one.
 
 
+## 2026-11-15 -- Dev teacher/student passwords unified for live testing
+
+**Goal:** Siya asked to use one consistent password across every THUTOra role while live-testing by hand, ahead of testing the Grade 11/12 content batch and ADR-024's teacher dashboard/admin UI.
+
+**Done:**
+- `backend/scripts/seed_dev_data.py` -- `DEV_TEACHER_PASSWORD` now reuses `DEV_STUDENT_PASSWORD` (`DevPass123!`) instead of its own separate value. The login NUMBER is unchanged and cannot be unified: `User.student_number` doubles as the login identifier for every role and is uniquely constrained per school regardless of role (`uq_user_school_student_number` on `(school_id, student_number)`), so a teacher and a student in the same school can never share one number -- that would be a real collision this constraint exists to catch, not a style choice. Dev login numbers stay `100001` (student) / `T00001` (teacher), both now logging in with `DevPass123!`.
+- Verified with `ast.parse` (sandbox has no `pgvector`/`pydantic_settings` environment to run the script itself).
+
+**Not done:** no schema change. If Siya later wants a truly shared login identifier across roles (not just password), that would mean loosening `uq_user_school_student_number` to include role -- a real design decision, not made here.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
