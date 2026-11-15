@@ -242,6 +242,122 @@ const TOPIC_SYMBOLS = {
     { label: "R", insert: "R" },
     { label: "%", insert: "%" },
   ],
+  // NEW 15 Nov 2026 (ADR-022, Pure Mathematics Grade 12 added): most
+  // Grade 12 topic names are genuinely new (CAPS introduces distinct
+  // sub-skills -- logs, compound angles, calculus notation -- that the
+  // existing Grade 10/11 entries don't cover), so each gets its own
+  // small, topic-relevant row. "Finance, Growth and Decay",
+  // "Analytical Geometry", and "Euclidean Geometry" reuse their exact
+  // Grade 11 names (a genuine deepening, not a new skill) and so
+  // already match the entries above -- no new entry needed for those
+  // three.
+  "Sequences and Series": [
+    { label: "Σ", insert: "Σ" },
+    { label: "Tₙ", insert: "Tₙ" },
+    { label: "n", insert: "n" },
+  ],
+  "Functions and Inverse Functions": [
+    { label: "f(x)", insert: "f(x)" },
+    { label: "f⁻¹(x)", insert: "f⁻¹(x)" },
+    { label: "x", insert: "x" },
+  ],
+  "Exponential and Logarithmic Functions": [
+    { label: "log", insert: "log(" },
+    { label: "ln", insert: "ln(" },
+    { label: "ˣ", insert: "ˣ" },
+  ],
+  "Trigonometry: Compound Angles": [
+    { label: "sin", insert: "sin(" },
+    { label: "cos", insert: "cos(" },
+    { label: "tan", insert: "tan(" },
+    { label: "θ", insert: "θ" },
+    { label: "°", insert: "°" },
+  ],
+  "Trigonometry: 2D and 3D Problems": [
+    { label: "sin", insert: "sin(" },
+    { label: "cos", insert: "cos(" },
+    { label: "tan", insert: "tan(" },
+    { label: "θ", insert: "θ" },
+    { label: "°", insert: "°" },
+  ],
+  Polynomials: [
+    { label: "x", insert: "x" },
+    { label: "³", insert: "³" },
+    { label: "ⁿ", insert: "ⁿ" },
+  ],
+  "Differential Calculus": [
+    { label: "f'(x)", insert: "f'(x)" },
+    { label: "lim", insert: "lim(" },
+    { label: "→", insert: "→" },
+  ],
+  "Statistics: Regression and Correlation": [
+    { label: "x̄", insert: "x̄" },
+    { label: "Σ", insert: "Σ" },
+    { label: "ŷ", insert: "ŷ" },
+  ],
+  "Counting and Probability": [
+    { label: "%", insert: "%" },
+    { label: "∩", insert: "∩" },
+    { label: "∪", insert: "∪" },
+    { label: "!", insert: "!" },
+  ],
+  // NEW 15 Nov 2026 (ADR-022, Physical Sciences Grade 12 added): same
+  // "small, topic-relevant row" convention as every Physics entry
+  // above. "Electric Circuits" reuses its exact Grade 11 name and
+  // already has an entry above -- not repeated here.
+  "Momentum and Impulse": [
+    { label: "Δ", insert: "Δ" },
+    { label: "kg.m/s", insert: "kg.m/s" },
+  ],
+  "Vertical Projectile Motion": [
+    { label: "Δ", insert: "Δ" },
+    { label: "m/s²", insert: "m/s²" },
+  ],
+  "Work, Energy and Power": [
+    { label: "J", insert: "J" },
+    { label: "W", insert: "W" },
+  ],
+  "Doppler Effect": [
+    { label: "λ", insert: "λ" },
+    { label: "Hz", insert: "Hz" },
+  ],
+  Electrodynamics: [
+    { label: "Φ", insert: "Φ" },
+    { label: "ε", insert: "ε" },
+  ],
+  "Photoelectric Effect": [
+    { label: "λ", insert: "λ" },
+    { label: "Hz", insert: "Hz" },
+  ],
+  // NEW 15 Nov 2026 (ADR-022, Accounting Grade 12 added): same R/%
+  // convenience row as every other Accounting entry above. "Fixed
+  // Assets", "Inventory Systems", "Value-Added Tax (VAT)",
+  // "Manufacturing Cost Accounting", and "Budgeting (Cash Budget)"
+  // reuse their exact Grade 11 names and already have entries above.
+  "Companies: Concepts and Ledger Accounts": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Companies: Final Accounts and Year-End Adjustments": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Companies: Financial Statements": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Cash Flow Statement": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Reconciliations (Bank, Debtors and Creditors)": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
+  "Close Corporations": [
+    { label: "R", insert: "R" },
+    { label: "%", insert: "%" },
+  ],
 };
 
 export default function SymbolKeyboard({ topicName, onInsert }) {

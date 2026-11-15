@@ -794,6 +794,488 @@ _ISIZULU_HL_QUESTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# --- Pure Mathematics, Grade 12 (added 15 Nov 2026, ADR-022) ---
+# Topic names/order follow the DBE CAPS Grade 12 Mathematics Annual
+# Teaching Plan (education.gov.za CAPS FET Mathematics, checked 15 Nov
+# 2026): Term 1 (sequences/series, functions, exponential/log, finance,
+# trig compound angles), Term 2 (trig 2D/3D, polynomials, differential
+# calculus, analytical geometry), Term 3 (Euclidean geometry, stats
+# regression/correlation, counting and probability). Linear Programming
+# was checked for and confirmed NOT part of the current CAPS Mathematics
+# curriculum (removed in an earlier curriculum revision) -- not omitted
+# by oversight.
+#
+# Topics that are a genuine, identical-skill deepening of their exact
+# Grade 11 counterpart reuse that exact name (Finance Growth and Decay,
+# Analytical Geometry, Euclidean Geometry -- same convention Grade 11
+# already used for its own Grade 10 counterparts). Topics where CAPS
+# itself introduces materially new sub-skills under a related umbrella
+# get a new, more specific name instead (Functions -> "Functions and
+# Inverse Functions"; Trigonometry -> "Trigonometry: Compound Angles" --
+# the same naming pattern Grade 11's "Exponents and Surds" already set,
+# not reusing bare "Exponents"). Three independent chains: a
+# Functions/Calculus chain, a Trigonometry chain, and a set of topics
+# each anchored directly to their own Grade 11 counterpart.
+#
+# KNOWN OPEN RISK, flagged before any live test (see ADR-022): Differential
+# Calculus introduces notation (f'(x), first-principles limits) that no
+# prior Maths/Physical Sciences content has used, and a check of
+# math_validator.py found zero existing handling for derivative or limit
+# notation -- not confirmed broken, not confirmed working, genuinely
+# untested. Consistent with this project's "don't guess a fix before a
+# real failure" discipline, no speculative fix is included here.
+
+_MATHS_GRADE12_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Sequences and Series", ("Pure Mathematics", 11, "Number Patterns")),
+    ("Functions and Inverse Functions", ("Pure Mathematics", 11, "Functions")),
+    ("Exponential and Logarithmic Functions", "Functions and Inverse Functions"),
+    ("Finance, Growth and Decay", ("Pure Mathematics", 11, "Finance, Growth and Decay")),
+    ("Trigonometry: Compound Angles", ("Pure Mathematics", 11, "Trigonometry")),
+    ("Trigonometry: 2D and 3D Problems", "Trigonometry: Compound Angles"),
+    ("Polynomials", "Functions and Inverse Functions"),
+    ("Differential Calculus", "Polynomials"),
+    ("Analytical Geometry", ("Pure Mathematics", 11, "Analytical Geometry")),
+    ("Euclidean Geometry", ("Pure Mathematics", 11, "Euclidean Geometry")),
+    ("Statistics: Regression and Correlation", ("Pure Mathematics", 11, "Statistics")),
+    ("Counting and Probability", ("Pure Mathematics", 11, "Probability")),
+]
+
+_MATHS_GRADE12_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Sequences and Series": [
+        ("Determine the sum of the first 20 terms of the arithmetic series 3 + 7 + 11 + 15 + ...",
+         "S20 = 10*(2*3 + 19*4) = 820"),
+        ("A geometric series has first term a = 8 and common ratio r = 1/2. Calculate the sum to infinity.",
+         "S-infinity = a/(1-r) = 8/0.5 = 16"),
+    ],
+    "Functions and Inverse Functions": [
+        ("Determine the inverse of f(x) = 2x + 3, writing your answer as f^-1(x).",
+         "f^-1(x) = (x - 3)/2"),
+        ("For f(x) = x^2 (x >= 0), determine f^-1(x) and state its domain.",
+         "f^-1(x) = sqrt(x), domain x >= 0"),
+    ],
+    "Exponential and Logarithmic Functions": [
+        ("Write y = 3^x in logarithmic form.", "x = log base 3 of y"),
+        ("Solve for x: log base 2 of x = 5", "x = 32"),
+    ],
+    "Finance, Growth and Decay": [
+        ("Calculate the effective annual interest rate if the nominal annual rate is 12% "
+         "compounded monthly.", "i_eff = (1 + 0.12/12)^12 - 1 ~= 12.68%"),
+        ("Calculate the future value of an ordinary annuity of R1000 paid at the end of each "
+         "year for 3 years at 8% p.a. compound interest.",
+         "F = 1000*((1.08^3 - 1)/0.08) = R3246.40"),
+    ],
+    "Trigonometry: Compound Angles": [
+        ("Expand sin(A + B) using the compound angle identity.", "sin(A+B) = sinA*cosB + cosA*sinB"),
+        ("Simplify cos(60 degrees - 30 degrees) using the compound angle formula and evaluate.",
+         "cos60*cos30 + sin60*sin30 = 0.5*(sqrt(3)/2) + (sqrt(3)/2)*0.5 ~= 0.87 (= cos30 degrees)"),
+    ],
+    "Trigonometry: 2D and 3D Problems": [
+        ("In triangle ABC, AB = 10 cm, angle A = 40 degrees, angle B = 60 degrees. Use the "
+         "sine rule to calculate BC.",
+         "angle C = 80 degrees; BC = 10*sin(40)/sin(80) ~= 6.53 cm"),
+        ("State the Area Rule for a triangle in terms of two sides and the included angle.",
+         "Area = (1/2)*a*b*sin(C)"),
+    ],
+    "Polynomials": [
+        ("Use the Factor Theorem to show that (x - 1) is a factor of f(x) = x^3 - 6x^2 + 11x - 6.",
+         "f(1) = 1 - 6 + 11 - 6 = 0, so (x-1) is a factor"),
+        ("Factorise fully: x^3 - 6x^2 + 11x - 6, given that (x - 1) is a factor.",
+         "(x-1)(x-2)(x-3)"),
+    ],
+    "Differential Calculus": [
+        ("Determine f'(x) from first principles for f(x) = x^2.",
+         "f'(x) = lim(h->0) [(x+h)^2 - x^2]/h = lim(h->0) (2xh+h^2)/h = 2x"),
+        ("Determine the derivative of f(x) = 3x^2 - 4x + 5 using the rules of differentiation.",
+         "f'(x) = 6x - 4"),
+    ],
+    "Analytical Geometry": [
+        ("Determine the equation of a circle with centre (2, -1) and radius 5.",
+         "(x-2)^2 + (y+1)^2 = 25"),
+        ("A circle has equation x^2 + y^2 = 25. Determine the gradient of the tangent to the "
+         "circle at the point (3,4).",
+         "gradient of radius = 4/3; tangent gradient = -3/4 (perpendicular to the radius)"),
+    ],
+    "Euclidean Geometry": [
+        ("State the Proportionality Theorem for a line drawn parallel to one side of a triangle.",
+         "A line drawn parallel to one side of a triangle divides the other two sides proportionally"),
+        ("Triangle ABC is similar to triangle DEF. If AB = 6 cm, DE = 9 cm, and BC = 8 cm, "
+         "calculate EF.",
+         "EF = BC * (DE/AB) = 8 * (9/6) = 12 cm"),
+    ],
+    "Statistics: Regression and Correlation": [
+        ("State what a correlation coefficient of r = -0.9 indicates about the relationship "
+         "between two variables.",
+         "A strong negative linear relationship: as one variable increases, the other tends "
+         "to decrease"),
+        ("Given a least-squares regression line y-hat = 2 + 3x, estimate y when x = 5.",
+         "y-hat = 2 + 3*5 = 17"),
+    ],
+    "Counting and Probability": [
+        ("In how many ways can 5 different books be arranged on a shelf?", "5! = 120"),
+        ("From a group of 8 people, how many different committees of 3 people can be chosen "
+         "(order doesn't matter)?", "C(8,3) = 56"),
+    ],
+}
+
+# --- Physical Sciences, Grade 12 -- Physics strand only (added 15 Nov
+# 2026, ADR-022), same strand-only scoping as Grade 10/11 (see ADR-013)
+# ---
+# Topic content follows the DBE CAPS Grade 12 Physical Sciences document
+# (education.gov.za CAPS FET Physical Science, checked 15 Nov 2026): a
+# Mechanics chain (Momentum and Impulse -> Vertical Projectile Motion ->
+# Work, Energy and Power, matching CAPS' own Term 1 teaching order),
+# Doppler Effect (Waves/Sound/Light strand -- no Grade 11 Waves topic
+# exists in this project at all, so this anchors directly to Grade 10's
+# "Waves, Sound and Light", skipping Grade 11 the same way a cross-grade
+# reference is allowed to), Electric Circuits (reused name -- Grade 12
+# adds internal resistance and series-parallel networks to the Grade 11
+# skill), Electrodynamics (generators/motors/AC, the natural continuation
+# of Grade 11 Electromagnetism), and Photoelectric Effect (anchored to
+# Grade 10's Electromagnetic Radiation, since CAPS' EM-spectrum/photon-
+# energy basics are Grade 10 content and only the photoelectric effect
+# itself is new at Grade 12).
+
+_PHYSICAL_SCIENCES_GRADE12_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Momentum and Impulse", ("Physical Sciences", 11, "Newton's Laws")),
+    ("Vertical Projectile Motion", "Momentum and Impulse"),
+    ("Work, Energy and Power", "Vertical Projectile Motion"),
+    ("Doppler Effect", ("Physical Sciences", 10, "Waves, Sound and Light")),
+    ("Electric Circuits", ("Physical Sciences", 11, "Electric Circuits")),
+    ("Electrodynamics", ("Physical Sciences", 11, "Electromagnetism")),
+    ("Photoelectric Effect", ("Physical Sciences", 10, "Electromagnetic Radiation")),
+]
+
+_PHYSICAL_SCIENCES_GRADE12_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Momentum and Impulse": [
+        ("Calculate the momentum of a 2 kg object moving at 5 m/s.", "p = mv = 10 kg.m/s"),
+        ("A 0.5 kg ball travelling at 4 m/s is brought to rest in 0.2 s. Calculate the "
+         "average force exerted on it.",
+         "F = delta-p / delta-t = (0 - 0.5*4)/0.2 = -10 N (10 N, opposite to the motion)"),
+    ],
+    "Vertical Projectile Motion": [
+        ("A ball is thrown vertically upward at 20 m/s. Calculate the maximum height "
+         "reached (take g = 10 m/s^2, ignore air resistance).",
+         "v^2 = u^2 - 2gh; 0 = 400 - 20h; h = 20 m"),
+        ("A stone is dropped from a height of 45 m. Calculate the time it takes to reach "
+         "the ground (g = 10 m/s^2).",
+         "h = (1/2)g*t^2; 45 = 5t^2; t = 3 s"),
+    ],
+    "Work, Energy and Power": [
+        ("Calculate the work done by a 50 N force moving an object 4 m in the direction "
+         "of the force.", "W = F * delta-x = 200 J"),
+        ("A motor lifts a 20 kg mass through a height of 3 m in 2 s. Calculate the power "
+         "delivered (g = 10 m/s^2).",
+         "P = W/t = (mgh)/t = (20*10*3)/2 = 300 W"),
+    ],
+    "Doppler Effect": [
+        ("State what happens to the observed frequency of a sound as its source moves "
+         "towards a stationary listener.",
+         "The observed frequency increases (the sound is heard at a higher pitch)"),
+        ("A car's hooter emits a frequency of 500 Hz while moving towards a stationary "
+         "listener at 20 m/s (speed of sound = 340 m/s). Calculate the frequency heard "
+         "by the listener.",
+         "fL = fs * v/(v - vs) = 500 * 340/320 ~= 531.25 Hz"),
+    ],
+    "Electric Circuits": [
+        ("A battery has an EMF of 12 V and internal resistance 0.5 ohm. When it delivers "
+         "a current of 3 A, calculate the terminal potential difference.",
+         "V = EMF - Ir = 12 - 1.5 = 10.5 V"),
+        ("Calculate the equivalent resistance of a network with a 4 ohm resistor in "
+         "series with a parallel combination of two 6 ohm resistors.",
+         "Parallel pair = 3 ohm; total = 4 + 3 = 7 ohm"),
+    ],
+    "Electrodynamics": [
+        ("State the energy conversion that takes place in an electric generator.",
+         "Kinetic (mechanical) energy is converted into electrical energy"),
+        ("State one difference between an AC generator and a DC generator.",
+         "An AC generator uses slip rings (producing alternating current that reverses "
+         "direction), while a DC generator uses a split-ring commutator (producing "
+         "current in one direction only)"),
+    ],
+    "Photoelectric Effect": [
+        ("Calculate the energy of a photon with frequency 6x10^14 Hz (h = 6.63x10^-34 J.s).",
+         "E = hf = 6.63x10^-34 * 6x10^14 ~= 3.98x10^-19 J"),
+        ("State what is meant by the 'work function' of a metal in the context of the "
+         "photoelectric effect.",
+         "The minimum energy needed to emit an electron from the surface of a metal"),
+    ],
+}
+
+# --- Accounting, Grade 12 (added 15 Nov 2026, ADR-022) ---
+# Topic content follows the DBE CAPS Grade 12 Accounting Annual Teaching
+# Plan (education.gov.za, checked 15 Nov 2026): a Companies chain
+# (Concepts and Ledger Accounts -> Final Accounts and Year-End
+# Adjustments -> Financial Statements -> Cash Flow Statement -> Analysis
+# and Interpretation of Financial Statements, matching CAPS' own Term 1
+# order -- the same "new business entity gets its own linear trunk"
+# shape ADR-019 used for Partnerships at Grade 11), five topics that are
+# a genuine deepening of their exact Grade 11 counterpart and reuse that
+# exact name (Fixed Assets, Inventory Systems, Value-Added Tax (VAT),
+# Manufacturing Cost Accounting, Budgeting (Cash Budget) -- same
+# convention ADR-019 itself used for Budgeting/VAT), one topic merging
+# CAPS' three separate Grade 12 reconciliation types (bank, debtors,
+# creditors) into a single unit anchored to Grade 11's Bank
+# Reconciliation, and Close Corporations as a standalone new-entity
+# topic with no cross-grade anchor -- deliberately, the same "no clean
+# counterpart" judgment call ADR-019 made for Fixed Assets at Grade 11.
+#
+# Verification stance unchanged from ADR-018/ADR-019: still no
+# MathGuard-style checking.
+
+_ACCOUNTING_GRADE12_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Companies: Concepts and Ledger Accounts", ("Accounting", 11, "Partnerships: Concepts and Formation")),
+    ("Companies: Final Accounts and Year-End Adjustments", "Companies: Concepts and Ledger Accounts"),
+    ("Companies: Financial Statements", "Companies: Final Accounts and Year-End Adjustments"),
+    ("Cash Flow Statement", "Companies: Financial Statements"),
+    ("Analysis and Interpretation of Financial Statements", "Cash Flow Statement"),
+    ("Fixed Assets", ("Accounting", 11, "Fixed Assets")),
+    ("Inventory Systems", ("Accounting", 11, "Inventory Systems")),
+    ("Reconciliations (Bank, Debtors and Creditors)", ("Accounting", 11, "Bank Reconciliation")),
+    ("Value-Added Tax (VAT)", ("Accounting", 11, "Value-Added Tax (VAT)")),
+    ("Manufacturing Cost Accounting", ("Accounting", 11, "Manufacturing Cost Accounting")),
+    ("Budgeting (Cash Budget)", ("Accounting", 11, "Budgeting (Cash Budget)")),
+    ("Close Corporations", None),
+]
+
+_ACCOUNTING_GRADE12_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Companies: Concepts and Ledger Accounts": [
+        ("Name the two types of companies recognised under the Companies Act that Grade "
+         "12 Accounting covers.", "Public companies (Ltd) and private companies (Pty Ltd)"),
+        ("A company issues 10 000 ordinary shares at R5 each. Calculate the total amount "
+         "received from this share issue.", "R50 000 (10 000 x R5)"),
+    ],
+    "Companies: Final Accounts and Year-End Adjustments": [
+        ("A company's net profit before tax is R400 000. Calculate the company's income "
+         "tax payable at a rate of 28%.", "R112 000 (R400 000 x 28%)"),
+        ("A company declares a final dividend of 50 cents per share on 20 000 shares. "
+         "Calculate the total dividends declared.", "R10 000 (20 000 x R0.50)"),
+    ],
+    "Companies: Financial Statements": [
+        ("Name the three main financial statements a company prepares at year-end.",
+         "The Income Statement, the Balance Sheet (Statement of Financial Position), "
+         "and the Cash Flow Statement"),
+        ("Which section of a company's Balance Sheet shows retained earnings and share "
+         "capital?", "The Shareholders' Equity section"),
+    ],
+    "Cash Flow Statement": [
+        ("Name the three main sections of a Cash Flow Statement.",
+         "Cash flow from operating activities, cash flow from investing activities, and "
+         "cash flow from financing activities"),
+        ("A company repays a long-term loan of R50 000 during the year. Under which "
+         "section of the Cash Flow Statement does this appear?",
+         "Cash flow from financing activities (as a cash outflow)"),
+    ],
+    "Analysis and Interpretation of Financial Statements": [
+        ("A company has 20 000 shares in issue and a net profit after tax of R300 000. "
+         "Calculate the earnings per share (EPS).", "EPS = R300 000 / 20 000 = R15 per share"),
+        ("State the purpose of an independent auditor's report attached to a company's "
+         "published financial statements.",
+         "To give shareholders and other users an independent opinion on whether the "
+         "financial statements fairly present the company's financial position"),
+    ],
+    "Fixed Assets": [
+        ("Explain what is meant by the 'average age' of a fixed asset and why it matters "
+         "to a company's decision-makers.",
+         "It indicates roughly how old/worn an asset is relative to its useful life, "
+         "helping decide whether it needs to be replaced soon"),
+        ("A company's land and buildings have not been revalued in 10 years despite "
+         "rising property prices. State one effect this has on the Balance Sheet.",
+         "The Balance Sheet understates the true (market) value of the land and "
+         "buildings, since they are shown at historical cost less depreciation"),
+    ],
+    "Inventory Systems": [
+        ("Under the FIFO method, which units of stock are assumed to be sold first?",
+         "The units purchased first (First-In, First-Out)"),
+        ("A business buys 100 units at R10 each, then 100 units at R12 each, and sells "
+         "120 units. Using FIFO, calculate the cost of the 120 units sold.",
+         "100 x R10 + 20 x R12 = R1 000 + R240 = R1 240"),
+    ],
+    "Reconciliations (Bank, Debtors and Creditors)": [
+        ("A debtor's age analysis shows R2 000 of a debtor's balance is more than 90 "
+         "days overdue. State one reason a business might increase its provision for "
+         "bad debts based on this.",
+         "The longer a debt remains unpaid, the less likely it is to ever be collected, "
+         "so the risk of it becoming a bad debt increases"),
+        ("Explain the purpose of a debtors' reconciliation.",
+         "To compare the balance on a debtor's account in the Debtors Ledger with the "
+         "debtor's own statement, and identify and correct any differences"),
+    ],
+    "Value-Added Tax (VAT)": [
+        ("A business's VAT Control account shows VAT Output of R45 000 and VAT Input of "
+         "R30 000 for the period. Calculate the amount payable to SARS.",
+         "R15 000 (R45 000 - R30 000)"),
+        ("If VAT Input exceeds VAT Output for a period, what does this mean for the "
+         "business?", "SARS owes the business a VAT refund, rather than the business "
+         "owing SARS"),
+    ],
+    "Manufacturing Cost Accounting": [
+        ("A factory produces 2 000 units at a total production cost of R180 000. "
+         "Calculate the unit cost of production.", "R90 per unit (R180 000 / 2 000)"),
+        ("A product sells for R150 and has a variable cost of R90 per unit, with total "
+         "fixed costs of R36 000 per month. Calculate the break-even number of units.",
+         "Break-even = fixed costs / (selling price - variable cost) = 36 000 / 60 = "
+         "600 units"),
+    ],
+    "Budgeting (Cash Budget)": [
+        ("A business's actual cash sales for March were R80 000 against a budgeted "
+         "R95 000. Calculate the variance and state whether it is favourable or "
+         "unfavourable.", "R15 000 unfavourable (actual sales were R15 000 less than "
+         "budgeted)"),
+        ("Name one reason a business might compare its Cash Budget figures to actual "
+         "results each month.",
+         "To identify and investigate significant differences (variances) early, so "
+         "corrective action can be taken"),
+    ],
+    "Close Corporations": [
+        ("What does the abbreviation 'CC' after a business name indicate?",
+         "That the business is registered as a Close Corporation"),
+        ("State one key difference between a Close Corporation and a company regarding "
+         "ownership.",
+         "A Close Corporation has members (not shareholders), with a maximum of 10 "
+         "members, and no share capital"),
+    ],
+}
+
+# --- English Home Language, Grade 11 and Grade 12 (added 15 Nov 2026,
+# ADR-023) ---
+# Siya's explicit choice (15 Nov 2026): pause isiZulu Home Language work
+# (its real-content-accuracy fix, ADR-021's RAG ingestion pipeline, is
+# still in progress and deliberately not touched here) and proceed with
+# the rest of the grade scale-up, which includes English Home Language.
+# Reuses the exact same 5-topic template ADR-020 established at Grade 10
+# -- confirmed again by checking the DBE's own CAPS Home Language
+# document (checked 15 Nov 2026): the same four skill strands apply at
+# every FET grade, with complexity (comprehension passage length, poem
+# count, essay length) increasing per grade rather than the strand
+# structure changing. Each grade's root topic (Language Structures and
+# Conventions) cross-grade-anchors to the previous grade's version, the
+# same escalating-chain shape every other subject already uses across
+# its own grades; the other four topics chain within-grade exactly as
+# Grade 10 did. isiZulu Home Language Grade 11/12 do NOT exist -- not an
+# oversight, see ADR-023.
+
+_ENGLISH_HL_GRADE11_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Language Structures and Conventions", ("English Home Language", 10, "Language Structures and Conventions")),
+    ("Listening and Speaking", "Language Structures and Conventions"),
+    ("Reading and Viewing: Literature (Poetry and Drama)", "Listening and Speaking"),
+    ("Reading and Viewing: Visual and Media Texts", "Reading and Viewing: Literature (Poetry and Drama)"),
+    ("Writing and Presenting", "Reading and Viewing: Visual and Media Texts"),
+]
+
+_ENGLISH_HL_GRADE11_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Language Structures and Conventions": [
+        ("Identify the figure of speech in: 'Time is a thief that steals our youth.'",
+         "Metaphor (time is described as a thief, without using 'like' or 'as')"),
+        ("Rewrite in the passive voice: 'The committee approved the proposal.'",
+         "The proposal was approved by the committee"),
+    ],
+    "Listening and Speaking": [
+        ("Name one feature that distinguishes a formal debate speech from an informal "
+         "conversation.",
+         "A formal debate speech follows a structured argument with evidence and "
+         "rebuttal, uses formal register, and observes time limits and turn-taking "
+         "rules, unlike casual conversation"),
+        ("State the purpose of using visual aids (e.g. slides) during an oral "
+         "presentation.",
+         "To support and clarify the spoken content, making complex information "
+         "easier for the audience to follow and remember"),
+    ],
+    "Reading and Viewing: Literature (Poetry and Drama)": [
+        ("Identify the figure of speech in the line 'The silence screamed at him.'",
+         "Oxymoron (silence, by definition soundless, is described as screaming)"),
+        ("Explain the dramatic purpose of a soliloquy in a play.",
+         "It allows a character to reveal their private thoughts and feelings "
+         "directly to the audience, when no other character is present to hear them"),
+    ],
+    "Reading and Viewing: Visual and Media Texts": [
+        ("Explain how camera angle can influence a viewer's perception of a character "
+         "in a film (e.g. a low-angle shot).",
+         "A low-angle shot, looking up at a character, tends to make them appear "
+         "powerful or dominant, while a high-angle shot looking down can make them "
+         "appear weak or vulnerable"),
+        ("State the purpose of a caption accompanying a news photograph.",
+         "To provide context that explains what the image shows, since a photograph "
+         "alone can be ambiguous or open to misinterpretation"),
+    ],
+    "Writing and Presenting": [
+        ("Name the three main sections a formal discursive essay should have.",
+         "An introduction (stating the topic and viewpoint), a body (arguments and "
+         "counter-arguments with evidence), and a conclusion (summarising the "
+         "position)"),
+        ("State the main difference in register between a formal letter of complaint "
+         "and a friendly email.",
+         "A formal letter of complaint uses formal, respectful, objective language "
+         "and a structured format, while a friendly email uses casual, personal "
+         "language appropriate to someone the writer knows well"),
+    ],
+}
+
+_ENGLISH_HL_GRADE12_TOPICS: list[tuple[str, "str | tuple[str, int, str] | None"]] = [
+    ("Language Structures and Conventions", ("English Home Language", 11, "Language Structures and Conventions")),
+    ("Listening and Speaking", "Language Structures and Conventions"),
+    ("Reading and Viewing: Literature (Poetry and Drama)", "Listening and Speaking"),
+    ("Reading and Viewing: Visual and Media Texts", "Reading and Viewing: Literature (Poetry and Drama)"),
+    ("Writing and Presenting", "Reading and Viewing: Visual and Media Texts"),
+]
+
+_ENGLISH_HL_GRADE12_QUESTIONS: dict[str, list[tuple[str, str]]] = {
+    "Language Structures and Conventions": [
+        ("Identify the literary device in: 'It was the best of times, it was the worst "
+         "of times.'",
+         "Paradox (and antithesis) -- two contrasting ideas placed together to reveal "
+         "a deeper truth"),
+        ("Explain the effect of using the subjunctive mood in: 'If I were president, I "
+         "would change this law.'",
+         "It signals a hypothetical, unreal, or wished-for situation -- the speaker "
+         "is not actually president"),
+    ],
+    "Listening and Speaking": [
+        ("Explain the difference between persuasive and propagandistic rhetoric in a "
+         "public speech.",
+         "Persuasive rhetoric uses sound reasoning and evidence to convince an "
+         "audience, while propaganda relies on emotional manipulation, selective "
+         "facts, or misinformation to control opinion"),
+        ("State why pacing and pause are important rhetorical tools in a formal speech.",
+         "They give the audience time to absorb key points and create emphasis, "
+         "preventing the delivery from sounding rushed or monotonous"),
+    ],
+    "Reading and Viewing: Literature (Poetry and Drama)": [
+        ("Explain the function of dramatic irony in a tragedy, where the audience "
+         "knows something a character does not.",
+         "It creates tension and emotional engagement, since the audience "
+         "anticipates the consequences of the character's ignorance before the "
+         "character does"),
+        ("Identify and explain the effect of enjambment in a poem where a sentence "
+         "runs on without pause from one line to the next.",
+         "Enjambment creates a sense of flow, urgency, or continuation of thought, "
+         "forcing the reader onward to the next line to complete the sense"),
+    ],
+    "Reading and Viewing: Visual and Media Texts": [
+        ("Explain how juxtaposition of two contrasting images in a political cartoon "
+         "can create satire.",
+         "Placing two contrasting images or ideas side by side highlights the "
+         "contradiction or hypocrisy being criticised, prompting the viewer to draw "
+         "a critical conclusion"),
+        ("State one technique advertisers use to create a false sense of urgency, and "
+         "explain its persuasive effect.",
+         "E.g. 'limited time offer' or a countdown timer -- it pressures the viewer "
+         "to act quickly without fully considering the decision, out of fear of "
+         "missing out"),
+    ],
+    "Writing and Presenting": [
+        ("Name the key structural difference between an argumentative essay and a "
+         "discursive essay.",
+         "An argumentative essay takes and defends one clear side of an issue, while "
+         "a discursive essay presents multiple viewpoints in a balanced way without "
+         "necessarily taking a firm side"),
+        ("State the purpose of a rhetorical question in a persuasive essay's "
+         "conclusion.",
+         "To prompt the reader to reflect on the argument and arrive at the writer's "
+         "intended conclusion themselves, reinforcing the essay's point without "
+         "stating it directly again"),
+    ],
+}
+
 SUBJECTS: list[dict] = [
     {
         "name": "Pure Mathematics",
@@ -842,6 +1324,36 @@ SUBJECTS: list[dict] = [
         "grade": 11,
         "topics": _PHYSICAL_SCIENCES_GRADE11_TOPICS,
         "questions": _PHYSICAL_SCIENCES_GRADE11_QUESTIONS,
+    },
+    {
+        "name": "Pure Mathematics",
+        "grade": 12,
+        "topics": _MATHS_GRADE12_TOPICS,
+        "questions": _MATHS_GRADE12_QUESTIONS,
+    },
+    {
+        "name": "Physical Sciences",
+        "grade": 12,
+        "topics": _PHYSICAL_SCIENCES_GRADE12_TOPICS,
+        "questions": _PHYSICAL_SCIENCES_GRADE12_QUESTIONS,
+    },
+    {
+        "name": "Accounting",
+        "grade": 12,
+        "topics": _ACCOUNTING_GRADE12_TOPICS,
+        "questions": _ACCOUNTING_GRADE12_QUESTIONS,
+    },
+    {
+        "name": "English Home Language",
+        "grade": 11,
+        "topics": _ENGLISH_HL_GRADE11_TOPICS,
+        "questions": _ENGLISH_HL_GRADE11_QUESTIONS,
+    },
+    {
+        "name": "English Home Language",
+        "grade": 12,
+        "topics": _ENGLISH_HL_GRADE12_TOPICS,
+        "questions": _ENGLISH_HL_GRADE12_QUESTIONS,
     },
 ]
 
