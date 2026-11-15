@@ -60,7 +60,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
     <div className="admin-screen">
       <header className="chat-screen__header">
         <div className="chat-screen__brand">
-          <img src="/thutora-logo.png" alt="" className="chat-screen__brand-logo" />
+          <img src="/thutora-teach-logo.png" alt="" className="chat-screen__brand-logo" />
           THUTOra<span className="chat-screen__brand-dot">.</span>
         </div>
         <div className="chat-screen__header-right">

@@ -2425,6 +2425,21 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 **Not done:** no schema change. If Siya later wants a truly shared login identifier across roles (not just password), that would mean loosening `uq_user_school_student_number` to include role -- a real design decision, not made here.
 
 
+## 2026-11-15 -- Product sub-brand logos applied (LEARN, TEACH); CORE/CONNECT/INSIGHTS stored for later
+
+**Goal:** Siya supplied a brand sheet with a distinct icon mark for each ADR-025 product (CORE, LEARN, TEACH, CONNECT, INSIGHTS) plus the master THUTOra mark, and asked for each logo to be assigned to its matching product.
+
+**Done:**
+- Cropped six clean icon-only marks (no wordmark/tagline baked in, matching how `.chat-screen__brand-logo`/`.login-screen__brand-logo` already render the icon next to HTML-text "THUTOra") from the supplied sheet: the master mark, and one each for CORE, LEARN, TEACH, CONNECT, INSIGHTS.
+- `frontend/public/thutora-logo.png` (master mark) refreshed with the new crop -- still used by `LoginScreen.jsx`, which is role-agnostic and shown before the backend has said whether this is a student or teacher login.
+- `frontend/public/thutora-learn-logo.png` (new) wired into `ChatScreen.jsx`'s header -- LEARN is the student-facing chat surface.
+- `frontend/public/thutora-teach-logo.png` (new) wired into `TeacherAdminScreen.jsx`'s header -- TEACH is the dashboard/admin surface.
+- `frontend/public/thutora-core-logo.png`, `thutora-connect-logo.png`, `thutora-insights-logo.png` (new) added to the repo but **not wired into any screen yet** -- CORE has no UI of its own (it's the shared engine, per ADR-025), and CONNECT/INSIGHTS don't have a built screen to put a logo in yet.
+- Verified with `esbuild` bundling both edited components (ChatScreen.jsx, TeacherAdminScreen.jsx) -- both bundle clean.
+
+**Not done:** no code or UI exists yet for CONNECT or INSIGHTS to actually display their logo in -- those two asset files are only sitting in the repo, ready for whenever those products get a real screen. No favicon/app-icon change was made (out of scope of what was asked).
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
