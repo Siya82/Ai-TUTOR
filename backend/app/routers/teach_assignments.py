@@ -1,10 +1,15 @@
 """
-Teacher-facing Assignments API: authoring custom questions, creating
-assignments (school/roster-scoped), and viewing an assignment's
-roster-wide completion. See docs/ADR-028-assignments.md.
+Teacher-facing Assignments API: authoring custom questions, browsing
+the reusable question bank, creating assignments (school/roster-
+scoped), viewing an assignment's roster-wide completion, and releasing
+a Test-mode assignment's withheld results. See
+docs/ADR-028-assignments.md and docs/ADR-029-assignment-mode-and-marks.md.
 
-NEW 15 Nov 2026.
+NEW 15 Nov 2026. UPDATED 15 Nov 2026 (ADR-029): per-question marks,
+practice/test mode, results release, GET /teach/questions bank browse.
 """
+
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -36,6 +41,8 @@ from app.services.assignments import (
     create_assignment,
     create_custom_question,
     get_assignment_completion,
+    list_bank_questions_for_topic,
+    release_assignment_results,
 )
 
 router = APIRouter(prefix="/teach", tags=["assignments"])
@@ -49,6 +56,20 @@ async def _teacher_school(db: AsyncSession, teacher: User) -> School:
         # Same guard app/routers/admin.py's _teacher_school uses.
         raise HTTPException(status_code=500, detail="Teacher account has no linked school")
     return school
+
+
+async def _owned_assignment(db: AsyncSession, assignment_id: str, teacher: User) -> Assignment:
+    """
+    Shared ownership check -- 404s (not 403) for an assignment that
+    exists but belongs to a different teacher, same "don't confirm the
+    id was valid for someone else" posture app/routers/admin.py's
+    roster scoping uses. Used by both GET .../{id} and the new release
+    endpoint below.
+    """
+    assignment = await db.get(Assignment, assignment_id)
+    if assignment is None or assignment.teacher_user_id != teacher.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    return assignment
 
 
 @router.post("/questions", response_model=CustomQuestionResult)
@@ -79,7 +100,39 @@ async def create_question(
         text=question.text,
         model_answer=question.model_answer,
         created_at=question.created_at,
+        created_by_user_id=question.created_by_user_id,
     )
+
+
+@router.get("/questions", response_model=list[CustomQuestionResult])
+async def list_questions_for_topic(
+    topic_id: uuid.UUID,
+    teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+) -> list[CustomQuestionResult]:
+    """
+    NEW (ADR-029): the question-bank browse list a teacher sees in
+    CreateAssignmentForm once a topic is picked -- every seeded CAPS
+    question for the topic, plus this teacher's own previously-
+    authored custom ones, so a question can be reused across more than
+    one assignment instead of only ever being written fresh.
+    """
+    topic = await db.get(Topic, topic_id)
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Unknown topic_id")
+
+    questions = await list_bank_questions_for_topic(db, teacher=teacher, topic_id=topic_id)
+    return [
+        CustomQuestionResult(
+            id=q.id,
+            topic_id=q.topic_id,
+            text=q.text,
+            model_answer=q.model_answer,
+            created_at=q.created_at,
+            created_by_user_id=q.created_by_user_id,
+        )
+        for q in questions
+    ]
 
 
 @router.post("/assignments", response_model=AssignmentSummary)
@@ -97,7 +150,8 @@ async def create_new_assignment(
             title=payload.title,
             instructions=payload.instructions,
             due_at=payload.due_at,
-            question_ids=payload.question_ids,
+            mode=payload.mode,
+            questions=[(q.question_id, q.marks) for q in payload.questions],
             learner_ids=payload.learner_ids,
         )
     except AssignmentError as exc:
@@ -113,8 +167,11 @@ async def create_new_assignment(
         instructions=assignment.instructions,
         due_at=assignment.due_at,
         created_at=assignment.created_at,
-        question_count=len(payload.question_ids),
+        mode=assignment.mode,
+        results_released=assignment.results_released,
+        question_count=len(payload.questions),
         target_count=len(payload.learner_ids),
+        marks_total=sum(q.marks for q in payload.questions),
     )
 
 
@@ -143,10 +200,10 @@ async def list_assignments(
     )
     summaries: list[AssignmentSummary] = []
     for assignment in assignments:
-        question_count = len(
+        assignment_questions = (
             (
                 await db.execute(
-                    select(AssignmentQuestion.id).where(
+                    select(AssignmentQuestion).where(
                         AssignmentQuestion.assignment_id == assignment.id
                     )
                 )
@@ -172,8 +229,11 @@ async def list_assignments(
                 instructions=assignment.instructions,
                 due_at=assignment.due_at,
                 created_at=assignment.created_at,
-                question_count=question_count,
+                mode=assignment.mode,
+                results_released=assignment.results_released,
+                question_count=len(assignment_questions),
                 target_count=target_count,
+                marks_total=sum(aq.marks for aq in assignment_questions),
             )
         )
     return summaries
@@ -185,15 +245,7 @@ async def get_assignment(
     teacher: User = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentDetail:
-    """
-    404s (not 403) for an assignment that exists but belongs to a
-    different teacher -- same "don't confirm the id was valid for
-    someone else" posture as app/routers/admin.py's roster scoping,
-    just expressed as a plain existence check here instead of a join.
-    """
-    assignment = await db.get(Assignment, assignment_id)
-    if assignment is None or assignment.teacher_user_id != teacher.id:
-        raise HTTPException(status_code=404, detail="Assignment not found")
+    assignment = await _owned_assignment(db, assignment_id, teacher)
 
     assignment_questions = (
         (
@@ -220,6 +272,7 @@ async def get_assignment(
             text=questions_by_id[aq.question_id].text,
             model_answer=questions_by_id[aq.question_id].model_answer,
             order_index=aq.order_index,
+            marks=aq.marks,
         )
         for aq in assignment_questions
         if aq.question_id in questions_by_id
@@ -244,6 +297,8 @@ async def get_assignment(
             answered_count=c.answered_count,
             question_count=c.question_count,
             correct_count=c.correct_count,
+            marks_earned=c.marks_earned,
+            marks_total=c.marks_total,
         )
         for c in completions
     ]
@@ -254,6 +309,60 @@ async def get_assignment(
         instructions=assignment.instructions,
         due_at=assignment.due_at,
         created_at=assignment.created_at,
+        mode=assignment.mode,
+        results_released=assignment.results_released,
         questions=question_items,
         completions=completion_items,
+    )
+
+
+@router.post("/assignments/{assignment_id}/release", response_model=AssignmentSummary)
+async def release_results(
+    assignment_id: str,
+    teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+) -> AssignmentSummary:
+    """
+    NEW (ADR-029): the teacher-controlled switch for a Test-mode
+    assignment -- flips results_released so every targeted student's
+    withheld is_correct/ai_feedback/marks_earned becomes visible. A no-
+    op (not an error) for a "practice" assignment or one already
+    released, same "idempotent, harmless to click twice" posture
+    release_assignment_results() documents.
+    """
+    assignment = await _owned_assignment(db, assignment_id, teacher)
+    await release_assignment_results(db, assignment=assignment)
+    await db.commit()
+
+    assignment_questions = (
+        (
+            await db.execute(
+                select(AssignmentQuestion).where(
+                    AssignmentQuestion.assignment_id == assignment.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    target_count = len(
+        (
+            await db.execute(
+                select(AssignmentTarget.id).where(AssignmentTarget.assignment_id == assignment.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return AssignmentSummary(
+        id=assignment.id,
+        title=assignment.title,
+        instructions=assignment.instructions,
+        due_at=assignment.due_at,
+        created_at=assignment.created_at,
+        mode=assignment.mode,
+        results_released=assignment.results_released,
+        question_count=len(assignment_questions),
+        target_count=target_count,
+        marks_total=sum(aq.marks for aq in assignment_questions),
     )

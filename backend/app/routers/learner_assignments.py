@@ -3,9 +3,15 @@ Learner-facing Assignments API: listing what's been issued, viewing
 one assignment's questions (never including model_answer -- see
 app/schemas/assignments.py's LearnerQuestionItem), and submitting an
 answer, which is this app's first production path that actually marks
-a response and writes a real Attempt row. See docs/ADR-028-assignments.md.
+a response and writes a real Attempt row. See docs/ADR-028-assignments.md
+and docs/ADR-029-assignment-mode-and-marks.md.
 
-NEW 15 Nov 2026.
+NEW 15 Nov 2026. UPDATED 15 Nov 2026 (ADR-029): a "test"-mode
+assignment withholds is_correct/ai_feedback/marks_earned from every
+response below until the teacher releases results -- the real mark is
+still always computed and written to Attempt (app/services/
+assignments.py's submit_assignment_answer()); only what these
+endpoints SHOW the student is gated here.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -31,6 +37,17 @@ router = APIRouter(prefix="/assignments", tags=["assignments"])
 # for its own TutorClient -- one AsyncAnthropic client reused across
 # requests rather than constructed per call.
 _tutor_client = TutorClient()
+
+
+def _withholds_feedback(assignment: Assignment) -> bool:
+    """
+    True while this assignment's mark/feedback must stay hidden from
+    the student (ADR-029): mode == "test" and the teacher hasn't
+    released results yet. "practice" assignments (including every
+    assignment created before this feature existed, via the mode
+    column's default) never withhold anything.
+    """
+    return assignment.mode == "test" and not assignment.results_released
 
 
 @router.get("", response_model=list[LearnerAssignmentSummary])
@@ -72,15 +89,20 @@ async def list_my_assignments(
         # calculation -- one source of truth for completion status.
         completions = await get_assignment_completion(db, assignment_id=assignment.id)
         mine = next((c for c in completions if c.learner_id == learner.id), None)
+        withheld = _withholds_feedback(assignment)
         summaries.append(
             LearnerAssignmentSummary(
                 id=assignment.id,
                 title=assignment.title,
                 instructions=assignment.instructions,
                 due_at=assignment.due_at,
+                mode=assignment.mode,
+                results_released=assignment.results_released,
                 status=mine.status if mine else "not_started",
                 answered_count=mine.answered_count if mine else 0,
                 question_count=mine.question_count if mine else 0,
+                marks_total=mine.marks_total if mine else 0,
+                marks_earned=None if withheld else (mine.marks_earned if mine else 0),
             )
         )
     return summaries
@@ -109,6 +131,8 @@ async def get_my_assignment(
     if assignment is None:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
+    withheld = _withholds_feedback(assignment)
+
     assignment_questions = (
         (
             await db.execute(
@@ -126,13 +150,19 @@ async def get_my_assignment(
         questions = (await db.execute(select(Question).where(Question.id.in_(q_ids)))).scalars().all()
         questions_by_id = {q.id: q for q in questions}
 
+    # Ordered so that, if a student ever has more than one Attempt for
+    # the same question (the "Re-submit answer" button), the LATEST one
+    # wins when building attempts_by_question below -- same dedup fix
+    # as get_assignment_completion()'s in app/services/assignments.py.
     attempts = (
         (
             await db.execute(
-                select(Attempt).where(
+                select(Attempt)
+                .where(
                     Attempt.assignment_id == assignment.id,
                     Attempt.learner_id == learner.id,
                 )
+                .order_by(Attempt.created_at)
             )
         )
         .scalars()
@@ -146,15 +176,18 @@ async def get_my_assignment(
         if question is None:
             continue
         attempt = attempts_by_question.get(aq.question_id)
+        this_withheld = withheld and attempt is not None
         question_items.append(
             LearnerQuestionItem(
                 id=question.id,
                 text=question.text,
                 order_index=aq.order_index,
+                marks=aq.marks,
                 answered=attempt is not None,
-                is_correct=attempt.is_correct if attempt else None,
-                ai_feedback=attempt.ai_feedback if attempt else None,
+                is_correct=None if this_withheld else (attempt.is_correct if attempt else None),
+                ai_feedback=None if this_withheld else (attempt.ai_feedback if attempt else None),
                 learner_response=attempt.learner_response if attempt else None,
+                feedback_withheld=this_withheld,
             )
         )
 
@@ -163,6 +196,8 @@ async def get_my_assignment(
         title=assignment.title,
         instructions=assignment.instructions,
         due_at=assignment.due_at,
+        mode=assignment.mode,
+        results_released=assignment.results_released,
         questions=question_items,
     )
 
@@ -183,9 +218,22 @@ async def answer_assignment_question(
     this assignment_id, which is an authorization fact, not a bad
     request-body fact (unlike AssignmentCreateRequest validation on
     the teacher side, which 400s).
+
+    FIX (ADR-029 -- this is the actual bug the "an assignment ... should
+    not be giving a student hints" report named): this used to always
+    return the real is_correct/feedback the instant marking finished,
+    even for a "test"-mode assignment, handing the student the correct
+    answer's explanation before results were ever meant to be seen.
+    The mark is still always computed and stored; it's now withheld
+    from the RESPONSE (not the database) exactly as get_my_assignment
+    above withholds it on reload.
     """
+    assignment = await db.get(Assignment, assignment_id)
+    if assignment is None:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
     try:
-        attempt = await submit_assignment_answer(
+        attempt, marks = await submit_assignment_answer(
             db,
             _tutor_client,
             learner=learner,
@@ -196,8 +244,12 @@ async def answer_assignment_question(
     except AssignmentError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     await db.commit()
+
+    withheld = _withholds_feedback(assignment)
     return AnswerSubmitResult(
         question_id=attempt.question_id,
-        is_correct=attempt.is_correct,
-        feedback=attempt.ai_feedback,
+        marks=marks,
+        is_correct=None if withheld else attempt.is_correct,
+        feedback=None if withheld else attempt.ai_feedback,
+        feedback_withheld=withheld,
     )

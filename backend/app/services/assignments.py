@@ -70,7 +70,8 @@ async def create_assignment(
     title: str,
     instructions: str | None,
     due_at: datetime | None,
-    question_ids: list[uuid.UUID],
+    mode: str = "practice",
+    questions: list[tuple[uuid.UUID, int]],
     learner_ids: list[uuid.UUID],
 ) -> Assignment:
     """
@@ -88,11 +89,23 @@ async def create_assignment(
     than assignment- or school-exclusive, per ADR-028's Scope section)
     -- a bogus/foreign id 400s instead of silently creating a
     half-empty assignment.
+
+    `questions` is a list of (question_id, marks) pairs (ADR-029) --
+    marks is the point value this question is worth IN THIS
+    assignment, already validated to be >= 1 by
+    AssignmentQuestionInput before this is called.
     """
-    if not question_ids:
+    if not questions:
         raise AssignmentError("An assignment needs at least one question")
     if not learner_ids:
         raise AssignmentError("An assignment needs at least one target student")
+    if mode not in ("practice", "test"):
+        # Unreachable via the API (AssignmentCreateRequest.mode is a
+        # Literal), but fail loudly rather than silently store a typo'd
+        # mode no router will ever gate on correctly.
+        raise AssignmentError(f"Unknown assignment mode: {mode}")
+
+    question_ids = [qid for qid, _marks in questions]
 
     # FIX 15 Nov 2026 (live-test finding): every timestamp column in this
     # schema (created_at everywhere, via datetime.utcnow()) is naive --
@@ -142,22 +155,64 @@ async def create_assignment(
         title=title,
         instructions=instructions,
         due_at=due_at,
+        mode=mode,
     )
     db.add(assignment)
     await db.flush()  # need assignment.id for the child rows below
 
-    for order_index, question_id in enumerate(question_ids):
+    for order_index, (question_id, marks) in enumerate(questions):
         db.add(
             AssignmentQuestion(
                 assignment_id=assignment.id,
                 question_id=question_id,
                 order_index=order_index,
+                marks=marks,
             )
         )
     for learner_id in learner_ids:
         db.add(AssignmentTarget(assignment_id=assignment.id, learner_id=learner_id))
 
     return assignment
+
+
+async def release_assignment_results(db: AsyncSession, *, assignment: Assignment) -> Assignment:
+    """
+    Flips the one-way switch (ADR-029) that reveals a Test-mode
+    assignment's withheld is_correct/ai_feedback/marks_earned to every
+    targeted student. Deliberately takes the already-fetched, already
+    ownership-checked Assignment row rather than an id -- the router
+    (app/routers/teach_assignments.py) owns the "does this assignment
+    belong to this teacher" check, same split as everywhere else in
+    this module; this function only ever flips the flag. Idempotent --
+    releasing an already-released assignment is a no-op, not an error,
+    since there's no harm in a teacher clicking it twice.
+    """
+    assignment.results_released = True
+    db.add(assignment)
+    return assignment
+
+
+async def list_bank_questions_for_topic(
+    db: AsyncSession, *, teacher: User, topic_id: uuid.UUID
+) -> list[Question]:
+    """
+    Questions a teacher can reuse in a new assignment for this topic
+    (ADR-029's "derive some from the textbook, create some yourself"
+    request): every seeded/CAPS-bank question for the topic
+    (created_by_user_id is None) plus this teacher's own previously-
+    authored custom questions for it -- never another teacher's custom
+    question, which is private to the assignments they build. Ordered
+    oldest-first, same convention as the rest of this module.
+    """
+    stmt = (
+        select(Question)
+        .where(
+            Question.topic_id == topic_id,
+            (Question.created_by_user_id.is_(None)) | (Question.created_by_user_id == teacher.id),
+        )
+        .order_by(Question.created_at)
+    )
+    return (await db.execute(stmt)).scalars().all()
 
 
 async def submit_assignment_answer(
@@ -168,7 +223,7 @@ async def submit_assignment_answer(
     assignment_id: uuid.UUID,
     question_id: uuid.UUID,
     learner_response: str,
-) -> Attempt:
+) -> tuple[Attempt, int]:
     """
     The real "submit -> mark -> write Attempt" flow ADR-028 names as
     this feature's actual architectural payload (see that ADR's
@@ -178,6 +233,14 @@ async def submit_assignment_answer(
     what it was told to show, but that's not the boundary (same
     principle as create_assignment()'s learner_ids check above,
     applied here on the submit side).
+
+    The real is_correct/ai_feedback are ALWAYS computed and written to
+    Attempt here, test-mode or not (ADR-029) -- only the router decides
+    whether to show them to the student, based on Assignment.mode and
+    results_released. Returns (attempt, marks) -- marks is this
+    question's point value in this assignment, read off the
+    AssignmentQuestion row already fetched below so the router doesn't
+    need a second query just to report it back in AnswerSubmitResult.
     """
     targeted = (
         await db.execute(
@@ -223,7 +286,7 @@ async def submit_assignment_answer(
         assignment_id=assignment_id,
     )
     db.add(attempt)
-    return attempt
+    return attempt, in_assignment.marks
 
 
 @dataclass
@@ -236,6 +299,11 @@ class LearnerCompletion:
     # failed -- see answer_marking.py) counts toward answered_count but
     # not correct_count -- it's neither right nor wrong, it's unmarked.
     correct_count: int
+    # NEW (ADR-029). Sum of marks for every question whose LATEST
+    # attempt is correct; marks_total is this assignment's full point
+    # value, independent of how much this student has answered.
+    marks_earned: int
+    marks_total: int
 
 
 async def get_assignment_completion(
@@ -251,6 +319,19 @@ async def get_assignment_completion(
     count toward THIS assignment's completion, which is exactly why
     Attempt.assignment_id exists rather than inferring from a reused
     question_id match.
+
+    FIX (ADR-029 live-test finding): a student can resubmit a question
+    via AssignmentsView.jsx's "Re-submit answer" button, which writes
+    a SECOND Attempt row rather than updating the first (Attempt rows
+    are append-only everywhere else in this app too). The original
+    version of this function summed is_correct across every attempt
+    row, so a student who got a question wrong, then resubmitted and
+    got it right, could be double-counted or (if the wrong attempt
+    sorted after the right one) under-counted. Attempts are now
+    queried in created_at order and reduced to the LATEST attempt per
+    question_id before counting -- one attempt's outcome per question,
+    always the most recent one, matching what the student actually
+    sees as "answered" in AssignmentsView.jsx.
     """
     targets = (
         (
@@ -275,23 +356,40 @@ async def get_assignment_completion(
         .all()
     )
     total_questions = len(assignment_questions)
+    marks_by_question_id = {aq.question_id: aq.marks for aq in assignment_questions}
+    marks_total = sum(marks_by_question_id.values())
 
     results: list[LearnerCompletion] = []
     for target in targets:
         attempts = (
             (
                 await db.execute(
-                    select(Attempt).where(
+                    select(Attempt)
+                    .where(
                         Attempt.assignment_id == assignment_id,
                         Attempt.learner_id == target.learner_id,
                     )
+                    .order_by(Attempt.created_at)
                 )
             )
             .scalars()
             .all()
         )
-        answered_question_ids = {a.question_id for a in attempts}
-        correct_count = sum(1 for a in attempts if a.is_correct is True)
+        # Overwriting in created_at order leaves the LATEST attempt per
+        # question_id -- see the fix note above.
+        latest_by_question: dict[uuid.UUID, Attempt] = {}
+        for attempt in attempts:
+            latest_by_question[attempt.question_id] = attempt
+
+        answered_question_ids = set(latest_by_question.keys())
+        correct_count = sum(
+            1 for a in latest_by_question.values() if a.is_correct is True
+        )
+        marks_earned = sum(
+            marks_by_question_id.get(qid, 0)
+            for qid, a in latest_by_question.items()
+            if a.is_correct is True
+        )
         if not answered_question_ids:
             status = "not_started"
         elif total_questions > 0 and len(answered_question_ids) >= total_questions:
@@ -305,6 +403,8 @@ async def get_assignment_completion(
                 answered_count=len(answered_question_ids),
                 question_count=total_questions,
                 correct_count=correct_count,
+                marks_earned=marks_earned,
+                marks_total=marks_total,
             )
         )
     return results

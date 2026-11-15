@@ -1063,6 +1063,22 @@ body {
   color: var(--color-text);
 }
 
+/* NEW 15 Nov 2026 (ADR-029): the per-question marks input in
+   CreateAssignmentForm's draft question list -- deliberately narrow,
+   it's a 1-100 point value, not free text. */
+.admin-form__marks-input {
+  width: 3.5rem;
+}
+
+/* NEW 15 Nov 2026 (ADR-029): the student-side "withheld" result panel
+   in AssignmentsView.jsx -- visually distinct from both the correct
+   and incorrect states (admin-screen__result--correct/--incorrect use
+   green/red; this one deliberately stays neutral since it's neither). */
+.assignment-question-card__result--withheld {
+  border-left: 3px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
 .admin-form__primary-button {
   align-self: flex-start;
   background: var(--color-accent);

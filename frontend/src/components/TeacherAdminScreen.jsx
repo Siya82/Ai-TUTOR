@@ -26,10 +26,12 @@ import {
   createCustomQuestion,
   createStudent,
   fetchAdminStudents,
+  fetchBankQuestions,
   fetchSubjects,
   fetchTeachAssignment,
   fetchTeachAssignments,
   fetchTopics,
+  releaseAssignmentResults,
 } from "../api";
 
 const TABS = [
@@ -356,6 +358,7 @@ function AssignmentsPanel({ token, onLogout, students }) {
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState(null);
+  const [releasing, setReleasing] = useState(false);
 
   const loadAssignments = async () => {
     setListLoading(true);
@@ -395,6 +398,29 @@ function AssignmentsPanel({ token, onLogout, students }) {
     }
   };
 
+  // NEW (ADR-029). Only meaningful for a "test"-mode assignment that
+  // hasn't been released yet -- the button itself is only rendered in
+  // that state below. Reloads both the open detail and the list (so
+  // the released badge updates in the table too) rather than trying
+  // to patch either in place.
+  const handleRelease = async () => {
+    if (!selected || releasing) return;
+    setReleasing(true);
+    try {
+      await releaseAssignmentResults(token, selected);
+      await openDetail(selected);
+      await loadAssignments();
+    } catch (err) {
+      if (err.status === 401) {
+        onLogout();
+        return;
+      }
+      setDetailError(err.message);
+    } finally {
+      setReleasing(false);
+    }
+  };
+
   return (
     <div className="admin-panel">
       <CreateAssignmentForm
@@ -422,8 +448,10 @@ function AssignmentsPanel({ token, onLogout, students }) {
           <thead>
             <tr>
               <th>Title</th>
+              <th>Mode</th>
               <th>Due</th>
               <th>Questions</th>
+              <th>Marks</th>
               <th>Students</th>
               <th></th>
             </tr>
@@ -432,8 +460,16 @@ function AssignmentsPanel({ token, onLogout, students }) {
             {assignments.map((a) => (
               <tr key={a.id}>
                 <td>{a.title}</td>
+                <td>
+                  {a.mode === "test"
+                    ? a.results_released
+                      ? "Test (released)"
+                      : "Test (withheld)"
+                    : "Practice"}
+                </td>
                 <td>{a.due_at ? new Date(a.due_at).toLocaleDateString() : "—"}</td>
                 <td>{a.question_count}</td>
+                <td>{a.marks_total}</td>
                 <td>{a.target_count}</td>
                 <td>
                   <button
@@ -455,7 +491,20 @@ function AssignmentsPanel({ token, onLogout, students }) {
           {detailError && <div className="admin-screen__error">{detailError}</div>}
           {detail && (
             <>
-              <p className="admin-result__title">{detail.title} — completion</p>
+              <p className="admin-result__title">
+                {detail.title} — completion
+                {detail.mode === "test" && (
+                  <span className="admin-screen__muted">
+                    {" "}
+                    ({detail.results_released ? "results released" : "results withheld from students"})
+                  </span>
+                )}
+              </p>
+              {detail.mode === "test" && !detail.results_released && (
+                <button type="button" onClick={handleRelease} disabled={releasing}>
+                  {releasing ? "Releasing…" : "Release results to students"}
+                </button>
+              )}
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -463,6 +512,7 @@ function AssignmentsPanel({ token, onLogout, students }) {
                     <th>Status</th>
                     <th>Answered</th>
                     <th>Correct</th>
+                    <th>Marks</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -474,6 +524,9 @@ function AssignmentsPanel({ token, onLogout, students }) {
                         {c.answered_count} / {c.question_count}
                       </td>
                       <td>{c.correct_count}</td>
+                      <td>
+                        {c.marks_earned} / {c.marks_total}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -492,12 +545,21 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
   const [dueAt, setDueAt] = useState("");
   const [selectedLearnerIds, setSelectedLearnerIds] = useState([]);
 
-  // One pending custom question being authored right now (text/model
-  // answer/topic) plus the list of questions already created and
-  // attached to this not-yet-submitted assignment. ADR-028 deliberately
-  // keeps this to teacher-authored custom questions only, for now --
-  // there's no endpoint to browse the existing seeded CAPS question
-  // bank, so reusing it isn't offered here yet.
+  // NEW (ADR-029): "practice" (default) shows AI feedback the instant
+  // a student answers, exactly as every assignment behaved before this
+  // -- "test" withholds it until the teacher clicks "Release results"
+  // on AssignmentsPanel's detail view above.
+  const [mode, setMode] = useState("practice");
+
+  // The list of questions attached to this not-yet-submitted
+  // assignment -- each either freshly authored below, or added from
+  // the reusable bank list (NEW, ADR-029: "derive some questions from
+  // the textbook and some create on their own"). Each carries its own
+  // marks value (default 1, editable) -- a question's point value is
+  // a fact about how it's used in THIS assignment, not the question.
+  // [{id, text, marks}]
+  const [draftQuestions, setDraftQuestions] = useState([]);
+
   // Cascading Grade -> Subject -> Topic picker (NEW 15 Nov 2026, live-test
   // follow-up): a teacher may teach more than one grade, and the flat
   // unfiltered Topic dropdown this replaced (every topic across every
@@ -516,12 +578,19 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
   const [modelAnswer, setModelAnswer] = useState("");
   const [addingQuestion, setAddingQuestion] = useState(false);
   const [questionError, setQuestionError] = useState(null);
-  const [draftQuestions, setDraftQuestions] = useState([]); // [{id, text}]
 
   const [subjects, setSubjects] = useState([]);
   const [subjectsError, setSubjectsError] = useState(null);
   const [topics, setTopics] = useState([]);
   const [topicsError, setTopicsError] = useState(null);
+
+  // NEW (ADR-029): the reusable question bank for whichever topic is
+  // currently selected -- every seeded CAPS question for it plus this
+  // teacher's own previously-authored custom ones. Reloaded whenever
+  // topicId changes; empty/cleared while no topic is selected yet.
+  const [bankQuestions, setBankQuestions] = useState([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankError, setBankError] = useState(null);
 
   useEffect(() => {
     fetchSubjects(token)
@@ -545,8 +614,36 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Same "fetch on a dependency change" shape as loadRoster()/
+  // loadAssignments() above and AssignmentsView.jsx's own load()
+  // effect -- this file and that one already carry this exact
+  // pre-existing react-hooks/set-state-in-effect pattern unresolved,
+  // so the disables below aren't a new category of lint debt, just
+  // one more instance of it.
+  useEffect(() => {
+    if (!topicId) {
+      setBankQuestions([]);
+      setBankError(null);
+      return;
+    }
+    setBankLoading(true);
+    setBankError(null);
+    fetchBankQuestions(token, topicId)
+      .then(setBankQuestions)
+      .catch((err) => {
+        if (err.status === 401) {
+          onLogout();
+          return;
+        }
+        setBankError(err.message);
+      })
+      .finally(() => setBankLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topicId]);
+
   const subjectsForGrade = subjects.filter((s) => String(s.grade) === String(grade));
   const topicsForSubject = topics.filter((t) => t.subject_id === subjectId);
+  const draftQuestionIds = new Set(draftQuestions.map((q) => q.id));
 
   const handleGradeChange = (e) => {
     setGrade(e.target.value);
@@ -581,7 +678,7 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
         text: questionText.trim(),
         modelAnswer: modelAnswer.trim(),
       });
-      setDraftQuestions((prev) => [...prev, { id: created.id, text: created.text }]);
+      setDraftQuestions((prev) => [...prev, { id: created.id, text: created.text, marks: 1 }]);
       setQuestionText("");
       setModelAnswer("");
     } catch (err) {
@@ -595,8 +692,22 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
     }
   };
 
+  // NEW (ADR-029): adds a question straight from the bank list below
+  // instead of authoring a new one -- same draftQuestions shape, just
+  // skipping the create_custom_question() round-trip since the
+  // question already exists.
+  const addBankQuestion = (q) => {
+    if (draftQuestionIds.has(q.id)) return;
+    setDraftQuestions((prev) => [...prev, { id: q.id, text: q.text, marks: 1 }]);
+  };
+
   const removeDraftQuestion = (id) => {
     setDraftQuestions((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const setDraftQuestionMarks = (id, marks) => {
+    const parsed = Math.max(1, Math.min(100, Number(marks) || 1));
+    setDraftQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, marks: parsed } : q)));
   };
 
   const handleCreateAssignment = async (e) => {
@@ -611,13 +722,15 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
         title: title.trim(),
         instructions: instructions.trim() || undefined,
         dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
-        questionIds: draftQuestions.map((q) => q.id),
+        mode,
+        questions: draftQuestions,
         learnerIds: selectedLearnerIds,
       });
       setCreatedSummary(created);
       setTitle("");
       setInstructions("");
       setDueAt("");
+      setMode("practice");
       setDraftQuestions([]);
       setSelectedLearnerIds([]);
       onCreated();
@@ -651,6 +764,13 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
       <label className="admin-form__field">
         <span>Due date (optional)</span>
         <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+      </label>
+      <label className="admin-form__field">
+        <span>Mode</span>
+        <select value={mode} onChange={(e) => setMode(e.target.value)}>
+          <option value="practice">Practice — AI feedback shows right away</option>
+          <option value="test">Test — results withheld until you release them</option>
+        </select>
       </label>
 
       <fieldset className="admin-form__fieldset">
@@ -692,9 +812,44 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
             ))}
           </select>
         </label>
+
+        {topicId && (
+          <div className="admin-form__field">
+            <span>Reuse an existing question for this topic</span>
+            {bankLoading && <p className="admin-screen__muted">Loading question bank…</p>}
+            {bankError && <div className="admin-screen__error">{bankError}</div>}
+            {!bankLoading && !bankError && bankQuestions.length === 0 && (
+              <p className="admin-screen__muted">
+                No existing questions for this topic yet — write a new one below.
+              </p>
+            )}
+            {!bankLoading && !bankError && bankQuestions.length > 0 && (
+              <ul className="admin-errors">
+                {bankQuestions.map((q) => (
+                  <li key={q.id}>
+                    {q.text}{" "}
+                    <button
+                      type="button"
+                      className="admin-screen__link-button"
+                      onClick={() => addBankQuestion(q)}
+                      disabled={draftQuestionIds.has(q.id)}
+                    >
+                      {draftQuestionIds.has(q.id) ? "Added" : "Add"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         <label className="admin-form__field">
-          <span>Question text</span>
-          <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+          <span>Or write a new question</span>
+          <textarea
+            value={questionText}
+            onChange={(e) => setQuestionText(e.target.value)}
+            placeholder="Question text"
+          />
         </label>
         <label className="admin-form__field">
           <span>Model answer</span>
@@ -715,6 +870,17 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
             {draftQuestions.map((q) => (
               <li key={q.id}>
                 {q.text}{" "}
+                <label>
+                  Marks:{" "}
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={q.marks}
+                    onChange={(e) => setDraftQuestionMarks(q.id, e.target.value)}
+                    className="admin-form__marks-input"
+                  />
+                </label>{" "}
                 <button
                   type="button"
                   className="admin-screen__link-button"
@@ -759,8 +925,8 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
 
       {createdSummary && (
         <p className="admin-screen__muted">
-          “{createdSummary.title}” created with {createdSummary.question_count} question(s) for{" "}
-          {createdSummary.target_count} student(s).
+          “{createdSummary.title}” created with {createdSummary.question_count} question(s) worth{" "}
+          {createdSummary.marks_total} mark(s) total, for {createdSummary.target_count} student(s).
         </p>
       )}
     </div>

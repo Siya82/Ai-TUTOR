@@ -313,15 +313,32 @@ export function createCustomQuestion({ token, topicId, text, modelAnswer }) {
 }
 
 /**
- * Creates an assignment from a set of question ids (from
- * createCustomQuestion() above) and a set of learner ids (from this
- * teacher's own roster, fetchAdminStudents() above). dueAt is an ISO
+ * Creates an assignment from a set of {questionId, marks} pairs (from
+ * createCustomQuestion() above, or fetchBankQuestions() below -- a
+ * reused seeded/bank question works exactly like a freshly-authored
+ * one here) and a set of learner ids (from this teacher's own roster,
+ * fetchAdminStudents() above). mode is "practice" (default -- AI
+ * feedback shows immediately) or "test" (withheld until
+ * releaseAssignmentResults() is called -- ADR-029). dueAt is an ISO
  * string or omitted. Returns the backend's AssignmentSummary.
  */
-export function createAssignment({ token, title, instructions, dueAt, questionIds, learnerIds }) {
-  const payload = { title, question_ids: questionIds, learner_ids: learnerIds };
+export function createAssignment({
+  token,
+  title,
+  instructions,
+  dueAt,
+  mode,
+  questions,
+  learnerIds,
+}) {
+  const payload = {
+    title,
+    questions: questions.map((q) => ({ question_id: q.id, marks: q.marks })),
+    learner_ids: learnerIds,
+  };
   if (instructions) payload.instructions = instructions;
   if (dueAt) payload.due_at = dueAt;
+  if (mode) payload.mode = mode;
   return postJson("/teach/assignments", token, payload);
 }
 
@@ -337,6 +354,25 @@ export function fetchTeachAssignments(token) {
  */
 export function fetchTeachAssignment(token, assignmentId) {
   return getJson(`/teach/assignments/${assignmentId}`, token);
+}
+
+/**
+ * NEW (ADR-029). Flips a Test-mode assignment's results_released
+ * switch so every targeted student's withheld mark/feedback becomes
+ * visible. Returns the updated AssignmentSummary.
+ */
+export function releaseAssignmentResults(token, assignmentId) {
+  return postJson(`/teach/assignments/${assignmentId}/release`, token, {});
+}
+
+/**
+ * NEW (ADR-029). The reusable question bank for one topic -- every
+ * seeded CAPS question plus this teacher's own previously-authored
+ * custom ones -- so CreateAssignmentForm can offer "add an existing
+ * question" alongside "write a new one".
+ */
+export function fetchBankQuestions(token, topicId) {
+  return getJson(`/teach/questions?topic_id=${topicId}`, token);
 }
 
 /**

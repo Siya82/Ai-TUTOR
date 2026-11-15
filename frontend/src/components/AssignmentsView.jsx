@@ -89,6 +89,13 @@ export default function AssignmentsView({ auth, onLogout }) {
               <p className="admin-screen__muted">
                 {a.answered_count} / {a.question_count} answered
                 {a.due_at ? ` — due ${new Date(a.due_at).toLocaleDateString()}` : ""}
+                {a.mode === "test"
+                  ? a.marks_earned === null
+                    ? " — results withheld until your teacher releases them"
+                    : ` — ${a.marks_earned} / ${a.marks_total} marks`
+                  : a.answered_count > 0
+                    ? ` — ${a.marks_earned} / ${a.marks_total} marks`
+                    : ""}
               </p>
             </li>
           ))}
@@ -129,12 +136,21 @@ function AssignmentDetail({ auth, onLogout, assignmentId, onBack }) {
     // Merges the just-returned mark/feedback straight into local state
     // rather than refetching the whole assignment -- the question list
     // order and text don't change, only this one question's answered/
-    // is_correct/ai_feedback fields do.
+    // is_correct/ai_feedback/feedback_withheld fields do. feedback_withheld
+    // (ADR-029) is true for a "test"-mode assignment whose results
+    // haven't been released yet -- is_correct/ai_feedback are already
+    // null in that case (the backend withholds them), never shown.
     setDetail((prev) => ({
       ...prev,
       questions: prev.questions.map((q) =>
         q.id === questionId
-          ? { ...q, answered: true, is_correct: result.is_correct, ai_feedback: result.feedback }
+          ? {
+              ...q,
+              answered: true,
+              is_correct: result.is_correct,
+              ai_feedback: result.feedback,
+              feedback_withheld: result.feedback_withheld,
+            }
           : q
       ),
     }));
@@ -153,6 +169,13 @@ function AssignmentDetail({ auth, onLogout, assignmentId, onBack }) {
           {detail.instructions && <p className="assignments-list__instructions">{detail.instructions}</p>}
           {detail.due_at && (
             <p className="admin-screen__muted">Due {new Date(detail.due_at).toLocaleDateString()}</p>
+          )}
+          {detail.mode === "test" && (
+            <p className="admin-screen__muted">
+              {detail.results_released
+                ? "This is a test — results have been released."
+                : "This is a test — your answers are recorded, but results and feedback are withheld until your teacher releases them."}
+            </p>
           )}
           <ol className="assignment-questions">
             {detail.questions.map((q) => (
@@ -207,7 +230,9 @@ function AssignmentQuestionCard({ auth, onLogout, assignmentId, question, onAnsw
 
   return (
     <li className="assignment-question-card">
-      <p className="assignment-question-card__text">{question.text}</p>
+      <p className="assignment-question-card__text">
+        {question.text} <span className="admin-screen__muted">({question.marks} mark{question.marks === 1 ? "" : "s"})</span>
+      </p>
       <form onSubmit={handleSubmit}>
         <textarea
           className="assignment-question-card__textarea"
@@ -221,7 +246,19 @@ function AssignmentQuestionCard({ auth, onLogout, assignmentId, question, onAnsw
         </button>
       </form>
 
-      {question.answered && (
+      {question.answered && question.feedback_withheld && (
+        // NEW (ADR-029): a "test"-mode assignment whose results haven't
+        // been released yet -- no hint of correctness at all, not even
+        // "unmarked" (which, before this, was indistinguishable from an
+        // actual marking failure). The real mark is already recorded
+        // server-side; this is purely about what's shown here.
+        <div className="assignment-question-card__result assignment-question-card__result--withheld">
+          <strong>Submitted</strong>
+          <p>Your answer has been recorded. Your teacher will release the result.</p>
+        </div>
+      )}
+
+      {question.answered && !question.feedback_withheld && (
         <div
           className={
             "assignment-question-card__result" +

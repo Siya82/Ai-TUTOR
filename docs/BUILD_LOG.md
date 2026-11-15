@@ -2700,6 +2700,126 @@ marking quality against a real learner response is unverified (the defensive
 JSON-parsing is unit-tested, the judgment itself is not).
 
 
+## 2026-11-15 -- ADR-028 live-tested end to end; two real bugs fixed; Grade -> Subject -> Topic cascading picker
+
+First real live test of the Assignments feature (ADR-028), done collaboratively
+with Siya driving his own machine/browser -- confirmed this session's computer-
+use and built-in-browser tools could not reliably exercise his actual running
+dev app (the former is tier-restricted by design, the latter couldn't hold a
+site grant across localhost's cross-origin fetches), so this was a guided
+walkthrough rather than an automated one.
+
+**Bug 1 -- "No learner profile linked to this account" + the teacher-side Topic
+picker 404ing.** `GET /topics/`/`GET /subjects/` were gated by `get_current_learner`
+alone (ADR-026), which 404s for any teacher (no `Learner` row) -- broke the
+Topic dropdown in `CreateAssignmentForm` the moment it was first live-tested.
+Fixed with a new `get_current_learner_or_teacher()` dependency in
+`app/core/security.py`, returning `(user, learner | None)`; both routers now
+apply the grade filter only when a real `Learner` is present, teachers seeing
+every grade unfiltered.
+
+**Bug 2 -- `POST /teach/assignments` 500ing as "Failed to fetch."** Real
+traceback (via a `Tee-Object`-redirected uvicorn log, after several stale
+clipboard pastes of the server boot log instead of the live error) showed
+`TypeError: can't subtract offset-naive and offset-aware datetimes`.
+`assignments.due_at` is `TIMESTAMP WITHOUT TIME ZONE` like every other
+timestamp in this schema; the frontend's `toISOString()` sends a trailing
+`Z`, which pydantic parses into a timezone-AWARE datetime that asyncpg can't
+bind into a naive column -- this app's first-ever client-supplied datetime,
+hitting a gap nothing before it had exercised. Fixed in
+`app/services/assignments.py`'s `create_assignment()` by normalizing to naive
+UTC before constructing the row, rather than widening the column type.
+
+**Transferable debugging note:** an unhandled exception's 500 response bypasses
+`CORSMiddleware` entirely (`ServerErrorMiddleware` sits outside the user
+middleware stack), so the browser reports a generic `Failed to fetch` even
+though DevTools' Network tab shows the real status code -- this is why both
+unrelated bugs above presented identically, and why "check the real response
+status in Network, not just the console error" mattered here.
+
+**NB UI request, same session:** a teacher may teach more than one grade, so
+`CreateAssignmentForm`'s single flat Topic dropdown became a cascading
+Grade -> Subject -> Topic picker -- Grade hardcoded 10/11/12 (same convention
+`AddStudentPanel` already uses), Subject and Topic each filtered client-side
+from the one unfiltered `fetchSubjects()`/`fetchTopics()` call Bug 1's fix
+unlocked, rather than three separate round-trips.
+
+Verified: real `pytest tests/` (148 passed, same three environment-blocked
+files excluded) after each fix; real `npx vite build` + `eslint` (no new
+issues) after the picker change. Commits `9df8372` (Bug 1), `f8a16a4` (Bug 2),
+`b2b612e` (cascading picker).
+
+## 2026-11-15 -- Assignment mode (practice/test) and per-question marks (ADR-029)
+
+Direct follow-up to the live test above: once a real student actually
+answered a real assignment question, two gaps in ADR-028's design became
+obvious the moment they were seen rather than designed around in advance --
+AI feedback revealing the correct answer and explanation the instant a wrong
+answer was submitted gives away the answer to anyone retrying, which is fine
+for practice but defeats any assignment meant as real assessment; and every
+question counted for exactly one point with no way to weight one harder than
+another. Siya also asked, in the same message, whether the feature "can be
+like Moodle app but more simplistic" -- scoped deliberately narrow (via
+`AskUserQuestion`, both answers "Recommended"): a per-assignment
+practice/test mode with teacher-controlled results release, and per-question
+marks defaulting to 1 -- explicitly NOT a Moodle clone (no new question
+types, no timers, no randomized pools, no weighting beyond a plain integer
+per question). Full design in `docs/ADR-029-assignment-mode-and-marks.md`.
+
+**What shipped:** migration `0007_add_assignment_mode_and_marks.py`
+(`assignments.mode` varchar default `"practice"`, `assignments.results_released`
+boolean default `false`, `assignment_questions.marks` integer default `1` --
+all additive, matching every row created under ADR-028). Matching model
+changes. `app/schemas/assignments.py` restructured: `AssignmentCreateRequest`
+now takes `questions: list[AssignmentQuestionInput]` (question_id + marks)
+instead of a flat `question_ids` list, plus a `mode` field; every response
+schema gained `mode`/`results_released`/`marks_earned`/`marks_total`/
+`feedback_withheld` as appropriate. `app/services/assignments.py`:
+`create_assignment()` takes `(question_id, marks)` pairs and a mode;
+`release_assignment_results()` is the one-way switch a teacher flips via the
+new `POST /teach/assignments/{id}/release`; `list_bank_questions_for_topic()`
+backs the new `GET /teach/questions?topic_id=...` bank-browse endpoint (every
+seeded CAPS question for the topic plus this teacher's own previously-
+authored custom ones -- never another teacher's). Both learner-facing
+endpoints (`learner_assignments.py`) now null out `is_correct`/`ai_feedback`
+in the response -- never in the database -- whenever `mode == "test"` and
+`results_released` is still `false`; the real mark is always computed and
+written to `Attempt` the moment a student answers, exactly as before,
+regardless of mode. `TeacherAdminScreen.jsx`'s `CreateAssignmentForm` gained a
+mode selector, a per-draft-question marks input, and a "reuse an existing
+question" list fed by the new bank endpoint; `AssignmentsPanel` gained a
+"Release results" button and marks columns. `AssignmentsView.jsx` shows each
+question's marks and, when withheld, "Submitted -- your teacher will release
+the result" instead of a correct/incorrect verdict.
+
+**Bug fixed as part of this, not a new one:** `get_assignment_completion()`
+summed `is_correct` across every `Attempt` row for a learner/assignment pair,
+not deduped by question -- a student resubmitting via AssignmentsView.jsx's
+existing "Re-submit answer" button could be double- or under-counted
+depending on attempt order. Attempts are now queried ordered by `created_at`
+and reduced to the latest attempt per `question_id` before counting, for both
+`correct_count` and the new `marks_earned`.
+
+**Verification:** real imports (`PYTHONPATH=. python3 -c "import ..."`) of
+every changed/new backend module; full `pytest tests/` (excluding the same
+three `datetime.UTC`-blocked files) -- 148 passed, zero regressions (no new
+test file -- the DB-touching functions this batch changed were already
+excluded from unit coverage by ADR-028's own "integration, not unit" line, a
+limitation this change doesn't resolve, same as before). Real `npx vite
+build` (clean) and `npx eslint src/` -- 7 pre-existing `react-hooks/set-state-in-effect`
+occurrences unchanged (one new instance of the same pre-existing pattern in
+the new bank-questions fetch effect, not a new category of issue), one new
+occurrence no longer flags at all after matching the file's established
+disable-comment convention; no new errors anywhere.
+
+**Open items, explicitly not done:** not live-tested yet -- nobody has created
+a real Test-mode assignment, had a real student answer it, confirmed feedback
+is actually withheld in the real browser, and clicked a real "Release
+results" button. `alembic upgrade head` for migration `0007` has not been run
+against the real Postgres instance (verified by `ast.parse` only, same as
+every migration before it). The rest of `docs/LIVE_TEST_CHECKLIST.md`
+(Priorities 2-7) remains deferred, not abandoned.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

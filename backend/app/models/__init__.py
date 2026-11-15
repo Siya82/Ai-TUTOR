@@ -376,6 +376,17 @@ class Assignment(Base):
     due_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # NEW 15 Nov 2026 (ADR-029). "practice" (default, matches every
+    # assignment created before this) shows AI feedback the instant a
+    # student answers, same as today. "test" withholds is_correct/
+    # ai_feedback (app/routers/learner_assignments.py) until the
+    # teacher flips results_released via release_assignment_results().
+    # The real mark is always computed and stored on Attempt the
+    # moment the student answers -- only what's shown to the student
+    # is gated, never what's recorded.
+    mode: Mapped[str] = mapped_column(String(20), default="practice")
+    results_released: Mapped[bool] = mapped_column(Boolean, default=False)
+
 
 class AssignmentQuestion(Base):
     """
@@ -392,6 +403,15 @@ class AssignmentQuestion(Base):
     assignment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assignments.id"))
     question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id"))
     order_index: Mapped[int] = mapped_column(Integer, default=0)
+
+    # NEW 15 Nov 2026 (ADR-029). The point value this question is
+    # worth within THIS assignment -- the same Question can be worth a
+    # different number of marks in a different assignment, since marks
+    # describe how the question is being used here, not a property of
+    # the question itself. Defaults to 1, matching every assignment
+    # question created before this (a correct answer always counted
+    # for exactly one point).
+    marks: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class AssignmentTarget(Base):
