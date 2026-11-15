@@ -10,7 +10,7 @@ NEW 15 Nov 2026.
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,6 +93,20 @@ async def create_assignment(
         raise AssignmentError("An assignment needs at least one question")
     if not learner_ids:
         raise AssignmentError("An assignment needs at least one target student")
+
+    # FIX 15 Nov 2026 (live-test finding): every timestamp column in this
+    # schema (created_at everywhere, via datetime.utcnow()) is naive --
+    # TIMESTAMP WITHOUT TIME ZONE. due_at is this app's first-ever
+    # CLIENT-SUPPLIED datetime, and the frontend sends an ISO string
+    # with a trailing "Z" (toISOString()), which pydantic parses into a
+    # timezone-AWARE datetime -- asyncpg then refuses to bind that into
+    # a naive column ("can't subtract offset-naive and offset-aware
+    # datetimes"), 500ing the very first real Create assignment attempt.
+    # Normalized here to naive UTC rather than widening the column to
+    # TIMESTAMP WITH TIME ZONE, to stay consistent with every other
+    # timestamp this app already stores.
+    if due_at is not None and due_at.tzinfo is not None:
+        due_at = due_at.astimezone(timezone.utc).replace(tzinfo=None)
 
     existing_q_ids = set(
         (await db.execute(select(Question.id).where(Question.id.in_(question_ids))))
