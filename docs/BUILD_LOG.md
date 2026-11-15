@@ -2496,6 +2496,20 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 **Still needed from Siya:** live-test as the dev student (Grade 10) and confirm the sidebar no longer shows Grade 11/12 subjects at all, then confirm a direct `POST /tutor/message` with a Grade 11/12 `topic_id` now 403s.
 
 
+## 2026-11-15 -- Dev test account widened to Grade 12 (ADR-026 follow-up)
+
+**Goal:** Siya flagged, right after live-testing ADR-026, that his own dev/test student account (`100001`) is the one he uses to troubleshoot LEARN generally -- not a stand-in for a real Grade 10 student -- and ADR-026's new grade filter had just restricted it to Grade 10 only, exactly as designed for a real student but wrong for this specific account's actual purpose. He needs it to see every seeded grade.
+
+**Done:**
+- `backend/scripts/seed_dev_data.py` -- `DEV_LEARNER_GRADE` changed from `10` to `12`. 12 is CAPS' own terminal grade (there is no Grade 13), so this gives the dev account every grade that exists, not an arbitrary number.
+- `get_or_create_dev_learner()` -- previously returned an already-seeded dev `Learner` row untouched, never refreshing `.grade`. Same class of bug the `order_index` fix caught earlier this session: without this, bumping the constant above would do nothing for Siya's own already-seeded database. Now refreshes `existing.grade` to `DEV_LEARNER_GRADE` on every run if it differs.
+- Verified with `ast.parse` (same sandbox limitation as always). No other code references `DEV_LEARNER_GRADE` or assumes the dev learner is specifically Grade 10 (checked via grep) -- the frontend's own "default to Pure Mathematics, Grade 10" subject pick in `ChatScreen.jsx` is unaffected, since Grade 10 content stays visible to a Grade 12 account under ADR-026's `<=` filter.
+
+**Not done:** the dev teacher account (`T00001`) is untouched -- TEACH was never grade-scoped by ADR-026 in the first place, so there was nothing to widen there. This only widens the one student test account; a real student provisioned via the teacher's admin UI still gets exactly the grade a teacher assigns them, per ADR-026.
+
+**Still needed from Siya:** re-run `python -m scripts.seed_dev_data` once more to pick this up (it will refresh the existing dev learner's grade in place, not create a second one) and confirm the sidebar now shows Grade 10, 11, and 12 all at once for account `100001`.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

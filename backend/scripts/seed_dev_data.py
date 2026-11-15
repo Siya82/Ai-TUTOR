@@ -44,7 +44,15 @@ from app.core.database import async_session_factory
 from app.models import ContentChunk, Learner, Question, School, Subject, Topic, User
 from app.services.auth import provision_student, provision_teacher
 
-DEV_LEARNER_GRADE = 10
+# FIX 15 Nov 2026 (ADR-026 follow-up): was 10. Siya's own dev/test
+# account is the one he uses to troubleshoot LEARN across every grade,
+# not a stand-in for a typical Grade 10 student -- ADR-026's new
+# Subject.grade <= learner.grade filter means whatever grade this
+# constant holds is the ceiling of what this account can see. 12 is
+# CAPS' own terminal grade (there is no Grade 13), so this is the
+# highest value that still means anything -- it gives this one account
+# every seeded grade, not an arbitrary bump.
+DEV_LEARNER_GRADE = 12
 DEV_LEARNER_NAME = "Test Learner"
 
 # NEW 14 Nov 2026 (ADR-017, student login). Fixed, well-known values --
@@ -1469,6 +1477,16 @@ async def get_or_create_dev_learner(session) -> Learner:
     result = await session.execute(select(Learner).where(Learner.display_name == DEV_LEARNER_NAME))
     existing = result.scalar_one_or_none()
     if existing is not None:
+        # FIX 15 Nov 2026 (ADR-026 follow-up): previously returned the
+        # existing row untouched -- same class of bug the order_index
+        # fix already caught once this run. Without this, bumping
+        # DEV_LEARNER_GRADE above would do nothing for anyone who had
+        # already seeded a dev learner before this change landed; a
+        # plain re-seed now actually widens (or narrows) what the dev
+        # account can see.
+        if existing.grade != DEV_LEARNER_GRADE:
+            existing.grade = DEV_LEARNER_GRADE
+            await session.flush()
         return existing
     learner = Learner(display_name=DEV_LEARNER_NAME, grade=DEV_LEARNER_GRADE, preferred_modality="balanced")
     session.add(learner)
