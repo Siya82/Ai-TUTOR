@@ -42,7 +42,7 @@ from sqlalchemy import select
 
 from app.core.database import async_session_factory
 from app.models import ContentChunk, Learner, Question, School, Subject, Topic, User
-from app.services.auth import provision_student, provision_teacher
+from app.services.auth import hash_password, provision_student, provision_teacher
 
 # FIX 15 Nov 2026 (ADR-026 follow-up): was 10. Siya's own dev/test
 # account is the one he uses to troubleshoot LEARN across every grade,
@@ -1539,7 +1539,18 @@ async def get_or_create_demo_student_account(session, school: School, learner: L
     duplicate one -- see app/services/auth.py.
     """
     if learner.user_id is not None:
-        return await session.get(User, learner.user_id)
+        # FIX 15 Nov 2026 (found live-testing ADR-024's teacher account,
+        # see the matching fix below): refresh the password hash on an
+        # existing row too, not just at first creation -- the same
+        # "existing row never gets refreshed on re-seed" bug already
+        # caught three times this session (order_index, DEV_LEARNER_GRADE,
+        # skip_diagnosis), just never applied here since DEV_STUDENT_PASSWORD
+        # itself has never changed value -- so the gap was latent, not yet
+        # observed, until DEV_TEACHER_PASSWORD's own change exposed the
+        # same bug class for the teacher account below.
+        existing_user = await session.get(User, learner.user_id)
+        existing_user.password_hash = hash_password(DEV_STUDENT_PASSWORD)
+        return existing_user
 
     user, _, _ = await provision_student(
         session,
@@ -1567,6 +1578,18 @@ async def get_or_create_demo_teacher_account(session, school: School) -> User:
     )
     existing = result.scalar_one_or_none()
     if existing is not None:
+        # FIX 15 Nov 2026: refresh the password hash on every re-seed --
+        # without this, an already-seeded dev teacher row stays hashed
+        # against whatever DEV_TEACHER_PASSWORD was AT FIRST CREATION
+        # forever. This is exactly what happened: the teacher account was
+        # first created back when DEV_TEACHER_PASSWORD was its own separate
+        # value ("DevTeachPass123!"), and commit 31ba360 later unified it
+        # with DEV_STUDENT_PASSWORD -- but every re-seed since then kept
+        # returning this row untouched, so the login screen's documented
+        # DevPass123! never actually matched the stored hash. Confirmed via
+        # a direct DB check during live-testing (verify_password returned
+        # False against the documented password on an existing row).
+        existing.password_hash = hash_password(DEV_TEACHER_PASSWORD)
         return existing
 
     user, _ = await provision_teacher(
