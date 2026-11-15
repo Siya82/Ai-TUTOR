@@ -2399,6 +2399,21 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 - No rate-limiting on bulk CSV upload size/frequency, and no de-duplication against an existing roster (re-uploading the same CSV twice creates two full sets of accounts) -- both fine for a pilot, flagged for awareness.
 
 
+## 2026-11-15 — EdPaaS product architecture named: CORE, LEARN, TEACH, CONNECT, INSIGHTS (ADR-025)
+
+**Goal:** Siya defined the concrete product shape of the THUTOra EdPaaS vision project memory had only referenced abstractly since 12 Nov 2026: four products (LEARN, TEACH, CONNECT, INSIGHTS) on one shared THUTOra CORE foundation. Documentation-only pass mapping existing code to this architecture -- no code changes.
+
+**Done:**
+- `docs/ADR-025-edpaas-product-architecture.md` -- names THUTOra CORE as the already-existing shared data/service layer (the `Subject`/`Topic`/`Learner`/`User`/`School`/`Attempt`/`Question`/`ContentChunk` schema, MathGuard, the diagnosis engine, personalization, RAG retrieval, and the Claude integration itself), and maps the two products that already exist: THUTOra LEARN is the existing student-facing surface (`ChatScreen.jsx` + `/tutor/message` + `/attachments`), and THUTOra TEACH is the dashboard/admin work from earlier today (ADR-024) -- `TeacherAdminScreen.jsx` + `/admin/*` + `/api/v1/dashboard/*`, named retroactively rather than having been planned under this name.
+- Flags THUTOra CONNECT (parent-facing) as needing a genuinely new relationship CORE doesn't model yet -- a parent role plus a parent-learner link, likely a many-to-many join table rather than the one-teacher-one-school scoping TEACH uses, since a parent can have more than one child.
+- Flags THUTOra INSIGHTS (school-to-national analytics) as likely NOT an in-app product screen at all, consistent with Siya's own 12 Nov 2026 decision to sequence dashboards in two tracks (product-embedded first, a BI tool on an analytics warehouse for circuit-and-up reporting later).
+- Explicitly notes the THUTOra brand's four-subject curriculum vision (Maths/Physical Sciences/Life Sciences/Accounting) is a CURRICULUM axis, orthogonal to this PRODUCT axis -- adding a subject is a CORE/LEARN-content question, not a new product.
+
+**Not done (deliberately, by this ADR's own scope):**
+- No code or file renaming -- `ChatScreen.jsx`/`TeacherAdminScreen.jsx` keep their current names; no repo reorganization into `core/` + per-product packages.
+- CONNECT and INSIGHTS remain unbuilt and undesigned beyond the shape flagged above -- this is a naming/planning pass, not an implementation one.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
