@@ -2373,6 +2373,32 @@ Sciences/Accounting) and `docs/ADR-023-english-hl-grades.md` (English HL).
   (e.g. the deferred Physical Sciences Chemistry strand), not new grades.
 
 
+## 2026-11-15 — Teacher role: dashboard auth gate + bulk student provisioning UI (ADR-024)
+
+**Goal:** Close two platform gaps flagged as open since the project's first report (26 Aug 2026) and ADR-017 (14 Nov 2026): the teacher dashboard API had no authentication at all, and the only way to add a student was to re-run `scripts/seed_dev_data.py` directly. Siya's explicit priority choice over resuming isiZulu work or a new subject, scoped via `AskUserQuestion`: teacher-only dashboard access, a full admin UI (not a bare endpoint) for provisioning, both built together as one combined step.
+
+**Done:**
+- `app/services/auth.py` -- `provision_teacher()` added, mirroring `provision_student()` (no `Learner` created; reuses `User.student_number` as a generic login identifier for a staff number rather than a new column/migration). The shared collision-checked number-generation loop was extracted into `_generate_unique_login_number()` so both functions share it instead of duplicating it.
+- `app/core/security.py` -- `get_current_teacher()` dependency (403 for a valid token with the wrong role, not 401).
+- `app/schemas/auth.py` / `app/routers/auth.py` -- `LoginResponse`/`MeResponse` gained a `role` field; `learner` is now optional (`None` for a teacher, since `provision_teacher()` never creates one). `login()` and `read_me()` branch on `user.role` instead of unconditionally requiring a `Learner`.
+- `app/routers/dashboard.py` / `app/services/dashboard.py` -- every dashboard endpoint now requires `get_current_teacher`. Went one step further than just gating it: every endpoint is scoped to the teacher's own school (`_assert_same_school` for the three learner-scoped endpoints; a `school_id` filter on the overview list) -- a teacher at School A now gets an honest 404, not another school's data, for a `learner_id` that belongs elsewhere. A `Learner` with no linked `User` (old dev data from before ADR-017) is correctly invisible to any dashboard view now, since it has no school to scope it to.
+- `app/schemas/admin.py`, `app/services/admin.py`, `app/routers/admin.py` (new) -- the admin API: `POST /admin/students` (single), `POST /admin/students/bulk` (CSV upload), `GET /admin/students` (roster), all teacher-only and school-scoped. CSV parsing is split pure-logic (`parse_student_csv`, no DB) from the DB-touching provisioning loop (`bulk_provision_students`), the same split this project uses everywhere else (e.g. `app/services/attachments.py`) -- a bad row is reported individually rather than aborting rows already created earlier in the same upload. No new dependency: `python-multipart` for `UploadFile` was already added in ADR-016.
+- `scripts/seed_dev_data.py` -- now also provisions a dev teacher account (idempotent, printed at the end of a run alongside the existing dev student account).
+- `frontend/src/App.jsx` -- renders the new `TeacherAdminScreen` instead of `ChatScreen` for a teacher-role session, based on the backend's `role` field from login/`/auth/me`.
+- `frontend/src/components/TeacherAdminScreen.jsx` (new) -- three tabs: a student roster table, a single-student add form, and a CSV bulk-upload form. Reuses `ChatScreen`'s existing header classes (brand/profile/logout) for visual consistency rather than building a second header. Every newly-created student's temp password is shown exactly once in the result card, matching `provision_student()`'s own "only visible this one time" posture from ADR-017.
+- `frontend/src/api.js` -- three new calls (`fetchAdminStudents`, `createStudent`, `bulkCreateStudents`).
+- `frontend/src/components/LoginScreen.jsx` -- the "Student number" field label now reads "Student / staff number", since the same login form now serves both roles.
+- `backend/tests/test_admin.py` (new) -- pure unit tests for `parse_student_csv()` (happy path, missing required columns, empty file, a bad row not sinking the rest of the batch, extra columns ignored) and `get_current_teacher()`'s role check. The CSV-parsing logic was additionally verified by running it directly in this sandbox against the exact same assertions, since the sandbox can't import the full `app` package (no `pgvector`/`pydantic_settings` environment) to actually run pytest -- same "verify what can be verified here" posture as every prior segment.
+
+Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
+
+**Not done yet:**
+- No in-product way to create a school's first teacher account -- `scripts/seed_dev_data.py` remains the only way, the same posture ADR-017 took for a school's first student.
+- The dashboard's own mastery/risk views (`GET /api/v1/dashboard/*`) aren't wired into `TeacherAdminScreen` yet -- this pass closes the auth gate and the provisioning gap specifically.
+- Not live-tested against a real Claude/browser session yet -- handed to Siya next, same discipline as every prior feature. The login → TeacherAdminScreen → add student → log out as that student flow has only been verified by reading the code and bundling it with esbuild, not by a human clicking through it.
+- No rate-limiting on bulk CSV upload size/frequency, and no de-duplication against an existing roster (re-uploading the same CSV twice creates two full sets of accounts) -- both fine for a pilot, flagged for awareness.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
