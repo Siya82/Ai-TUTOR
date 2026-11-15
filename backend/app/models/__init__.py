@@ -82,6 +82,16 @@ class Topic(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     caps_reference: Mapped[str | None] = mapped_column(String(50))  # e.g. syllabus clause
     prerequisite_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("topics.id"))
+    # NEW 15 Nov 2026 (live-test finding): topics were being listed
+    # alphabetically by name (see app/routers/topics.py), not in the
+    # term-by-term CAPS teaching order every seed_dev_data.py topic list
+    # is actually already written in -- a student picking a subject in
+    # the sidebar saw e.g. "Algebraic Expressions" after "Analytical
+    # Geometry" purely because A-l comes before A-n. order_index is each
+    # topic's zero-based position within its subject's own topic list in
+    # seed_dev_data.py (which follows the real DBE ATP term order, per
+    # every subject-addition ADR), set/refreshed there on every seed run.
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     subject: Mapped["Subject"] = relationship(back_populates="topics")
 

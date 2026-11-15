@@ -1392,14 +1392,32 @@ async def get_or_create_subject(session, name: str, grade: int) -> Subject:
     return subject
 
 
-async def get_or_create_topic(session, name: str, subject_id, prerequisite_id) -> Topic:
+async def get_or_create_topic(
+    session, name: str, subject_id, prerequisite_id, order_index: int
+) -> Topic:
+    """FIX 15 Nov 2026 (live-test finding, order_index column): order_index
+    is this topic's position in its subject's own topic list below, which
+    follows the real DBE ATP term order (see each subject-addition ADR).
+    Unlike every other field here, order_index is refreshed on an EXISTING
+    row too, not just set once at creation -- every topic added before
+    this fix shipped has whatever default the migration gave it (0), and
+    only a re-run of this script actually backfills the real order for
+    topics that already existed."""
     result = await session.execute(
         select(Topic).where(Topic.subject_id == subject_id, Topic.name == name)
     )
     existing = result.scalar_one_or_none()
     if existing is not None:
+        if existing.order_index != order_index:
+            existing.order_index = order_index
+            await session.flush()
         return existing
-    topic = Topic(subject_id=subject_id, name=name, prerequisite_id=prerequisite_id)
+    topic = Topic(
+        subject_id=subject_id,
+        name=name,
+        prerequisite_id=prerequisite_id,
+        order_index=order_index,
+    )
     session.add(topic)
     await session.flush()
     return topic
@@ -1573,13 +1591,15 @@ async def _seed_subject(
     subject = await get_or_create_subject(session, subject_spec["name"], subject_spec["grade"])
 
     topics_by_name: dict[str, Topic] = {}
-    for name, prereq in subject_spec["topics"]:
+    for order_index, (name, prereq) in enumerate(subject_spec["topics"]):
         if isinstance(prereq, tuple):
             ref_subject, ref_grade, ref_topic = prereq
             prerequisite_id = all_seeded_topics[(ref_subject, ref_grade)][ref_topic].id
         else:
             prerequisite_id = topics_by_name[prereq].id if prereq else None
-        topics_by_name[name] = await get_or_create_topic(session, name, subject.id, prerequisite_id)
+        topics_by_name[name] = await get_or_create_topic(
+            session, name, subject.id, prerequisite_id, order_index
+        )
 
     questions_created = 0
     chunks_created = 0

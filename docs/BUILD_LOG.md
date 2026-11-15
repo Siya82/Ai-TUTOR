@@ -2440,6 +2440,24 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 **Not done:** no code or UI exists yet for CONNECT or INSIGHTS to actually display their logo in -- those two asset files are only sitting in the repo, ready for whenever those products get a real screen. No favicon/app-icon change was made (out of scope of what was asked).
 
 
+## 2026-11-15 -- Fixed: topics listed alphabetically instead of in CAPS term order (migration 0004)
+
+**Goal:** Live-testing (Siya) surfaced this: asking a Grade 12 Differential Calculus question actually landed on Analytical Geometry's diagnosis chain, because he'd clicked Analytical Geometry in the sidebar, not Differential Calculus -- and he'd clicked the wrong one because "Algebraic Expressions" sorts after "Analytical Geometry" alphabetically, even though Algebraic Expressions is the Term 1 foundation and Analytical Geometry comes much later in the year. Siya's own diagnosis: topics need to follow the real term arrangement, not alphabetical order; subjects should stay alphabetical (that part was intentional, per the 14 Nov sidebar-grouping work, and is unchanged).
+
+**Root cause:** `app/routers/topics.py`'s `GET /topics` explicitly did `select(Topic).order_by(Topic.name)`. The frontend (`SubjectTopicSidebar.jsx`) never re-sorts topics itself -- it just filters the server's own topic list by `subject_id` -- so whatever order the backend returns is exactly what a student sees. The diagnosis-engine "redirected away from what I asked" behaviour from the gap-22 era, flagged back then as uninvestigated, is explained the same way here: the engine was correctly reacting to the topic actually selected (Analytical Geometry), not the one Siya meant to click.
+
+**Done:**
+- `app/models/__init__.py` -- new `Topic.order_index` column (`Integer`, `nullable=False`, `server_default="0"`).
+- `backend/migrations/versions/0004_add_topic_order_index.py` -- adds the column, defaulting existing rows to 0 so nothing breaks before the next seed run.
+- `app/routers/topics.py` -- `GET /topics` now orders by `(Topic.subject_id, Topic.order_index)` instead of `Topic.name`.
+- `scripts/seed_dev_data.py` -- `get_or_create_topic()` now takes `order_index` and sets it on create AND refreshes it on an existing row (every topic added before this fix currently sits at the column's default of 0, so a plain re-run backfills the real order); `_seed_subject()`'s topic loop now passes `enumerate(subject_spec["topics"])`'s index -- i.e. each topic's position in its own subject's list in this file, which is already written in the real DBE ATP term order per every subject-addition ADR (confirmed by re-reading the loop and the per-subject topic lists, not assumed).
+- Verified with `ast.parse` on all three changed Python files (sandbox still can't import the full `app` package -- no `pgvector`/`pydantic_settings` env). Confirmed the two existing bare-`Topic(...)` unit-test constructions (`test_diagnosis.py`, `test_tutor_orchestration.py`) are unaffected -- they never flush to a DB, so the new NOT-NULL column never gets a chance to matter there.
+
+**Not done:** no attempt to recover the real `term`/`week_allocation` integer fields the Aug-26 recovery note says `Topic` originally had before the rebuild -- `order_index` is a lighter-weight fix that reproduces the already-researched term ORDER without re-deriving an actual term NUMBER per topic across all 14 subjects, which would mean re-reading every ATP again. Flagged as a real gap, not silently worked around with something that looks equivalent but isn't.
+
+**Still needed from Siya:** `alembic upgrade head` to pick up migration 0004, then a re-run of `python -m scripts.seed_dev_data` to backfill `order_index` for every topic that already exists (a plain `git pull` alone will not reorder anything already seeded).
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
