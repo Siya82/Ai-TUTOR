@@ -2307,6 +2307,72 @@ Full reasoning in `docs/ADR-021-rag-content-ingestion.md`.
   deleted.
 
 
+## 2026-11-15 — Grade 12 scale-up (Maths, Physical Sciences, Accounting) + English HL Grade 11/12
+
+**Goal:** Siya's explicit direction this session -- pause isiZulu Home
+Language work (ADR-021's RAG ingestion pipeline stays as-is, untouched) and
+proceed with the rest of the Grade 11/12 scale-up: Pure Mathematics, Physical
+Sciences, and Accounting to Grade 12 (his long-stated plan since ADR-019),
+plus English Home Language to Grade 11 and Grade 12 (included since isiZulu
+is excluded this pass).
+
+**Done:**
+- Researched each subject's real DBE CAPS Grade 12 Annual Teaching Plan
+  (education.gov.za CAPS FET documents, checked 15 Nov 2026) before writing
+  any seed data, same discipline as every prior addition.
+- `backend/scripts/seed_dev_data.py` -- five new `SUBJECTS` entries:
+  - Pure Mathematics grade 12: 12 topics / 24 questions, three chains
+    (Functions/Polynomials/Calculus, Trigonometry, independently-anchored
+    topics). Confirmed Linear Programming is not in current CAPS.
+  - Physical Sciences grade 12: 7 topics / 14 questions, Physics strand
+    only. Doppler Effect anchored directly to Grade 10 (no Grade 11 Waves
+    topic exists in this project).
+  - Accounting grade 12: 12 topics / 24 questions. Companies gets its own
+    linear trunk (new business entity, mirrors the Partnerships shape from
+    ADR-019). Close Corporations deliberately left with no cross-grade
+    anchor (no clean counterpart, same judgment call as Fixed Assets).
+  - English Home Language grade 11 and grade 12: 5 topics / 10 questions
+    each, reusing ADR-020's template exactly, content escalating per real
+    CAPS complexity (confirmed via DBE document research, not guessed).
+- `frontend/src/components/SymbolKeyboard.jsx` -- 9 new `TOPIC_SYMBOLS`
+  entries for Pure Mathematics Grade 12, 6 for Physical Sciences Grade 12, 6
+  for Accounting Grade 12 (topics reusing an exact Grade 11 name correctly
+  need no new entry). No new entries for English HL (topics never had
+  entries at any grade, by ADR-020's original design).
+- All cross-grade `(subject_name, grade, topic_name)` prerequisite
+  references verified programmatically (AST-walking script) to resolve
+  against already-seeded subjects before transfer/commit, same discipline
+  as ADR-014 established. Topic/question counts, duplicate names, and
+  prerequisite resolution all verified clean.
+- `frontend` symbol additions verified via `esbuild` (no errors) and a
+  Node.js key-extraction cross-check confirming every new topic name either
+  has an entry or correctly falls back to `COMMON_SYMBOLS`.
+
+**Flagged, not fixed (per this project's "don't guess a fix before a real
+failure" discipline):** Grade 12 Differential Calculus introduces notation
+(`f'(x)`, first-principles limits) that a grep of `math_validator.py`
+confirms has zero existing handling. Genuinely untested, not confirmed
+broken or working -- the single most likely new MathGuard gap once
+live-tested.
+
+Full reasoning in `docs/ADR-022-grade12-scaleup.md` (Maths/Physical
+Sciences/Accounting) and `docs/ADR-023-english-hl-grades.md` (English HL).
+
+**Not done yet:**
+- **isiZulu Home Language Grade 11/12 do not exist.** Deliberately paused
+  per Siya's own direction this session -- not an oversight, revisit once
+  ADR-021's RAG ingestion work is in a workable state.
+- Differential Calculus notation is untested against MathGuard -- see above.
+- Not live-tested against a real Claude call or seeded into a live database
+  -- same handoff as every prior content addition. Siya needs to run
+  `python -m scripts.seed_dev_data` (and `alembic upgrade head` first if
+  needed) on his own machine, then live-test via the real frontend.
+- No Accounting-specific verifier exists for any Accounting grade.
+- Pure Mathematics, Physical Sciences, and Accounting are now at their final
+  CAPS grade -- future expansion for these three means new subjects/strands
+  (e.g. the deferred Physical Sciences Chemistry strand), not new grades.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
