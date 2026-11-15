@@ -64,6 +64,37 @@ async def get_current_learner(
     return learner
 
 
+async def get_current_learner_or_teacher(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[User, Learner | None]:
+    """
+    NEW 15 Nov 2026 (live-test finding, follow-up to ADR-026/ADR-028).
+    ADR-026 locked GET /subjects and /topics down to get_current_learner
+    alone -- correct for the student picker, but it then broke the
+    teacher-side topic picker in CreateAssignmentForm (added right
+    after, ADR-028): the first time this was actually live-tested, a
+    teacher opening the Assignments tab got a bare "No learner profile
+    linked to this account" 404, since a teacher has no Learner row at
+    all.
+
+    This dependency resolves either role: a student gets back their own
+    Learner row exactly as get_current_learner always has (so ADR-026's
+    grade filter is unaffected for them); a teacher gets back (user,
+    None), so the caller knows to skip the grade filter entirely -- a
+    teacher may reasonably author a question or build an assignment
+    for a student in any grade they teach, not just one grade.
+    """
+    if user.role == "teacher":
+        return user, None
+    stmt = select(Learner).where(Learner.user_id == user.id)
+    result = await db.execute(stmt)
+    learner = result.scalar_one_or_none()
+    if learner is None:
+        raise HTTPException(status_code=404, detail="No learner profile linked to this account")
+    return user, learner
+
+
 async def get_current_teacher(user: User = Depends(get_current_user)) -> User:
     """
     NEW 15 Nov 2026 (ADR-024, teacher dashboard access + bulk student

@@ -14,8 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_learner
-from app.models import Learner, Subject, Topic
+from app.core.security import get_current_learner_or_teacher
+from app.models import Learner, Subject, Topic, User
 from app.schemas.topics import TopicResponse
 
 router = APIRouter(prefix="/topics", tags=["topics"])
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/topics", tags=["topics"])
 @router.get("/", response_model=list[TopicResponse])
 async def list_topics(
     subject_id: uuid.UUID | None = Query(default=None),
-    learner: Learner = Depends(get_current_learner),
+    identity: tuple[User, Learner | None] = Depends(get_current_learner_or_teacher),
     db: AsyncSession = Depends(get_db),
 ) -> list[Topic]:
     """
@@ -55,13 +55,26 @@ async def list_topics(
     grade above the learner's own, matching /subjects' new scoping
     exactly (a student should never be able to browse, let alone be
     taught, content from a grade they haven't reached yet).
+
+    FIX 15 Nov 2026, continued again (live-test finding): the above
+    broke the teacher-side topic picker (ADR-028's CreateAssignmentForm)
+    the first time anyone actually tried it, since a teacher has no
+    Learner row. Now depends on get_current_learner_or_teacher instead:
+    a student still gets the exact grade filter above; a teacher gets
+    every topic, unfiltered, since they may author a question for any
+    grade they teach.
     """
+    _, learner = identity
     stmt = (
         select(Topic)
         .join(Subject, Topic.subject_id == Subject.id)
-        .where(Subject.grade <= learner.grade)
         .order_by(Topic.subject_id, Topic.order_index)
     )
+    if learner is not None:
+        # A real student: unchanged ADR-026 grade scoping.
+        stmt = stmt.where(Subject.grade <= learner.grade)
+    # A teacher (learner is None): no grade filter -- see
+    # get_current_learner_or_teacher's docstring for why.
     if subject_id is not None:
         stmt = stmt.where(Topic.subject_id == subject_id)
     result = await db.execute(stmt)
