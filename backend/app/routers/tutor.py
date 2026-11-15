@@ -198,10 +198,21 @@ async def send_tutor_message(
     # then again inside prepare_tutor_turn() is a deliberate, documented
     # doubled call rather than threading a DB session through that
     # module's otherwise DB-free contract (see tutor_orchestration.py).
-    diagnosis_preview = diagnose_root_gap(prerequisite_chain, attempts_by_topic)
+    # FIX 15 Nov 2026 (ADR-027, dev/admin diagnosis bypass): this preview
+    # call must agree with prepare_tutor_turn()'s own bypass below, or
+    # grounding_text would get fetched for a topic diagnosis_preview
+    # thinks will be taught that prepare_tutor_turn() then overrides --
+    # see tutor_orchestration.py's matching comment for why the bypass
+    # itself is safe (diagnosis.py is never touched; this is a flagged,
+    # per-learner orchestration-layer skip only).
+    if learner.skip_diagnosis:
+        preview_topic_id = requested_topic.id
+    else:
+        diagnosis_preview = diagnose_root_gap(prerequisite_chain, attempts_by_topic)
+        preview_topic_id = diagnosis_preview.recommended_topic.id
     grounding_query_text = payload.message.strip() or requested_topic.name
     grounding_text = await get_grounding_text(
-        db, diagnosis_preview.recommended_topic.id, grounding_query_text
+        db, preview_topic_id, grounding_query_text
     )
 
     prep = prepare_tutor_turn(

@@ -2510,6 +2510,14 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 **Still needed from Siya:** re-run `python -m scripts.seed_dev_data` once more to pick this up (it will refresh the existing dev learner's grade in place, not create a second one) and confirm the sidebar now shows Grade 10, 11, and 12 all at once for account `100001`.
 
 
+## 2026-11-15 -- Dev/admin diagnosis-redirect bypass (ADR-027)
+
+ADR-026 and its Grade-12 follow-up fixed what the dev/admin account (100001) can *see*. Siya's next message made clear that was not enough: "if I choose to request an equation to grade 12 it should treat this profile as already have met all the other grades requirements." Grade visibility and mastery-driven redirect are two separate mechanisms -- `diagnose_root_gap()` (ADR-007) redirects teaching down to a foundational prerequisite based on attempt history alone, independent of grade, and the dev account has zero attempt history on everything. It was guaranteed to be redirected to the deepest prerequisite in any chain, every time, no matter how high `DEV_LEARNER_GRADE` was set.
+
+Added `Learner.skip_diagnosis: bool` (default `False`, migration `0005_add_skip_diagnosis_to_learner.py`). `prepare_tutor_turn()` (`tutor_orchestration.py`) and `tutor.py`'s matching grounding-text preview call both skip the real diagnosis walk when it's set, teaching whatever topic was actually requested. `diagnosis.py` itself is untouched -- the real redirect logic stays fully intact for every real student; this is a per-learner, explicitly flagged bypass only. `seed_dev_data.py`'s `get_or_create_dev_learner()` sets it `True` for the dev account only (with the same "refresh an existing row on re-seed" fix already applied twice this run), leaving every real student's default at `False`.
+
+Added two new tests to `test_tutor_orchestration.py` on the exact chain/empty-history combination that otherwise redirects, confirming the bypass works and is opt-in. **Could not actually run them**: this sandbox's Python is 3.10, and the test file already imports `datetime.UTC` (3.11+) at module level, so `pytest` fails at collection before any test runs -- a pre-existing, unrelated sandbox limitation, not a regression from this change. Full details, rejected alternative (synthetic mastery `Attempt` rows), and the live-test handoff: `docs/ADR-027-dev-admin-diagnosis-bypass.md`.
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

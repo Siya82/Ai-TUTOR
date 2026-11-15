@@ -40,9 +40,13 @@ def _topic(name: str, prerequisite_id=None, subject: Subject | None = None) -> T
     return topic
 
 
-def _learner(preferred_modality: str = "balanced") -> Learner:
+def _learner(preferred_modality: str = "balanced", skip_diagnosis: bool = False) -> Learner:
     return Learner(
-        id=uuid.uuid4(), display_name="Test Learner", grade=10, preferred_modality=preferred_modality
+        id=uuid.uuid4(),
+        display_name="Test Learner",
+        grade=10,
+        preferred_modality=preferred_modality,
+        skip_diagnosis=skip_diagnosis,
     )
 
 
@@ -119,3 +123,45 @@ def test_subject_name_and_grade_come_from_the_topics_real_subject():
 
     assert "Grade 10 Physical Sciences tutor" in prep.system_prompt
     assert "Mathematics" not in prep.system_prompt
+
+
+
+def test_skip_diagnosis_teaches_the_requested_topic_with_no_attempt_history():
+    """Regression test for ADR-027 (dev/admin diagnosis bypass). With
+    skip_diagnosis=True and ZERO attempt history anywhere in the chain --
+    exactly the dev/admin account's real situation -- the real walk would
+    redirect all the way to mult (see
+    test_redirect_adds_a_diagnosis_note_naming_both_topics above, same
+    chain, same empty history). The bypass must still teach the
+    originally requested topic directly, with no redirect and no
+    diagnosis note, and diagnose_root_gap() must never even run."""
+    mult = _topic("Multiplication of Algebraic Terms")
+    factor = _topic("Factorisation", prerequisite_id=mult.id)
+    quad = _topic("Quadratic Equations", prerequisite_id=factor.id)
+    learner = _learner(skip_diagnosis=True)
+
+    prep = prepare_tutor_turn(learner, [quad, factor, mult], {})
+
+    assert prep.recommended_topic.id == quad.id
+    assert prep.diagnosis.redirected is False
+    assert prep.diagnosis.steps == []
+    assert "DIAGNOSIS NOTE" not in prep.system_prompt
+    assert "Quadratic Equations" in prep.system_prompt
+
+
+def test_skip_diagnosis_false_is_unaffected_same_chain_still_redirects():
+    """Sanity check paired with the test above: the SAME chain and SAME
+    empty history, but skip_diagnosis left at its default (False), must
+    still redirect exactly as test_redirect_adds_a_diagnosis_note_naming_both_topics
+    already asserts -- confirms the new flag is opt-in, not a global
+    behaviour change for real students."""
+    mult = _topic("Multiplication of Algebraic Terms")
+    factor = _topic("Factorisation", prerequisite_id=mult.id)
+    quad = _topic("Quadratic Equations", prerequisite_id=factor.id)
+    learner = _learner()  # skip_diagnosis defaults to False
+
+    prep = prepare_tutor_turn(learner, [quad, factor, mult], {})
+
+    assert prep.recommended_topic.id == mult.id
+    assert prep.diagnosis.redirected is True
+    assert "DIAGNOSIS NOTE" in prep.system_prompt

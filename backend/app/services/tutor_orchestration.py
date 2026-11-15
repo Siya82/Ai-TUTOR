@@ -70,7 +70,26 @@ def prepare_tutor_turn(
     Falls back to the "balanced" modality, rather than crashing, if the
     learner record has an invalid or legacy preferred_modality value.
     """
-    diagnosis = diagnose_root_gap(prerequisite_chain, attempts_by_topic)
+    # FIX 15 Nov 2026 (ADR-027, dev/admin diagnosis bypass). Siya's
+    # dev/admin account (Learner.skip_diagnosis=True, set only by
+    # seed_dev_data.py's get_or_create_dev_learner()) has zero real
+    # attempt history on anything, so the real diagnose_root_gap() walk
+    # would ALWAYS redirect it to the deepest foundational prerequisite
+    # in any chain -- "treat this profile as already having met all the
+    # other grades' requirements" (Siya's own words) means asking about
+    # a Grade 12 topic should teach Grade 12 directly, every time, not
+    # cascade down to Grade 10/11. diagnosis.py itself is NOT touched --
+    # the real mastery-redirect logic (ADR-007, a protected differentiator
+    # per ADR-011) stays fully intact for every real student; this is a
+    # per-learner, explicitly flagged bypass at the orchestration layer
+    # only, read straight off the already-loaded Learner object -- no
+    # new DB call, so this function's DB-free contract still holds.
+    if learner.skip_diagnosis:
+        diagnosis = DiagnosisResult(
+            recommended_topic=prerequisite_chain[0], redirected=False, steps=[]
+        )
+    else:
+        diagnosis = diagnose_root_gap(prerequisite_chain, attempts_by_topic)
     recommended_topic = diagnosis.recommended_topic
 
     modality = learner.preferred_modality

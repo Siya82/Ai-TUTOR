@@ -1484,11 +1484,33 @@ async def get_or_create_dev_learner(session) -> Learner:
         # already seeded a dev learner before this change landed; a
         # plain re-seed now actually widens (or narrows) what the dev
         # account can see.
+        changed = False
         if existing.grade != DEV_LEARNER_GRADE:
             existing.grade = DEV_LEARNER_GRADE
+            changed = True
+        # FIX 15 Nov 2026 (ADR-027, dev/admin diagnosis bypass). Same
+        # "refresh an existing row" fix, third time this applies to this
+        # script -- without it, this flag would never actually turn on
+        # for anyone who had already seeded a dev learner before ADR-027
+        # landed. ONLY this one account gets True; every real student
+        # provisioned via the teacher dashboard keeps the model's
+        # default of False, so the real diagnosis redirect (ADR-007)
+        # stays intact for them.
+        if existing.skip_diagnosis is not True:
+            existing.skip_diagnosis = True
+            changed = True
+        if changed:
             await session.flush()
         return existing
-    learner = Learner(display_name=DEV_LEARNER_NAME, grade=DEV_LEARNER_GRADE, preferred_modality="balanced")
+    learner = Learner(
+        display_name=DEV_LEARNER_NAME,
+        grade=DEV_LEARNER_GRADE,
+        preferred_modality="balanced",
+        # ADR-027: this account has no real attempt history on anything,
+        # so it should never be redirected down to a foundational
+        # prerequisite -- see tutor_orchestration.py's prepare_tutor_turn().
+        skip_diagnosis=True,
+    )
     session.add(learner)
     await session.flush()
     return learner

@@ -182,6 +182,16 @@ class Learner(Base):
     # not a fixed label. Values: "visual" | "practical" | "auditory" | "balanced"
     preferred_modality: Mapped[str] = mapped_column(String(20), default="balanced")
 
+    # NEW 15 Nov 2026 (ADR-027, dev/admin diagnosis bypass). Default False
+    # for every real student -- diagnose_root_gap()'s redirect-on-gap
+    # behaviour (ADR-007) is untouched for them. True ONLY for Siya's own
+    # dev/admin account (seed_dev_data.py's get_or_create_dev_learner),
+    # which has zero attempt history on everything and would otherwise
+    # ALWAYS get redirected to the deepest foundational prerequisite no
+    # matter which grade it asks about -- see app/services/tutor_orchestration.py's
+    # prepare_tutor_turn() for where this is actually read.
+    skip_diagnosis: Mapped[bool] = mapped_column(Boolean, default=False)
+
     attempts: Mapped[list["Attempt"]] = relationship(back_populates="learner")
 
     # NEW 14 Nov 2026 (ADR-017, student login). Nullable so existing dev
