@@ -42,7 +42,7 @@ from sqlalchemy import select
 
 from app.core.database import async_session_factory
 from app.models import ContentChunk, Learner, Question, School, Subject, Topic, User
-from app.services.auth import provision_student
+from app.services.auth import provision_student, provision_teacher
 
 DEV_LEARNER_GRADE = 10
 DEV_LEARNER_NAME = "Test Learner"
@@ -52,7 +52,15 @@ DEV_LEARNER_NAME = "Test Learner"
 # predictable across re-runs of this idempotent script.
 DEV_SCHOOL_NAME = "THUTOra Demo School"
 DEV_STUDENT_NUMBER = "100001"
+# NEW 15 Nov 2026 (ADR-024, teacher dashboard access + bulk student
+# provisioning). There is still no in-product way to create a school's
+# FIRST teacher account (ADR-017's "no self-service signup" stance
+# applies to teachers too) -- this script remains the only way, same
+# as it was the only way to log in as a student before this script
+# existed to provision one.
+DEV_TEACHER_NUMBER = "T00001"
 DEV_STUDENT_PASSWORD = "DevPass123!"
+DEV_TEACHER_PASSWORD = "DevTeachPass123!"
 
 PLACEHOLDER_EMBEDDING = [0.0] * 1536
 
@@ -1477,6 +1485,31 @@ async def get_or_create_demo_student_account(session, school: School, learner: L
     return user
 
 
+async def get_or_create_demo_teacher_account(session, school: School) -> User:
+    """
+    NEW 15 Nov 2026 (ADR-024, teacher dashboard access + bulk student
+    provisioning). Mirrors get_or_create_demo_student_account() above --
+    idempotent, so re-running this script doesn't try to provision a
+    second teacher with the same staff number and collide. Unlike the
+    student account, there's no existing_learner to attach to (a
+    teacher has no Learner at all).
+    """
+    result = await session.execute(
+        select(User).where(User.school_id == school.id, User.student_number == DEV_TEACHER_NUMBER)
+    )
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    user, _ = await provision_teacher(
+        session,
+        school=school,
+        staff_number=DEV_TEACHER_NUMBER,
+        raw_password=DEV_TEACHER_PASSWORD,
+    )
+    return user
+
+
 def _validate_subject_data(subject_spec: dict, known_subjects: set[tuple[str, int]]) -> None:
     """Fails fast on a typo'd prerequisite name/reference or a question-dict
     key that doesn't match a real topic name, instead of half-seeding the
@@ -1570,6 +1603,7 @@ async def main() -> None:
         learner = await get_or_create_dev_learner(session)
         demo_school = await get_or_create_demo_school(session)
         demo_user = await get_or_create_demo_student_account(session, demo_school, learner)
+        demo_teacher = await get_or_create_demo_teacher_account(session, demo_school)
 
         await session.commit()
 
@@ -1594,6 +1628,11 @@ async def main() -> None:
         print(f"  School:         {demo_school.name}  (id {demo_school.id})")
         print(f"  Student number: {demo_user.student_number}")
         print(f"  Password:       {DEV_STUDENT_PASSWORD}")
+        print()
+        print("Or log in as the teacher account (ADR-024 -- dashboard + bulk student provisioning):")
+        print(f"  School:         {demo_school.name}  (id {demo_school.id})")
+        print(f"  Staff number:   {demo_teacher.student_number}")
+        print(f"  Password:       {DEV_TEACHER_PASSWORD}")
         print()
         print("Use these ids for a direct API smoke test (after logging in for a token), e.g.:")
         for subject, topics_by_name, _, _ in results:

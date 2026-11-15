@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ChatScreen from "./components/ChatScreen";
 import LoginScreen from "./components/LoginScreen";
+import TeacherAdminScreen from "./components/TeacherAdminScreen";
 import { fetchMe } from "./api";
 import "./styles/product-tokens.css";
 import "./styles/chat.css";
@@ -28,7 +29,12 @@ function App() {
     (async () => {
       try {
         const me = await fetchMe(storedToken);
-        setAuth({ token: storedToken, learner: me.learner, school: me.school });
+        // NEW 15 Nov 2026 (ADR-024): `role` tells us whether to render
+        // ChatScreen or TeacherAdminScreen below -- `me.learner` is now
+        // `null` for a teacher, so nothing downstream can accidentally
+        // treat a teacher session as a student one just because the
+        // field exists.
+        setAuth({ token: storedToken, role: me.role, learner: me.learner, school: me.school });
         setStatus("loggedIn");
       } catch {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -39,7 +45,12 @@ function App() {
 
   const handleLogin = (response) => {
     sessionStorage.setItem(TOKEN_STORAGE_KEY, response.access_token);
-    setAuth({ token: response.access_token, learner: response.learner, school: response.school });
+    setAuth({
+      token: response.access_token,
+      role: response.role,
+      learner: response.learner,
+      school: response.school,
+    });
     setStatus("loggedIn");
   };
 
@@ -55,6 +66,14 @@ function App() {
 
   if (status === "loggedOut" || !auth) {
     return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  // NEW 15 Nov 2026 (ADR-024): role-aware rendering -- a teacher never
+  // sees the student ChatScreen, and vice versa. Same login screen for
+  // both (school + login identifier + password); the backend's `role`
+  // on the login/me response is what branches here.
+  if (auth.role === "teacher") {
+    return <TeacherAdminScreen auth={auth} onLogout={handleLogout} />;
   }
 
   return <ChatScreen auth={auth} onLogout={handleLogout} />;

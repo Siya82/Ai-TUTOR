@@ -130,6 +130,70 @@ export async function changePassword({ token, currentPassword, newPassword }) {
 }
 
 /*
+ * NEW 15 Nov 2026 (ADR-024, teacher dashboard access + bulk student
+ * provisioning). Three teacher-only admin calls, all requiring a
+ * teacher-role token (a student token gets a 403 from the backend).
+ * Used by TeacherAdminScreen.jsx.
+ */
+
+/** This teacher's own school's students: [{ learner_id, user_id, display_name, grade, student_number, created_at }, ...]. */
+export function fetchAdminStudents(token) {
+  return getJson("/admin/students", token);
+}
+
+/**
+ * Provisions one student. Returns the backend's StudentCreateResult,
+ * including `temp_password` -- shown to the teacher exactly once, since
+ * (same as provision_student() itself) this is the only point it's
+ * ever visible outside the student's own head.
+ */
+export async function createStudent({ token, displayName, grade, studentNumber }) {
+  const payload = { display_name: displayName, grade };
+  if (studentNumber) payload.student_number = studentNumber;
+
+  const response = await fetch(`${API_BASE_URL}/admin/students`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `Creating student failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.json();
+}
+
+/**
+ * Bulk-provisions students from a CSV file (columns: display_name,
+ * grade, optional student_number). Returns the backend's
+ * BulkStudentUploadResponse: { created: [...], errors: [{row, message}] }
+ * -- a 200 with some rows in `errors` is the normal "partial success"
+ * shape, not a thrown error; this only throws for a whole-file problem
+ * (e.g. missing columns), which the backend reports as a 400.
+ */
+export async function bulkCreateStudents({ token, file }) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/admin/students/bulk`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `Bulk upload failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.json();
+}
+
+/*
  * NEW 13 Nov 2026 (ADR-016, student file attachments). Uploads a single
  * file ahead of the message it'll go with -- the upload happens first
  * so the composer can show a preview (including any extraction_warning,

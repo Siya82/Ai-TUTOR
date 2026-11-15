@@ -176,7 +176,12 @@ export default function LoginScreen({ onLogin }) {
             </select>
           </label>
           <label className="login-screen__field">
-            <span>Student number</span>
+            {/* NEW 15 Nov 2026 (ADR-024): the backend's User.student_number
+                column is reused as a generic login identifier for a
+                teacher's staff number too (see provision_teacher()'s
+                docstring) -- this label covers both without the login
+                form itself needing to know which role is signing in. */}
+            <span>Student / staff number</span>
             <input
               type="text"
               name="username"

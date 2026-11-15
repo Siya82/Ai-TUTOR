@@ -7,6 +7,12 @@ Per later project memory, this module had an import crash, a SQLAlchemy
 cast bug, an N+1 query, and a topic-filter bug fixed after this snapshot —
 not reflected below. Re-review carefully against real test data on rebuild
 rather than trusting this copy blindly.
+
+NEW 15 Nov 2026 (ADR-024, teacher dashboard access + bulk student
+provisioning): get_dashboard_summary()'s overview branch gained an
+optional `school_id` filter so app/routers/dashboard.py can scope the
+"list every learner" view to the authenticated teacher's own school,
+now that the endpoint actually has authentication to scope by.
 """
 
 from typing import List, Dict, Optional
@@ -15,7 +21,7 @@ from sqlalchemy import select, func, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
-    Learner, Attempt, Question, Topic, Subject
+    Learner, Attempt, Question, Topic, Subject, User
 )
 from app.services.risk_assessment import assess_risk, RiskLevel
 
@@ -134,12 +140,19 @@ async def get_learner_risk_assessment(
 async def get_dashboard_summary(
     db: AsyncSession,
     learner_id: Optional[UUID] = None,
-    topic_id: Optional[UUID] = None
+    topic_id: Optional[UUID] = None,
+    school_id: Optional[UUID] = None,
 ) -> Dict:
     """
     Overall dashboard summary:
     - List of learners (if no learner_id) with basic stats
     - Or detailed summary for a specific learner
+
+    `school_id` (NEW 15 Nov 2026, ADR-024) only affects the "list every
+    learner" branch below -- the single-learner branch already takes a
+    specific learner_id, and the caller (app/routers/dashboard.py) is
+    responsible for confirming THAT learner belongs to the requesting
+    teacher's school before calling this at all, via _assert_same_school.
     """
     if learner_id:
         # Detailed view for one learner
@@ -206,8 +219,14 @@ async def get_dashboard_summary(
                 stats_subq.c.last_activity
             )
             .outerjoin(stats_subq, Learner.id == stats_subq.c.learner_id)
-            .order_by(Learner.display_name)
         )
+        # NEW 15 Nov 2026 (ADR-024): scoping join is only added when a
+        # school_id filter was actually requested, so this query's shape
+        # (and its existing test coverage, if any calls it with no
+        # school_id) is unchanged for every other caller.
+        if school_id is not None:
+            stmt = stmt.join(User, Learner.user_id == User.id).where(User.school_id == school_id)
+        stmt = stmt.order_by(Learner.display_name)
         result = await db.execute(stmt)
         rows = result.all()
 

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_learner, get_current_user
+from app.core.security import get_current_user
 from app.models import Learner, School, User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -46,17 +46,31 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect student number or password")
 
+    school = await db.get(School, user.school_id)
+    token = create_access_token(str(user.id), user.role)
+
+    # NEW 15 Nov 2026 (ADR-024): a teacher User has no linked Learner at
+    # all -- provision_teacher() never creates one -- so this branches
+    # before the student-only "No learner profile linked" 404 below,
+    # which would otherwise incorrectly fire for every teacher login.
+    if user.role == "teacher":
+        return LoginResponse(
+            access_token=token,
+            must_change_password=user.must_change_password,
+            role=user.role,
+            learner=None,
+            school=SchoolProfile(id=school.id, name=school.name),
+        )
+
     learner_result = await db.execute(select(Learner).where(Learner.user_id == user.id))
     learner = learner_result.scalar_one_or_none()
     if learner is None:
         raise HTTPException(status_code=404, detail="No learner profile linked to this account")
 
-    school = await db.get(School, user.school_id)
-
-    token = create_access_token(str(user.id), user.role)
     return LoginResponse(
         access_token=token,
         must_change_password=user.must_change_password,
+        role=user.role,
         learner=_learner_profile(learner),
         school=SchoolProfile(id=school.id, name=school.name),
     )
@@ -65,13 +79,29 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
 @router.get("/me", response_model=MeResponse)
 async def read_me(
     user: User = Depends(get_current_user),
-    learner: Learner = Depends(get_current_learner),
     db: AsyncSession = Depends(get_db),
 ) -> MeResponse:
-    """Lets the frontend re-hydrate a stored token on page load without re-sending the password."""
+    """
+    Lets the frontend re-hydrate a stored token on page load without
+    re-sending the password.
+
+    FIX 15 Nov 2026 (ADR-024): no longer depends on get_current_learner
+    directly -- that dependency 404s outright for a teacher User (which
+    has no Learner row at all), which would have broken page-refresh
+    for every teacher session. The learner lookup now happens inline
+    here instead, and is allowed to come back empty for a non-student
+    role.
+    """
     school = await db.get(School, user.school_id)
+    learner_profile = None
+    if user.role != "teacher":
+        learner_result = await db.execute(select(Learner).where(Learner.user_id == user.id))
+        learner = learner_result.scalar_one_or_none()
+        if learner is not None:
+            learner_profile = _learner_profile(learner)
     return MeResponse(
-        learner=_learner_profile(learner),
+        role=user.role,
+        learner=learner_profile,
         school=SchoolProfile(id=school.id, name=school.name),
         must_change_password=user.must_change_password,
     )

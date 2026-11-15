@@ -22,6 +22,7 @@ from app.routers import subjects as subjects_router  # NEW 12 Nov 2026, multi-su
 from app.routers import attachments as attachments_router  # NEW 13 Nov 2026, student file attachments (ADR-016)
 from app.routers import auth as auth_router  # NEW 14 Nov 2026, student login (ADR-017)
 from app.routers import schools as schools_router  # NEW 14 Nov 2026, student login (ADR-017)
+from app.routers import admin as admin_router  # NEW 15 Nov 2026, teacher dashboard access + bulk student provisioning (ADR-024)
 
 app = FastAPI(
     title="AI CAPS Tutor — Pilot API",
@@ -44,6 +45,7 @@ app.include_router(subjects_router.router, tags=["subjects"])  # NEW 12 Nov 2026
 app.include_router(attachments_router.router, tags=["attachments"])  # NEW 13 Nov 2026, student file attachments (ADR-016)
 app.include_router(auth_router.router, tags=["auth"])  # NEW 14 Nov 2026, student login (ADR-017)
 app.include_router(schools_router.router, tags=["schools"])  # NEW 14 Nov 2026, student login (ADR-017)
+app.include_router(admin_router.router, tags=["admin"])  # NEW 15 Nov 2026, teacher dashboard access + bulk student provisioning (ADR-024)
 
 
 @app.get("/health")

@@ -108,18 +108,7 @@ async def provision_student(
         raw_password = temp_password
 
     if student_number is None:
-        for _ in range(10):
-            candidate = generate_student_number()
-            existing = await db.execute(
-                select(User).where(
-                    User.school_id == school.id, User.student_number == candidate
-                )
-            )
-            if existing.scalar_one_or_none() is None:
-                student_number = candidate
-                break
-        else:
-            raise RuntimeError("Could not generate a unique student number after 10 attempts")
+        student_number = await _generate_unique_login_number(db, school)
 
     user = User(
         role="student",
@@ -140,3 +129,75 @@ async def provision_student(
     await db.flush()
 
     return user, learner, temp_password
+
+
+async def _generate_unique_login_number(db: AsyncSession, school: School) -> str:
+    """
+    NEW 15 Nov 2026 (ADR-024). Extracted from provision_student()'s own
+    inline retry loop so provision_teacher() (below) gets the exact same
+    collision-checked behaviour from one place, rather than a second
+    copy of the loop. Generates a digits-only login identifier unique
+    within `school` -- a student's student number, or a teacher's staff
+    number, both of which reuse the same `User.student_number` column
+    (see provision_teacher()'s docstring for why that's not a new
+    column/migration).
+    """
+    for _ in range(10):
+        candidate = generate_student_number()
+        existing = await db.execute(
+            select(User).where(
+                User.school_id == school.id, User.student_number == candidate
+            )
+        )
+        if existing.scalar_one_or_none() is None:
+            return candidate
+    raise RuntimeError("Could not generate a unique login number after 10 attempts")
+
+
+async def provision_teacher(
+    db: AsyncSession,
+    *,
+    school: School,
+    staff_number: str | None = None,
+    raw_password: str | None = None,
+) -> tuple[User, str | None]:
+    """
+    NEW 15 Nov 2026 (ADR-024, teacher dashboard access + bulk student
+    provisioning). Creates a User with role="teacher" for one school --
+    no Learner is created, since a teacher has no pedagogical profile to
+    go with it. Deliberately mirrors provision_student()'s shape (same
+    temp-password semantics, same collision-checked login-number
+    generation via _generate_unique_login_number) rather than
+    duplicating that logic, since structurally this is the exact same
+    login mechanism with a different role -- reusing the `student_number`
+    column as a generic login identifier rather than adding a new column
+    (and a migration) for what would otherwise just be "the same field,
+    renamed".
+
+    Returns (user, temp_password) -- temp_password is None when
+    raw_password was supplied explicitly, same convention as
+    provision_student(). ADR-017's "no self-service signup" stance
+    applies here too: there is still no in-product way for a NEW school
+    to get its first teacher account; this function is called directly
+    (e.g. from scripts/seed_dev_data.py for local dev, or a future
+    onboarding script) rather than from any public endpoint.
+    """
+    temp_password = None
+    if raw_password is None:
+        temp_password = generate_temp_password()
+        raw_password = temp_password
+
+    if staff_number is None:
+        staff_number = await _generate_unique_login_number(db, school)
+
+    user = User(
+        role="teacher",
+        school_id=school.id,
+        student_number=staff_number,
+        password_hash=hash_password(raw_password),
+        must_change_password=temp_password is not None,
+    )
+    db.add(user)
+    await db.flush()
+
+    return user, temp_password

@@ -30,7 +30,14 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     must_change_password: bool
-    learner: LearnerProfile
+    # NEW 15 Nov 2026 (ADR-024): the frontend needs this to decide
+    # whether to render the student ChatScreen or the teacher
+    # TeacherAdminScreen -- previously every logged-in User was
+    # implicitly a student, so nothing read `role` at all.
+    role: str
+    # None for a teacher login -- provision_teacher() never creates a
+    # Learner, since a teacher has no pedagogical profile.
+    learner: LearnerProfile | None = None
     school: SchoolProfile
 
 
@@ -43,6 +50,10 @@ class ChangePasswordRequest(BaseModel):
 
 
 class MeResponse(BaseModel):
-    learner: LearnerProfile
+    # NEW 15 Nov 2026 (ADR-024): same role field as LoginResponse, read
+    # on page-load re-hydration too so a refreshed teacher session still
+    # renders TeacherAdminScreen instead of falling back to ChatScreen.
+    role: str
+    learner: LearnerProfile | None = None
     school: SchoolProfile
     must_change_password: bool

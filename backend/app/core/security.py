@@ -62,3 +62,19 @@ async def get_current_learner(
     if learner is None:
         raise HTTPException(status_code=404, detail="No learner profile linked to this account")
     return learner
+
+
+async def get_current_teacher(user: User = Depends(get_current_user)) -> User:
+    """
+    NEW 15 Nov 2026 (ADR-024, teacher dashboard access + bulk student
+    provisioning). The dependency app/routers/dashboard.py and
+    app/routers/admin.py use to gate teacher-only endpoints -- resolves
+    the same authenticated User as get_current_user, but 403s (not
+    401 -- the token itself is perfectly valid, the role just isn't
+    allowed on this endpoint) when its role isn't "teacher".
+    Deliberately does NOT also resolve a Learner the way
+    get_current_learner does, since a teacher doesn't have one at all.
+    """
+    if user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Teacher access required")
+    return user
