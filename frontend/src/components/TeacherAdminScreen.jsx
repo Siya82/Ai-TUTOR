@@ -20,12 +20,22 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { bulkCreateStudents, createStudent, fetchAdminStudents } from "../api";
+import {
+  bulkCreateStudents,
+  createAssignment,
+  createCustomQuestion,
+  createStudent,
+  fetchAdminStudents,
+  fetchTeachAssignment,
+  fetchTeachAssignments,
+  fetchTopics,
+} from "../api";
 
 const TABS = [
   { id: "roster", label: "Students" },
   { id: "add", label: "Add student" },
   { id: "bulk", label: "Bulk upload" },
+  { id: "assignments", label: "Assignments" },
 ];
 
 export default function TeacherAdminScreen({ auth, onLogout }) {
@@ -100,6 +110,9 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         )}
         {tab === "bulk" && (
           <BulkUploadPanel token={auth.token} onLogout={onLogout} onCreated={loadRoster} />
+        )}
+        {tab === "assignments" && (
+          <AssignmentsPanel token={auth.token} onLogout={onLogout} students={students} />
         )}
       </main>
     </div>
@@ -330,6 +343,361 @@ function BulkUploadPanel({ token, onLogout, onCreated }) {
             </p>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function AssignmentsPanel({ token, onLogout, students }) {
+  const [assignments, setAssignments] = useState([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState(null);
+
+  const loadAssignments = async () => {
+    setListLoading(true);
+    setListError(null);
+    try {
+      const list = await fetchTeachAssignments(token);
+      setAssignments(list);
+    } catch (err) {
+      if (err.status === 401) {
+        onLogout();
+        return;
+      }
+      setListError(err.message);
+    } finally {
+      setListLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAssignments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openDetail = async (id) => {
+    setSelected(id);
+    setDetail(null);
+    setDetailError(null);
+    try {
+      const d = await fetchTeachAssignment(token, id);
+      setDetail(d);
+    } catch (err) {
+      if (err.status === 401) {
+        onLogout();
+        return;
+      }
+      setDetailError(err.message);
+    }
+  };
+
+  return (
+    <div className="admin-panel">
+      <CreateAssignmentForm
+        token={token}
+        onLogout={onLogout}
+        students={students}
+        onCreated={loadAssignments}
+      />
+
+      <h3 className="admin-screen__subheading">My assignments</h3>
+      {listLoading && <p className="admin-screen__muted">Loading assignments…</p>}
+      {listError && (
+        <div className="admin-screen__error">
+          {listError}{" "}
+          <button type="button" className="admin-screen__link-button" onClick={loadAssignments}>
+            Try again
+          </button>
+        </div>
+      )}
+      {!listLoading && !listError && assignments.length === 0 && (
+        <p className="admin-screen__muted">No assignments yet — create one above.</p>
+      )}
+      {!listLoading && !listError && assignments.length > 0 && (
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Due</th>
+              <th>Questions</th>
+              <th>Students</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map((a) => (
+              <tr key={a.id}>
+                <td>{a.title}</td>
+                <td>{a.due_at ? new Date(a.due_at).toLocaleDateString() : "—"}</td>
+                <td>{a.question_count}</td>
+                <td>{a.target_count}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="admin-screen__link-button"
+                    onClick={() => openDetail(a.id)}
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {selected && (
+        <div className="admin-result">
+          {detailError && <div className="admin-screen__error">{detailError}</div>}
+          {detail && (
+            <>
+              <p className="admin-result__title">{detail.title} — completion</p>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Status</th>
+                    <th>Answered</th>
+                    <th>Correct</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.completions.map((c) => (
+                    <tr key={c.learner_id}>
+                      <td>{c.display_name}</td>
+                      <td>{c.status.replace("_", " ")}</td>
+                      <td>
+                        {c.answered_count} / {c.question_count}
+                      </td>
+                      <td>{c.correct_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
+  const [title, setTitle] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [selectedLearnerIds, setSelectedLearnerIds] = useState([]);
+
+  // One pending custom question being authored right now (text/model
+  // answer/topic) plus the list of questions already created and
+  // attached to this not-yet-submitted assignment. ADR-028 deliberately
+  // keeps this to teacher-authored custom questions only, for now --
+  // there's no endpoint to browse the existing seeded CAPS question
+  // bank, so reusing it isn't offered here yet.
+  const [topicId, setTopicId] = useState("");
+  const [questionText, setQuestionText] = useState("");
+  const [modelAnswer, setModelAnswer] = useState("");
+  const [addingQuestion, setAddingQuestion] = useState(false);
+  const [questionError, setQuestionError] = useState(null);
+  const [draftQuestions, setDraftQuestions] = useState([]); // [{id, text}]
+
+  const [topics, setTopics] = useState([]);
+  const [topicsError, setTopicsError] = useState(null);
+
+  useEffect(() => {
+    fetchTopics(token)
+      .then(setTopics)
+      .catch((err) => {
+        if (err.status === 401) {
+          onLogout();
+          return;
+        }
+        setTopicsError(err.message);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [createdSummary, setCreatedSummary] = useState(null);
+
+  const toggleLearner = (id) => {
+    setSelectedLearnerIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleAddQuestion = async (e) => {
+    e.preventDefault();
+    if (!topicId || !questionText.trim() || !modelAnswer.trim() || addingQuestion) return;
+    setAddingQuestion(true);
+    setQuestionError(null);
+    try {
+      const created = await createCustomQuestion({
+        token,
+        topicId,
+        text: questionText.trim(),
+        modelAnswer: modelAnswer.trim(),
+      });
+      setDraftQuestions((prev) => [...prev, { id: created.id, text: created.text }]);
+      setQuestionText("");
+      setModelAnswer("");
+    } catch (err) {
+      if (err.status === 401) {
+        onLogout();
+        return;
+      }
+      setQuestionError(err.message);
+    } finally {
+      setAddingQuestion(false);
+    }
+  };
+
+  const removeDraftQuestion = (id) => {
+    setDraftQuestions((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const handleCreateAssignment = async (e) => {
+    e.preventDefault();
+    if (!title.trim() || draftQuestions.length === 0 || selectedLearnerIds.length === 0) return;
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const created = await createAssignment({
+        token,
+        title: title.trim(),
+        instructions: instructions.trim() || undefined,
+        dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+        questionIds: draftQuestions.map((q) => q.id),
+        learnerIds: selectedLearnerIds,
+      });
+      setCreatedSummary(created);
+      setTitle("");
+      setInstructions("");
+      setDueAt("");
+      setDraftQuestions([]);
+      setSelectedLearnerIds([]);
+      onCreated();
+    } catch (err) {
+      if (err.status === 401) {
+        onLogout();
+        return;
+      }
+      setSubmitError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="admin-form">
+      <h3 className="admin-screen__subheading">Create an assignment</h3>
+
+      <label className="admin-form__field">
+        <span>Title</span>
+        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+      </label>
+      <label className="admin-form__field">
+        <span>Instructions (optional)</span>
+        <input
+          type="text"
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+        />
+      </label>
+      <label className="admin-form__field">
+        <span>Due date (optional)</span>
+        <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+      </label>
+
+      <fieldset className="admin-form__fieldset">
+        <legend>Add a question</legend>
+        {topicsError && <div className="admin-screen__error">{topicsError}</div>}
+        <label className="admin-form__field">
+          <span>Topic</span>
+          <select value={topicId} onChange={(e) => setTopicId(e.target.value)}>
+            <option value="">Select a topic…</option>
+            {topics.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-form__field">
+          <span>Question text</span>
+          <textarea value={questionText} onChange={(e) => setQuestionText(e.target.value)} />
+        </label>
+        <label className="admin-form__field">
+          <span>Model answer</span>
+          <textarea value={modelAnswer} onChange={(e) => setModelAnswer(e.target.value)} />
+        </label>
+        {questionError && <div className="admin-screen__error">{questionError}</div>}
+        <button
+          type="button"
+          className="admin-form__primary-button"
+          onClick={handleAddQuestion}
+          disabled={addingQuestion}
+        >
+          {addingQuestion ? "Adding…" : "Add question to this assignment"}
+        </button>
+
+        {draftQuestions.length > 0 && (
+          <ul className="admin-errors">
+            {draftQuestions.map((q) => (
+              <li key={q.id}>
+                {q.text}{" "}
+                <button
+                  type="button"
+                  className="admin-screen__link-button"
+                  onClick={() => removeDraftQuestion(q.id)}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </fieldset>
+
+      <fieldset className="admin-form__fieldset">
+        <legend>Assign to</legend>
+        {students.length === 0 && (
+          <p className="admin-screen__muted">No students yet — add one on the Students tab first.</p>
+        )}
+        {students.map((s) => (
+          <label key={s.learner_id} className="admin-form__checkbox-row">
+            <input
+              type="checkbox"
+              checked={selectedLearnerIds.includes(s.learner_id)}
+              onChange={() => toggleLearner(s.learner_id)}
+            />
+            {s.display_name} (Grade {s.grade})
+          </label>
+        ))}
+      </fieldset>
+
+      {submitError && <div className="admin-screen__error">{submitError}</div>}
+      <button
+        type="button"
+        className="admin-form__primary-button"
+        onClick={handleCreateAssignment}
+        disabled={
+          submitting || !title.trim() || draftQuestions.length === 0 || selectedLearnerIds.length === 0
+        }
+      >
+        {submitting ? "Creating…" : "Create assignment"}
+      </button>
+
+      {createdSummary && (
+        <p className="admin-screen__muted">
+          “{createdSummary.title}” created with {createdSummary.question_count} question(s) for{" "}
+          {createdSummary.target_count} student(s).
+        </p>
       )}
     </div>
   );

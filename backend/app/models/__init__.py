@@ -229,6 +229,17 @@ class Question(Base):
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # NEW 15 Nov 2026 (ADR-028, assignments). None for every seeded/
+    # diagnostic/AI-generated question exactly as before -- set to the
+    # authoring teacher's User.id for a custom question a teacher wrote
+    # themselves. No separate boolean needed: "is this teacher-authored"
+    # is just created_by_user_id IS NOT NULL. is_diagnostic/is_ai_generated
+    # both stay False for a teacher-authored question, since it is
+    # neither of those existing categories.
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+
 
 class TutorSession(Base):
     """
@@ -332,7 +343,70 @@ class Attempt(Base):
     ai_feedback: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # NEW 15 Nov 2026 (ADR-028, assignments). None for every ordinary
+    # diagnostic/adaptive-practice attempt exactly as before -- set only
+    # when this response was submitted against a specific question of a
+    # specific assignment, via app/services/assignments.py's
+    # submit_assignment_answer(). Every existing reader of Attempt
+    # (diagnosis.py, personalization.py, dashboard.py, risk_assessment.py)
+    # is unaffected, since none of them filter on this column -- Attempt
+    # stays the one source of truth for mastery, assignment-origin or not.
+    assignment_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("assignments.id"), nullable=True
+    )
+
     learner: Mapped["Learner"] = relationship(back_populates="attempts")
+
+
+class Assignment(Base):
+    """
+    One piece of work a teacher issues: a title, optional instructions
+    and due date, a set of questions (assignment_questions, seeded
+    and/or the teacher's own custom ones), and the students it was
+    actually issued to (assignment_targets). See docs/ADR-028-assignments.md.
+    """
+
+    __tablename__ = "assignments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"))
+    teacher_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    instructions: Mapped[str | None] = mapped_column(Text)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AssignmentQuestion(Base):
+    """
+    The ordered many-to-many between an Assignment and the Question rows
+    it contains. A Question (seeded or teacher-authored) can belong to
+    more than one Assignment -- it is not exclusive to the one it was
+    first added to.
+    """
+
+    __tablename__ = "assignment_questions"
+    __table_args__ = (UniqueConstraint("assignment_id", "question_id", name="uq_assignment_question"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    assignment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assignments.id"))
+    question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id"))
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AssignmentTarget(Base):
+    """
+    Which Learners an Assignment was actually issued to. No Class/group
+    concept yet -- a teacher targets students individually, picked from
+    the same roster the ADR-024 admin UI already lists.
+    """
+
+    __tablename__ = "assignment_targets"
+    __table_args__ = (UniqueConstraint("assignment_id", "learner_id", name="uq_assignment_target"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    assignment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assignments.id"))
+    learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"))
 
 
 class Attachment(Base):

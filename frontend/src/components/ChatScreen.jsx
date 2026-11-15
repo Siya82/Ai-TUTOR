@@ -42,6 +42,7 @@ import SubjectTopicSidebar from "./SubjectTopicSidebar";
 import MarkdownMessage from "./MarkdownMessage";
 import MathVerifiedBadge from "./MathVerifiedBadge";
 import SymbolKeyboard from "./SymbolKeyboard";
+import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
 
 function topicNameById(topics, id) {
   const topic = topics.find((t) => t.id === id);
@@ -188,6 +189,10 @@ function AttachmentChip({ attachment, onRemove }) {
 }
 
 export default function ChatScreen({ auth, onLogout }) {
+  // NEW 15 Nov 2026 (ADR-028, assignments). A lightweight in-screen
+  // toggle rather than a real route -- matches how TeacherAdminScreen.jsx
+  // switches its own tabs with local state, not a router.
+  const [view, setView] = useState("chat"); // "chat" | "assignments"
   const [subjects, setSubjects] = useState([]);
   const [topics, setTopics] = useState([]);
   const [subjectId, setSubjectId] = useState(null);
@@ -437,16 +442,18 @@ export default function ChatScreen({ auth, onLogout }) {
 
   return (
     <div className="app-shell">
-      <aside className="app-shell__sidebar">
-        <SubjectTopicSidebar
-          subjects={subjects}
-          topics={topics}
-          selectedSubjectId={subjectId}
-          selectedTopicId={topicId}
-          onSelectTopic={handleSelectTopic}
-          disabled={sending}
-        />
-      </aside>
+      {view === "chat" && (
+        <aside className="app-shell__sidebar">
+          <SubjectTopicSidebar
+            subjects={subjects}
+            topics={topics}
+            selectedSubjectId={subjectId}
+            selectedTopicId={topicId}
+            onSelectTopic={handleSelectTopic}
+            disabled={sending}
+          />
+        </aside>
+      )}
 
       <div className="chat-screen">
       <header className="chat-screen__header">
@@ -455,7 +462,29 @@ export default function ChatScreen({ auth, onLogout }) {
           THUTOra<span className="chat-screen__brand-dot">.</span>
         </div>
         <div className="chat-screen__header-right">
-          <ModalitySwitcher modality={modality} onChange={setModality} />
+          <nav className="chat-screen__view-toggle">
+            <button
+              type="button"
+              className={
+                "chat-screen__view-toggle-button" +
+                (view === "chat" ? " chat-screen__view-toggle-button--active" : "")
+              }
+              onClick={() => setView("chat")}
+            >
+              Tutor chat
+            </button>
+            <button
+              type="button"
+              className={
+                "chat-screen__view-toggle-button" +
+                (view === "assignments" ? " chat-screen__view-toggle-button--active" : "")
+              }
+              onClick={() => setView("assignments")}
+            >
+              Assignments
+            </button>
+          </nav>
+          {view === "chat" && <ModalitySwitcher modality={modality} onChange={setModality} />}
           {/* NEW 14 Nov 2026 (ADR-017): the student's own name + a
               logout button, where the Learner badge used to sit in the
               sidebar before real login existed. */}
@@ -468,6 +497,10 @@ export default function ChatScreen({ auth, onLogout }) {
         </div>
       </header>
 
+      {view === "assignments" ? (
+        <AssignmentsView auth={auth} onLogout={onLogout} />
+      ) : (
+      <>
       {loadError && <div className="chat-screen__error">{loadError}</div>}
 
       <div className="chat-screen__transcript" ref={transcriptRef}>
@@ -558,6 +591,8 @@ export default function ChatScreen({ auth, onLogout }) {
           Send
         </button>
       </form>
+      </>
+      )}
       </div>
     </div>
   );

@@ -273,3 +273,98 @@ export async function sendTutorMessage({ message, sessionId, topicId, attachment
 
   return response.json();
 }
+
+
+/*
+ * NEW 15 Nov 2026 (ADR-028, assignments). Teacher-side assignment
+ * authoring/scoring calls, used by the new "Assignments" tab in
+ * TeacherAdminScreen.jsx, and the matching learner-side calls used by
+ * a new assignments view in ChatScreen.jsx. All teacher calls require
+ * a teacher-role token; all learner calls require a student-role
+ * token -- same posture as the existing admin/* calls above.
+ */
+
+async function postJson(path, token, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `POST ${path} failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.json();
+}
+
+/**
+ * A teacher-authored question, reusable across any number of future
+ * assignments. Returns the backend's CustomQuestionResult.
+ */
+export function createCustomQuestion({ token, topicId, text, modelAnswer }) {
+  return postJson("/teach/questions", token, {
+    topic_id: topicId,
+    text,
+    model_answer: modelAnswer,
+  });
+}
+
+/**
+ * Creates an assignment from a set of question ids (from
+ * createCustomQuestion() above) and a set of learner ids (from this
+ * teacher's own roster, fetchAdminStudents() above). dueAt is an ISO
+ * string or omitted. Returns the backend's AssignmentSummary.
+ */
+export function createAssignment({ token, title, instructions, dueAt, questionIds, learnerIds }) {
+  const payload = { title, question_ids: questionIds, learner_ids: learnerIds };
+  if (instructions) payload.instructions = instructions;
+  if (dueAt) payload.due_at = dueAt;
+  return postJson("/teach/assignments", token, payload);
+}
+
+/** This teacher's own assignments: a list of AssignmentSummary. */
+export function fetchTeachAssignments(token) {
+  return getJson("/teach/assignments", token);
+}
+
+/**
+ * One assignment's full detail, including every question (with its
+ * model_answer -- this is the teacher-facing view) and a per-student
+ * completion/score breakdown (AssignmentDetail).
+ */
+export function fetchTeachAssignment(token, assignmentId) {
+  return getJson(`/teach/assignments/${assignmentId}`, token);
+}
+
+/**
+ * Assignments issued to the logged-in student, with a computed
+ * status ("not_started" | "in_progress" | "completed") per
+ * assignment: a list of LearnerAssignmentSummary.
+ */
+export function fetchMyAssignments(token) {
+  return getJson("/assignments", token);
+}
+
+/**
+ * One assignment's questions for the logged-in student -- NEVER
+ * includes model_answer (app/schemas/assignments.py's
+ * LearnerQuestionItem) -- plus this student's own prior answer,
+ * mark, and feedback for each question already attempted.
+ */
+export function fetchMyAssignment(token, assignmentId) {
+  return getJson(`/assignments/${assignmentId}`, token);
+}
+
+/**
+ * Submits one answer to one question of one assignment. This is the
+ * real submit -> AI-mark -> Attempt-write flow (ADR-028) -- returns
+ * { question_id, is_correct, feedback } the moment marking completes.
+ */
+export function submitAssignmentAnswer({ token, assignmentId, questionId, learnerResponse }) {
+  return postJson(`/assignments/${assignmentId}/questions/${questionId}/answer`, token, {
+    learner_response: learnerResponse,
+  });
+}

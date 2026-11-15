@@ -2629,6 +2629,77 @@ actually shown on the login screen) should work; then resume the ADR-024
 live-test walkthrough (roster tab, add a student, log in as that student).
 
 
+## 2026-11-15 -- Assignments: teacher-authored questions, issued and tracked (ADR-028)
+
+Scoped via `AskUserQuestion` after Siya asked for "basically everything a teacher is
+supposed to do": start designing now (ahead of finishing the still-pending ADR-024
+live-test walkthrough); build assignments first, before formal tests or a progress
+dashboard; and let teachers author custom questions, not only reuse the seeded CAPS
+bank. Full design in `docs/ADR-028-assignments.md`.
+
+**Major finding surfaced while designing this, not Siya's ask but load-bearing
+either way:** a repo-wide grep for `Attempt(` found exactly one match -- the
+model's own class definition. Every other reference anywhere in `app/` is a
+read. Nothing in this codebase has ever actually written an `Attempt` row in
+production; the whole mastery/diagnosis/pace/risk subsystem has always run on
+an empty table outside unit tests' own fixtures. Building Assignments properly
+means building the first real "submit an answer, get it marked, write the
+Attempt row" path either way -- so this ADR builds that path once, as a byproduct,
+and every existing read-only consumer of `Attempt` (`diagnosis.py`,
+`personalization.py`, `dashboard.py`, `risk_assessment.py`) starts seeing real
+data the moment any learner actually completes an assignment, with no changes
+needed on their side.
+
+**What shipped:** migration `0006_add_assignments.py` (new `assignments`,
+`assignment_questions`, `assignment_targets` tables; `Question.created_by_user_id`
+and `Attempt.assignment_id`, both nullable, additive only); matching SQLAlchemy
+models; `app/services/answer_marking.py` (reuses `TutorClient.ask()` with a
+narrow marking-only prompt -- malformed/non-boolean output degrades to
+`is_correct=None`, "unmarked," never a guessed true/false); `app/services/assignments.py`
+(custom-question authoring, school/roster-scoped assignment creation --
+"the picker isn't the boundary," same as ADR-024/ADR-026 -- answer submission,
+and computed-not-stored completion status); two new routers
+(`teach_assignments.py`, `learner_assignments.py`, both registered in
+`main.py`); `app/schemas/assignments.py`; a fourth "Assignments" tab in
+`TeacherAdminScreen.jsx`; and a new student-facing `AssignmentsView.jsx`,
+toggled into `ChatScreen.jsx` alongside the existing tutor chat. The
+student-facing question view never returns `model_answer`.
+
+**Verification went further than usual this pass.** Earlier fixes this session
+were checked with `ast.parse` alone, on the stated assumption that this sandbox
+had no real FastAPI/pydantic/DB environment to run anything against. That
+assumption turned out to be wrong: FastAPI, SQLAlchemy, and pydantic were
+already installed here, and a few `pip install`s (pydantic-settings,
+python-jose, passlib, bcrypt, httpx) got every new module importing for real.
+Every new backend module resolves cleanly as a standalone import.
+`app.main` itself still can't be imported in this sandbox -- `personalization.py`/
+`diagnosis.py`/`tutor_orchestration.py` use `datetime.UTC`, which needs Python
+3.11+, and this sandbox's system `python3` is 3.10 -- a pre-existing environment
+gap unrelated to this change, confirmed not to block anything else. The
+**existing test suite ran for real**: `pytest tests/` (excluding the three
+files blocked by that same `datetime.UTC` gap) -- 148 passed, zero regressions.
+Added `tests/test_answer_marking.py` (6 tests covering clean JSON, a
+markdown-fenced response, malformed/non-boolean output, and an API failure,
+all correctly degrading to "unmarked" rather than a guessed verdict) and
+`tests/test_assignments.py` (the one pure function in that module --
+the DB-touching ones are deliberately left untested here, same line
+`test_admin.py` already draws around `bulk_provision_students()`). On the
+frontend: a real `vite build` succeeds (303 modules, no errors) and `eslint`
+reports only the same `react-hooks/set-state-in-effect` pattern the existing
+`loadRoster()` effect already triggers elsewhere in this file -- not a new
+category of issue.
+
+**Not done, flagged not dropped:** no live test yet against a real Claude call
+or a real browser session (dev teacher creates a real assignment, dev student
+answers it end to end); no way yet for a teacher to browse/reuse the seeded
+CAPS question bank in an assignment (only custom-authored questions are
+assignable -- confirmed via grep that no endpoint anywhere exposes `Question`
+for listing); formal tests, a dedicated TEACH progress dashboard, class/group
+targeting, and due-date enforcement are all real, named, deferred scope; AI
+marking quality against a real learner response is unverified (the defensive
+JSON-parsing is unit-tested, the judgment itself is not).
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
