@@ -208,3 +208,57 @@ def test_gap22_wrong_step_with_braced_subscript_is_now_caught():
     result = verify_tutor_response(text)
     assert result.verified is False
     assert any("does not follow from the previous one" in w for w in result.warnings)
+
+
+def test_gap23_standalone_wrong_limit_answer_is_now_caught():
+    """Found 15 Nov 2026 via the first live Grade 12 Differential
+    Calculus test -- exactly the risk ADR-022 flagged as untested when
+    Grade 12 content was added. A direct 'evaluate this limit' answer
+    (no first-principles function-label noise) is now a genuine,
+    checkable step: a wrong final value is positively caught, not
+    silently unparseable."""
+    text = (
+        "$$\\lim_{x \\to 2}(x^2 + 3x)$$\n"
+        "$$\\lim_{x \\to 2}(x^2 + 3x) = 99$$\n"
+    )
+    result = verify_tutor_response(text)
+    assert result.verified is False
+    assert any("does not hold numerically" in w for w in result.warnings)
+
+
+def test_gap23_standalone_correct_limit_answer_verifies_cleanly():
+    """Same shape as above, correct answer -- must pass with no false
+    'wrong' claim."""
+    text = (
+        "$$\\lim_{x \\to 2}(x^2 + 3x)$$\n"
+        "$$\\lim_{x \\to 2}(x^2 + 3x) = 10$$\n"
+    )
+    result = verify_tutor_response(text)
+    assert result.verified is True
+    assert not any("does not hold" in w for w in result.warnings)
+
+
+def test_gap23_first_principles_derivation_is_an_honest_limitation_not_a_false_verdict():
+    """The real live-captured scenario from the first Grade 12
+    Differential Calculus test: \\boxed{...} and f'(x) notation no
+    longer crash parsing (previously 4 'Could not parse' warnings on
+    this exact text), but the function-label-shaped steps (f(x+h) = ...,
+    the difference-quotient definition, the final f'(x) = ... lines)
+    remain an honest 'left unverified' -- the same accepted limitation
+    category as test_multi_symbol_identity_is_left_unverified_not_flagged_false
+    above, never a false pass OR a false failure."""
+    text = (
+        "$$f(x) = x^2 + 3x$$\n"
+        "$$f'(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}$$\n"
+        "$$f(x+h) = (x+h)^2 + 3(x+h)$$\n"
+        "$$f(x+h) = x^2 + 2xh + h^2 + 3x + 3h$$\n"
+        "$$f(x+h) - f(x) = 2xh + h^2 + 3h$$\n"
+        "$$\\frac{f(x+h) - f(x)}{h} = \\frac{2xh + h^2 + 3h}{h}$$\n"
+        "$$= 2x + h + 3$$\n"
+        "$$f'(x) = \\lim_{h \\to 0}(2x + h + 3)$$\n"
+        "$$\\boxed{f'(x) = 2x + 3}$$\n"
+    )
+    result = verify_tutor_response(text)
+    assert result.verified is True  # no contradiction found -- not a false "passed" claim either
+    assert not any("Could not parse" in w and "boxed" in w for w in result.warnings)
+    assert not any("does not follow" in w or "does not hold" in w for w in result.warnings)

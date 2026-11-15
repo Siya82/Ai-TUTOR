@@ -2518,6 +2518,68 @@ Added `Learner.skip_diagnosis: bool` (default `False`, migration `0005_add_skip_
 
 Added two new tests to `test_tutor_orchestration.py` on the exact chain/empty-history combination that otherwise redirects, confirming the bypass works and is opt-in. **Could not actually run them**: this sandbox's Python is 3.10, and the test file already imports `datetime.UTC` (3.11+) at module level, so `pytest` fails at collection before any test runs -- a pre-existing, unrelated sandbox limitation, not a regression from this change. Full details, rejected alternative (synthetic mastery `Attempt` rows), and the live-test handoff: `docs/ADR-027-dev-admin-diagnosis-bypass.md`.
 
+## 2026-11-15 -- MathGuard gap 23: boxed answers, prime notation, limit evaluation
+
+Siya's "what does partially checked mean?" question, with a screenshot of the
+first live Grade 12 Differential Calculus (first-principles) test, surfaced
+exactly the risk ADR-022 flagged as untested when Grade 12 content was added.
+Chose "fix it now" over documenting it as an accepted limitation.
+
+**Done (`backend/app/services/math_validator.py`):**
+- `strip_boxed()` -- brace-matched unwrap of `\boxed{...}` (same style as
+  `convert_sqrt`/`convert_frac`), so a final answer wrapped for display no
+  longer reaches sympy's parser as a literal, unparseable fragment.
+- `convert_prime_notation()` -- renames `f'(x)` to `fprime(x)` so it parses
+  without crashing. Deliberately NOT linked back to `f` symbolically, so
+  these lines still correctly fall into the existing multi-symbol "left
+  unverified" territory rather than a false single-variable solve.
+- `convert_limit_of_parenthesized_expression()` -- converts
+  `\lim_{VAR \to VALUE}(...)` (including a `\frac{...}{...}`-turned-division
+  numerator/denominator form) into `limit((EXPR), VAR, VALUE)`, and `_locals()`
+  now injects the real `sympy.limit` function so this actually evaluates
+  during parsing. This is new, real verification coverage, not just quieted
+  noise: a standalone "evaluate this limit" problem now becomes a genuine
+  zero-free-symbol check step, and a wrong answer is positively caught.
+- Fixed a latent interaction bug found while building this: `_BASE_BRACED_SUBSCRIPT`
+  (gap 22's `convert_braced_subscript`) was misreading `\lim_{h \to 0}` as a
+  plain subscripted variable "lim", mangling it before the new limit converter
+  ever saw the text -- affects any `\commandname_{...}` shape, not just `\lim`.
+  Root-fixed with a negative lookbehind excluding a preceding backslash OR
+  letter, not by reordering the pipeline. A first lookbehind attempt
+  (`(?<!\\)` alone) was insufficient -- confirmed empirically that the regex
+  engine just started its match one character later inside the same word.
+- **First fix this session verified by actually EXECUTING tests, not just
+  `ast.parse`**: `math_validator.py`/`math_guard.py` import and run standalone
+  in this sandbox (sympy installed, no `pgvector`/`pydantic_settings` chain
+  triggered). 8 new tests added across `tests/test_math_validator.py` and
+  `tests/test_math_guard.py` (5 unit + 3 integration, including a positive and
+  a negative standalone-limit case, and the real first-principles scenario
+  from Siya's screenshot). Full suite run: `pytest tests/test_math_validator.py
+  tests/test_math_guard.py -v` -> **61 passed, 0 failed** (53 pre-existing + 8 new).
+
+**Not done / deliberately scoped out:** making `f(x+h)`/`f'(x)`-style lines
+themselves genuinely chain-comparable. This parser treats any `name(arg)` as
+implicit multiplication, not a real function call, so the function name is
+always its own free symbol alongside the argument -- a true fix needs
+recognizing and stripping a pure function-label LHS before parsing, which is
+materially riskier. Also explicitly rejected adding a multi-symbol identity
+check (`.equals(0)`) to `math_guard.py`'s classification: tested and confirmed
+it would raise FALSE "this step is wrong" claims on existing correct steps
+(e.g. `f(x+h) = (x+h)^2+3(x+h)`, since `f` is an unconstrained free symbol, not
+a real function) -- would violate MathGuard's core honesty guarantee. Both
+left as accepted limitations, same category as gap 9's existing "left
+unverified" multi-symbol case.
+
+Full gap-list entry (format matching gaps 1-22): `REBUILD_SPEC.md`, gap 23.
+
+**Still needed from Siya:** re-ask the same Grade 12 first-principles question
+(or a standalone "evaluate this limit" problem) via a real live `/tutor/message`
+call to confirm `\boxed{}` unwrapping and limit evaluation behave as expected
+against the real Claude API and full FastAPI stack -- this sandbox verification,
+while now genuinely executed rather than `ast.parse`-only, still doesn't touch
+either of those.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than

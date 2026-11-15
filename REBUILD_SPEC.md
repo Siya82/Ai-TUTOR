@@ -106,7 +106,7 @@ two copies — see the recovery note at the top of the recovered
   textbook and four official NSC Physical Sciences Data Sheets.
 
 ### `math_guard.py` + `math_validator.py` — MathGuard
-**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 via the Physical Sciences live-test pass; gaps 18-21 proactively, while scoping Grade 11 Pure Mathematics then Grade 11 Physical Sciences; gap 22 via a live Electric Circuits stress test sourced from a real past-paper worksheet) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
+**REBUILT 8 Nov 2026, extended 13 Nov 2026 (gaps 14-17 via the Physical Sciences live-test pass; gaps 18-21 proactively, while scoping Grade 11 Pure Mathematics then Grade 11 Physical Sciences; gap 22 via a live Electric Circuits stress test sourced from a real past-paper worksheet; gap 23 via the first live Grade 12 Differential Calculus test) -- see `backend/app/services/math_guard.py` and `backend/app/services/math_validator.py`, with one regression test per numbered gap below in `backend/tests/test_math_validator.py` plus integration tests in `backend/tests/test_math_guard.py`. This section is now historical context, not a to-do.**
 
 This is a protected core differentiator (ADR-011) — rebuild carefully and
 re-run the adversarial test suite at every stage, don't assume.
@@ -315,6 +315,68 @@ discipline — see `docs/CAPABILITY-EVIDENCE-LOG.md`):
     these variable names, not just quiets the noise: a deliberately
     wrong `R_{\text{total}}` step is now correctly flagged, where
     before the fix it would have silently passed unexamined.
+
+23. (New, found 15 Nov 2026 via the FIRST live Grade 12 Differential
+    Calculus test -- exactly the risk ADR-022 flagged as untested, not
+    confirmed broken or working, when Grade 12 content was added.) A
+    first-principles derivative reply writes `\boxed{...}` around its
+    final answer and `f'(x)`-style prime notation throughout -- neither
+    had any handling at all, so both reached sympy's parser as literal,
+    unparseable fragments (4 of the live reply's warnings were "could
+    not parse" purely because of this, on an otherwise correct answer).
+    Fixed with `strip_boxed` (brace-matched, like `convert_sqrt`/
+    `convert_frac` -- keeps the inner content, just drops the
+    `\boxed{...}` wrapper) and `convert_prime_notation` (renames
+    `f'(x)` to a plain, distinct name, `fprime(x)`, so it parses
+    without crashing -- deliberately NOT claimed to relate back to `f`
+    symbolically, so these lines still (and correctly) fall into the
+    existing multi-symbol "left unverified" territory, never a false
+    single-variable solve).
+
+    Separately, and more consequentially: `\lim_{h \to 0}(...)` had no
+    handling either. Added `convert_limit_of_parenthesized_expression`,
+    which converts `\lim_{VAR \to VALUE}` plus whatever balanced
+    parenthesised (or `\frac{...}{...}`-turned-division) expression
+    immediately follows it into `limit((EXPR), VAR, VALUE)` -- relying
+    on the REAL `sympy.limit()` function, injected into this module's
+    parser locals, to actually evaluate it during parsing, not just
+    build an inert symbol. This buys real, new verification coverage
+    for a direct "evaluate this limit" problem (no first-principles
+    function-label noise at all): the limit variable is eliminated
+    entirely, so a correct final value now becomes a genuine,
+    zero-free-symbol check step, and a WRONG one is positively caught
+    (confirmed via a regression test) -- not just left unparseable.
+    For the messier first-principles shape specifically (the
+    difference-quotient DEFINITION line, which depends on the
+    still-undefined `f` and can't be evaluated without knowing `f`'s
+    formula), `sympy.limit()` is left to return it unevaluated or raise
+    -- both already degrade safely to the same honest "left
+    unverified"/"could not parse" territory as before this fix, never
+    a false pass.
+
+    Found and fixed one real interaction bug while building this:
+    `convert_braced_subscript`'s own "letters immediately followed by
+    `_{`" pattern (gap 22) was misreading `\lim_{h \to 0}` as if "lim"
+    were a plain subscripted variable (mangling it into the
+    unparseable `lim_hto0(...)` before the limit converter ever saw
+    the real text) -- a LATENT bug that would have affected ANY
+    "\commandname_{...}" LaTeX command with this shape, not just
+    `\lim`. Fixed at the root with a negative lookbehind for a
+    preceding backslash OR letter on `_BASE_BRACED_SUBSCRIPT`, not by
+    reordering the pipeline around it. Confirmed gap 22's own real
+    subscript case (no backslash before the base letter) still works
+    exactly as before.
+
+    Deliberately NOT attempted in this pass: making the function-label
+    lines (`f(x+h) = ...`, `f'(x) = ...`) themselves genuinely
+    chain-comparable against each other. This parser treats any
+    `name(arg)` call as implicit multiplication (`name * arg`), so the
+    function name itself always remains its own free symbol alongside
+    the argument -- a deeper fix (recognizing and stripping a pure
+    function-label LHS before parsing) was scoped out as materially
+    riskier and left as an accepted limitation, the same category as
+    gap 9's existing multi-symbol-identity "left unverified" case, not
+    silently assumed solved.
 
 Exposed on `POST /tutor/message` as `math_verified: bool` and
 `verification_warnings: list[str]`; shown as a visible badge in the chat

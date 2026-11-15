@@ -352,3 +352,62 @@ def test_gap22_does_not_touch_an_already_simple_digit_subscript():
     # Regression guard: a single-digit subscript with NO braces (R_1,
     # R_2) was already a legal identifier as-is and must be left alone.
     assert normalize_latex(r"R_1 + R_2") == "R_1 + R_2"
+
+
+def test_gap23_boxed_final_answer_is_unwrapped():
+    r"""Found 15 Nov 2026 via the first live Grade 12 Differential
+    Calculus test (exactly the risk ADR-022 flagged as untested when
+    Grade 12 content was added): a final boxed answer --
+    \boxed{f'(x) = 2x + 3} -- reached sympy's parser as a literal,
+    unparseable fragment. \boxed{...} is purely presentational, so it
+    is unwrapped, keeping everything inside intact."""
+    assert normalize_latex(r"\boxed{2x + 3}") == "2x + 3"
+
+
+def test_gap23_prime_notation_parses_without_crashing():
+    r"""f'(x)/g'(x)-style derivative notation: a bare apostrophe is not
+    valid syntax anywhere sympy's parser accepts, so this previously
+    failed to parse at all (a crash risk, same class as gap 19). Renamed
+    consistently to a plain, distinct name so it parses -- deliberately
+    NOT claimed to be related back to f symbolically, so it still (and
+    correctly) falls into the existing multi-symbol 'left unverified'
+    territory, not a false single-variable solve."""
+    free_syms, parts = free_symbols_of(r"f'(x) = 2x + 3")
+    assert parts is not None  # must actually parse, not raise/return None
+    assert len(free_syms) > 1  # honest: the function-name token is its own symbol too
+
+
+def test_gap23_limit_of_a_simple_expression_evaluates():
+    r"""The single most common first-principles shape -- \lim_{h \to 0}
+    applied to a plain polynomial in x and h with no undefined function
+    calls inside it -- is now actually evaluated via sympy's real
+    limit(), eliminating h entirely, rather than left as unparseable
+    text."""
+    assert normalize_latex(r"\lim_{h \to 0}(2x + h + 3)") == "limit(((2x + h + 3)), h, 0)"
+    free_syms, parts = free_symbols_of(r"\lim_{h \to 0}(2x + h + 3) = 2x + 3")
+    assert free_syms == {Symbol("x")}
+
+
+def test_gap23_standalone_limit_evaluation_is_now_a_real_numeric_check():
+    """A direct 'evaluate this limit' problem (no first-principles
+    function-label noise at all) now becomes a genuine, fully checkable
+    zero-free-symbol step once the limit variable is eliminated -- this
+    is the concrete new verification coverage this gap buys, not just
+    quieter warning text."""
+    free_syms, parts = free_symbols_of(r"\lim_{x \to 2}(x^2 + 3x) = 10")
+    assert free_syms == set()
+    assert parts == ("limit(((x**2 + 3x)), x, 2)", "=", "10")
+
+
+def test_gap23_limit_subscript_marker_does_not_collide_with_gap22():
+    r"""Regression guard for a real interaction found while building this
+    fix: convert_braced_subscript's own "letters immediately followed by
+    _{" pattern used to misread "\lim_{h \to 0}" as if "lim" were a
+    plain subscripted variable (mangling it into the unparseable
+    "lim_hto0(...)" before the limit converter ever saw the real text).
+    Fixed with a negative lookbehind for a preceding backslash OR letter
+    on _BASE_BRACED_SUBSCRIPT -- confirms gap 22's own real subscript
+    case (no backslash immediately before the base letter) still works
+    exactly as before."""
+    assert normalize_latex(r"R_{\text{total}}") == "R_total"
+    assert normalize_latex(r"\lim_{h \to 0}(2x + h + 3)") == "limit(((2x + h + 3)), h, 0)"

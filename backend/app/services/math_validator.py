@@ -44,6 +44,61 @@ def strip_markdown_artifacts(s: str) -> str:
     return s.replace("**", "").replace("__", "")
 
 
+def strip_boxed(s: str) -> str:
+    r"""Gap 23 (new, found 15 Nov 2026 via the first live Grade 12
+    Differential Calculus test -- exactly the risk ADR-022 flagged as
+    untested when Grade 12 content was added): a final boxed answer --
+    \boxed{f'(x) = 2x + 3} -- reached sympy's parser as a literal,
+    unparseable fragment, the same shape as the strip_text_commands gap
+    (gap 14). \boxed{...} is purely presentational -- it never changes
+    the mathematical content -- so it is unwrapped (brace-matched, like
+    convert_sqrt/convert_frac), keeping everything inside intact rather
+    than dropping it the way strip_text_commands drops \text{...}'s
+    content."""
+    out = []
+    i = 0
+    pattern = re.compile(r"\\boxed")
+    while i < len(s):
+        m = pattern.search(s, i)
+        if not m:
+            out.append(s[i:])
+            break
+        out.append(s[i:m.start()])
+        j = m.end()
+        if j < len(s) and s[j] == "{":
+            depth = 1
+            k = j + 1
+            while k < len(s) and depth > 0:
+                if s[k] == "{":
+                    depth += 1
+                elif s[k] == "}":
+                    depth -= 1
+                k += 1
+            out.append(s[j + 1:k - 1])  # keep inner content, drop just \boxed{ and its matching }
+            i = k
+        else:
+            i = j
+    return "".join(out)
+
+
+_PRIME_FUNCTION_CALL = re.compile(r"([a-zA-Z]+)'(\()")
+
+
+def convert_prime_notation(s: str) -> str:
+    """Gap 23 (continued): f'(x)/g'(x)-style derivative notation -- a
+    bare apostrophe is not valid syntax anywhere sympy's parser accepts,
+    so "f'(x) = 2x + 3" previously failed to parse at all. Renamed
+    consistently to a plain, distinct undefined-function name
+    ("fprime(x)") -- deliberately NOT related back to f symbolically
+    (this project's verification never tracks a function's definition
+    across separate steps), just enough to let the actual content of
+    the step -- comparing fprime(x) across steps, e.g. against a
+    limit evaluation of the same quantity, see
+    convert_limit_of_parenthesized_expression below -- be verified like
+    any other single-variable step."""
+    return _PRIME_FUNCTION_CALL.sub(lambda m: f"{m.group(1)}prime{m.group(2)}", s)
+
+
 _DECORATIVE_SYMBOLS = re.compile(r"[\u2713\u2714\u2717\u2718\u274c]")  # checkmarks / crosses
 
 
@@ -65,7 +120,15 @@ def normalize_unicode_minus(s: str) -> str:
     return s.replace(_UNICODE_MINUS, "-")
 
 
-_BASE_BRACED_SUBSCRIPT = re.compile(r"([a-zA-Z]+)_\{")
+# Gap 23 (continued): added a negative lookbehind for a preceding
+# backslash -- without it, this pattern also matched a LaTeX
+# COMMAND name immediately followed by its own bound-variable
+# subscript syntax (e.g. the "lim" in "\lim_{h \to 0}"), misreading it as if it were a plain
+# subscripted variable and mangling it beyond recovery before
+# convert_limit_of_parenthesized_expression ever saw it. A bare
+# variable like "R_{...}" has no preceding backslash and is still
+# matched exactly as before.
+_BASE_BRACED_SUBSCRIPT = re.compile(r"(?<![\\a-zA-Z])([a-zA-Z]+)_\{")
 
 
 def convert_braced_subscript(s: str) -> str:
@@ -298,6 +361,92 @@ def convert_power(s: str) -> str:
     return s
 
 
+
+
+_LIM_PATTERN = re.compile(r"\\lim_\{\s*([a-zA-Z]+)\s*\\to\s*(-?\d+(?:\.\d+)?)\s*\}")
+
+
+def convert_limit_of_parenthesized_expression(s: str) -> str:
+    r"""Gap 23 (new, found 15 Nov 2026 via the first live Grade 12
+    Differential Calculus test -- exactly the risk ADR-022 flagged as
+    untested when Grade 12 was added): first-principles differentiation
+    writes \lim_{h \to 0}(...) literally, which sympy's parser has no
+    native handling for at all. Converts "\lim_{VAR \to VALUE}" plus
+    whatever balanced parenthesised expression (optionally with a
+    "/(...)" denominator right after it -- convert_frac has already run
+    by the time this does, so a \frac{...}{...} that followed a \lim
+    has already become exactly this "(...)/(...)" shape) immediately
+    follows it into "limit((EXPR), VAR, VALUE)" -- relying on the real
+    sympy.limit() function injected into this module's parser locals
+    (see _locals()) to actually EVALUATE it during parsing itself, not
+    just build an inert symbol.
+
+    Deliberately does nothing special for the case where EXPR still
+    contains an undefined function call (e.g. the difference-quotient
+    DEFINITION line, \lim_{h \to 0}\frac{f(x+h) - f(x)}{h}, which
+    depends on the still-undefined f and can't actually be evaluated
+    without knowing f's formula): it is converted the same way as any
+    other case, and sympy.limit() is left to either return it
+    unevaluated or raise -- both already degrade safely through the
+    existing try/except around every sympify_side() call, the same
+    honest "left unverified"/"could not parse" territory this block
+    would have fallen into before this fix existed. This fix only ever
+    ADDS verification coverage for the cases sympy's limit() can
+    actually resolve; it never claims a false pass for one it can't.
+
+    MUST run AFTER convert_braced_subscript() in normalize_latex's own
+    pipeline -- without that, convert_braced_subscript's own
+    "letters immediately followed by _{" pattern would otherwise
+    misread "\lim_{h \to 0}" as if "lim" were a plain subscripted
+    variable (it is a LaTeX COMMAND, not one), silently mangling it
+    into the unparseable "lim_hto0(...)" before this function ever got
+    a chance to see the original text. Fixed at the root by giving
+    convert_braced_subscript's own pattern a negative lookbehind for a
+    preceding backslash (see its own updated comment) rather than by
+    reordering around it -- the general bug (ANY "\commandname_{...}"
+    LaTeX command, not just \lim, could have been mis-captured the same
+    way) is fixed once, not worked around here."""
+    out = []
+    i = 0
+    while i < len(s):
+        m = _LIM_PATTERN.search(s, i)
+        if not m:
+            out.append(s[i:])
+            break
+        out.append(s[i:m.start()])
+        var, value = m.group(1), m.group(2)
+        j = m.end()
+
+        def read_paren_group(start):
+            depth = 1
+            k = start + 1
+            while k < len(s) and depth > 0:
+                if s[k] == "(":
+                    depth += 1
+                elif s[k] == ")":
+                    depth -= 1
+                k += 1
+            return s[start:k], k
+
+        if j < len(s) and s[j] == "(":
+            group1, k = read_paren_group(j)
+            expr = group1
+            if k < len(s) and s[k] == "/" and k + 1 < len(s) and s[k + 1] == "(":
+                group2, k2 = read_paren_group(k + 1)
+                expr = f"{group1}/{group2}"
+                k = k2
+            out.append(f"limit(({expr}), {var}, {value})")
+            i = k
+        else:
+            # Not immediately followed by a parenthesised expression --
+            # leave the \lim command alone; it stays an honest "could
+            # not parse" via the normal fallback, same as before this
+            # fix existed.
+            out.append(s[m.start():j])
+            i = j
+    return "".join(out)
+
+
 def strip_latex_cruft(s: str) -> str:
     s = s.replace("\\left", "").replace("\\right", "")
     s = s.replace("\\,", " ").replace("\\!", "")
@@ -426,6 +575,8 @@ def normalize_latex(raw: str) -> str:
     generic backslash-stripping fallback would otherwise mangle it)."""
     s = raw
     s = strip_markdown_artifacts(s)
+    s = strip_boxed(s)
+    s = convert_prime_notation(s)
     s = strip_decorative_symbols(s)
     s = convert_braced_subscript(s)  # gap 22 -- must run before strip_text_commands
     s = strip_text_commands(s)  # gap 14 -- before anything else touches units
@@ -441,6 +592,7 @@ def normalize_latex(raw: str) -> str:
     s = convert_sqrt(s)
     s = convert_pi(s)
     s = convert_power(s)
+    s = convert_limit_of_parenthesized_expression(s)
     s = strip_latex_cruft(s)
     s = strip_bare_degree_sign(s)  # gap 16 continued -- after trig conversion consumed the real ones
     s = protect_in_keyword(s)
@@ -530,7 +682,14 @@ def split_relation(normalized: str) -> tuple[str, str, str] | None:
 
 
 def _locals() -> dict:
-    return {name: Symbol(name) for name in RESERVED_SYMBOL_NAMES}
+    d = {name: Symbol(name) for name in RESERVED_SYMBOL_NAMES}
+    # Gap 23: lets a converted "limit((EXPR), VAR, VALUE)" call (built by
+    # convert_limit_of_parenthesized_expression() from a \lim_{...}(...)
+    # block) actually CALL sympy's real limit() function at parse time,
+    # rather than being read as a literal, undefined function named
+    # "limit".
+    d["limit"] = sympy.limit
+    return d
 
 
 def sympify_side(expr_str: str):
