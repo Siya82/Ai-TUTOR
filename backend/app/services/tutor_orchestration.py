@@ -83,12 +83,40 @@ def prepare_tutor_turn(
     diagnosis_note = None
     if diagnosis.redirected:
         requested_topic = prerequisite_chain[0]
+
+        # FIX 15 Nov 2026 (grade-context in redirects): the learner should
+        # be told WHICH GRADE the foundational gap belongs to, not just its
+        # name -- otherwise a Grade 12 question silently teaching Grade 10
+        # content reads as a non-sequitur. diagnosis.steps is already in
+        # prerequisite_chain order (requested topic first, deepest last);
+        # diagnose_root_gap() breaks immediately after at most one
+        # "confirmed_mastery" step, so excluding that status leaves exactly
+        # the real gap chain from what was asked down to recommended_topic
+        # (inclusive). Each Topic's .subject must already be eager-loaded
+        # by the caller, same requirement as recommended_topic.subject
+        # below -- this stays DB-free.
+        topics_by_id = {topic.id: topic for topic in prerequisite_chain}
+        gap_chain = [
+            topics_by_id[step.topic_id]
+            for step in diagnosis.steps
+            if step.status != "confirmed_mastery"
+        ]
+        grade_chain_text = " -> ".join(
+            f"'{topic.name}' (Grade {topic.subject.grade} {topic.subject.name})"
+            for topic in gap_chain
+        )
         diagnosis_note = (
-            f"DIAGNOSIS NOTE: the learner asked about '{requested_topic.name}', but their "
-            f"recent attempt history shows a gap at the more foundational topic "
-            f"'{recommended_topic.name}'. Before teaching, explain this redirect in ONE "
-            f"encouraging sentence (frame it as strengthening the foundation first, not as a "
-            f"failure), then teach '{recommended_topic.name}'."
+            f"DIAGNOSIS NOTE: the learner asked a Grade {requested_topic.subject.grade} "
+            f"question about '{requested_topic.name}', but their recent attempt history "
+            f"shows a gap at the more foundational topic '{recommended_topic.name}' "
+            f"(Grade {recommended_topic.subject.grade}). The full gap chain, from what they "
+            f"asked to where teaching should actually start, is: {grade_chain_text}. Before "
+            f"teaching, explain this redirect in ONE encouraging sentence that EXPLICITLY "
+            f"names the grade level(s) involved -- e.g. tell the learner this question "
+            f"depends on a Grade {recommended_topic.subject.grade} skill they should have "
+            f"covered before tackling Grade {requested_topic.subject.grade} work (frame it as "
+            f"strengthening the foundation first, not as a failure), then teach "
+            f"'{recommended_topic.name}'."
         )
 
     # FIX 12 Nov 2026 (multi-subject support, ADR-013): recommended_topic.subject

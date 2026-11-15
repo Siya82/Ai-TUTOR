@@ -2458,6 +2458,26 @@ Full reasoning in `docs/ADR-024-teacher-dashboard-and-provisioning.md`.
 **Still needed from Siya:** `alembic upgrade head` to pick up migration 0004, then a re-run of `python -m scripts.seed_dev_data` to backfill `order_index` for every topic that already exists (a plain `git pull` alone will not reorder anything already seeded).
 
 
+## 2026-11-15 -- Diagnosis redirects now name the grade level(s) involved
+
+**Goal:** Siya's next live-test finding: asking a Grade 12 question and getting redirected to Grade 10 content read as a non-sequitur to a student, because the tutor's one-sentence redirect explanation never said WHICH GRADE the foundational gap actually belonged to -- just the topic's name. Siya wanted the explanation to explicitly state the grade(s) a student should have already covered the prerequisite in, relative to the grade of the question actually asked.
+
+**Root cause:** `app/services/tutor_orchestration.py`'s `diagnosis_note` (built inside `prepare_tutor_turn()`, only surfaced to the student when `diagnosis.redirected` is true) only ever named topics by NAME -- `'{requested_topic.name}'` and `'{recommended_topic.name}'` -- with zero grade/subject context, even though every `Topic` in the chain already carries an eager-loaded `.subject` (confirmed via existing comments/tests requiring `selectinload(Topic.subject)`) with its own `.grade`. The LLM-facing instruction itself also only said "explain this redirect in ONE encouraging sentence," with no instruction to mention grades at all.
+
+**Done:**
+- `app/services/tutor_orchestration.py` -- `diagnosis_note` now:
+  - Builds the real gap chain (`diagnosis.steps` filtered to exclude any trailing `"confirmed_mastery"` step -- `diagnose_root_gap()` breaks immediately after at most one such step, so this is exactly the chain from what the learner asked down to `recommended_topic`, inclusive) and cross-references each step back to its real `Topic` object (via a `topic_id` lookup over `prerequisite_chain`) to pull each one's actual grade/subject.
+  - States the REQUESTED topic's grade explicitly ("the learner asked a Grade {N} question about...").
+  - States the RECOMMENDED (redirected-to) topic's grade explicitly.
+  - Includes the full gap chain as a readable "Grade X 'Topic' -> Grade Y 'Topic'" string.
+  - Instructs Claude to EXPLICITLY name the grade level(s) in its one-sentence redirect explanation, not just the topic names.
+- Verified with `ast.parse` (same sandbox limitation as before -- no `pgvector`/`pydantic_settings` env to actually run the app or its pytest suite). Manually traced both existing `test_tutor_orchestration.py` tests that exercise a redirect (`test_redirect_adds_a_diagnosis_note_naming_both_topics`, `test_pace_tier_is_computed_for_the_topic_actually_taught_not_the_requested_one`) against the new code -- both still pass on the same assertions (every `Topic` these tests construct already has `.subject` set via the shared `_topic()` test helper, so the new per-step `.subject` lookups never hit an unset relationship).
+
+**Not done:** no change to `diagnosis.py` itself (`DiagnosisStep` still doesn't carry grade/subject directly -- this fix reconstructs it from `prerequisite_chain` instead, since that's cheaper than widening the dataclass for one caller). No change to the frontend -- the richer explanation is entirely server-side, inside the system prompt Claude already receives every turn.
+
+**Still needed from Siya:** live-test a real redirect (e.g. a Grade 12 question with no attempt history, so it redirects to a known Grade 10/11 gap) and confirm Claude's actual sentence names the grades, not just the topics -- the system prompt now INSTRUCTS this but the live model response is the real verification, same "ship then verify" discipline as everything else.
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
