@@ -2580,6 +2580,55 @@ while now genuinely executed rather than `ast.parse`-only, still doesn't touch
 either of those.
 
 
+## 2026-11-15 -- Fixed: dev teacher/student seed accounts never refresh password on re-seed
+
+Live-testing ADR-024's teacher login (the next item on the "still needed from Siya"
+list) failed outright: entering T00001/DevPass123! on the login screen, and even
+calling POST /auth/login directly with the exact school_id/number/password the seed
+script had just printed, both returned "Incorrect student number or password".
+
+A direct DB check (a throwaway script querying the row via the app's own
+async_session_factory, same one the running backend uses) confirmed the row
+exists, is_active=True, role='teacher' -- but `verify_password("DevPass123!",
+password_hash)` returned False. The hash was real and correctly formed, just
+for a different password than the one being tried.
+
+**Root cause:** `get_or_create_demo_teacher_account()` returns an existing row
+untouched on re-seed, never refreshing `password_hash`. The dev teacher account
+was first created (ADR-024, commit a1929ef) back when `DEV_TEACHER_PASSWORD` was
+its own separate value, `"DevTeachPass123!"`. Commit 31ba360 later changed that
+constant to reuse `DEV_STUDENT_PASSWORD` ("DevPass123!") for Siya's convenience
+while testing by hand -- but every re-seed since then kept finding the existing
+row and returning it as-is, so the stored hash never updated to match. The login
+screen has been showing the new, correct password the whole time; the database
+was still only honoring the old one.
+
+**This is the same bug class caught three times already this session**
+(`Topic.order_index` not backfilling on re-seed; `DEV_LEARNER_GRADE`'s widen to
+12 not applying to an existing dev learner row; `Learner.skip_diagnosis` needing
+an explicit refresh for ADR-027) -- an idempotent `get_or_create_*` helper that
+only ever *creates*, and silently never *updates*, an already-existing row when
+something about what it should look like changes later. Fixed both
+`get_or_create_demo_teacher_account()` (the one actually hit) and
+`get_or_create_demo_student_account()` (confirmed to have the exact same latent
+bug, just never observed, since `DEV_STUDENT_PASSWORD` itself has never changed
+value) to refresh `password_hash` on every re-seed, not only at first creation.
+
+Verified with `ast.parse` (same sandbox limitation as always -- no
+`pgvector`/`pydantic_settings` environment here to run the app itself). Reasoned
+through, not assumed: the mutated `password_hash` attribute on an already
+session-tracked ORM row is picked up by `seed_dev_data.py`'s existing single
+`await session.commit()` at the end of `main()`, with no extra `session.add()`
+needed. Committed 2eb68ae.
+
+**Immediate unblock, no reseed needed:** the OLD stale hash is still valid
+against the original password -- `T00001` / `DevTeachPass123!` logs in right now.
+**Still needed from Siya:** `git pull` + `python -m scripts.seed_dev_data` to
+pick up the fix properly, after which `T00001` / `DevPass123!` (the password
+actually shown on the login screen) should work; then resume the ADR-024
+live-test walkthrough (roster tab, add a student, log in as that student).
+
+
 <!-- Entries after 2026-08-03 that are known only from later project
 summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
