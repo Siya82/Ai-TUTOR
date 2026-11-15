@@ -26,6 +26,7 @@ import {
   createCustomQuestion,
   createStudent,
   fetchAdminStudents,
+  fetchSubjects,
   fetchTeachAssignment,
   fetchTeachAssignments,
   fetchTopics,
@@ -497,6 +498,19 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
   // keeps this to teacher-authored custom questions only, for now --
   // there's no endpoint to browse the existing seeded CAPS question
   // bank, so reusing it isn't offered here yet.
+  // Cascading Grade -> Subject -> Topic picker (NEW 15 Nov 2026, live-test
+  // follow-up): a teacher may teach more than one grade, and the flat
+  // unfiltered Topic dropdown this replaced (every topic across every
+  // subject and grade, alphabetically-ish by fetch order) made it easy
+  // to pick the wrong one by mistake. Grade is hardcoded 10/11/12 (same
+  // convention the "Add student" form above already uses) since subject
+  // data alone doesn't need to be loaded just to know CAPS' own grade
+  // range; Subject and Topic are each filtered client-side from the one
+  // unfiltered fetchSubjects()/fetchTopics() call every teacher is
+  // allowed (ADR-026 follow-up fix, same day) rather than three separate
+  // network round-trips.
+  const [grade, setGrade] = useState("");
+  const [subjectId, setSubjectId] = useState("");
   const [topicId, setTopicId] = useState("");
   const [questionText, setQuestionText] = useState("");
   const [modelAnswer, setModelAnswer] = useState("");
@@ -504,10 +518,21 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
   const [questionError, setQuestionError] = useState(null);
   const [draftQuestions, setDraftQuestions] = useState([]); // [{id, text}]
 
+  const [subjects, setSubjects] = useState([]);
+  const [subjectsError, setSubjectsError] = useState(null);
   const [topics, setTopics] = useState([]);
   const [topicsError, setTopicsError] = useState(null);
 
   useEffect(() => {
+    fetchSubjects(token)
+      .then(setSubjects)
+      .catch((err) => {
+        if (err.status === 401) {
+          onLogout();
+          return;
+        }
+        setSubjectsError(err.message);
+      });
     fetchTopics(token)
       .then(setTopics)
       .catch((err) => {
@@ -519,6 +544,20 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const subjectsForGrade = subjects.filter((s) => String(s.grade) === String(grade));
+  const topicsForSubject = topics.filter((t) => t.subject_id === subjectId);
+
+  const handleGradeChange = (e) => {
+    setGrade(e.target.value);
+    setSubjectId("");
+    setTopicId("");
+  };
+
+  const handleSubjectChange = (e) => {
+    setSubjectId(e.target.value);
+    setTopicId("");
+  };
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -616,12 +655,37 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
 
       <fieldset className="admin-form__fieldset">
         <legend>Add a question</legend>
+        {subjectsError && <div className="admin-screen__error">{subjectsError}</div>}
         {topicsError && <div className="admin-screen__error">{topicsError}</div>}
         <label className="admin-form__field">
+          <span>Grade</span>
+          <select value={grade} onChange={handleGradeChange}>
+            <option value="">Select a grade…</option>
+            <option value={10}>10</option>
+            <option value={11}>11</option>
+            <option value={12}>12</option>
+          </select>
+        </label>
+        <label className="admin-form__field">
+          <span>Subject</span>
+          <select value={subjectId} onChange={handleSubjectChange} disabled={!grade}>
+            <option value="">
+              {grade ? "Select a subject…" : "Select a grade first"}
+            </option>
+            {subjectsForGrade.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="admin-form__field">
           <span>Topic</span>
-          <select value={topicId} onChange={(e) => setTopicId(e.target.value)}>
-            <option value="">Select a topic…</option>
-            {topics.map((t) => (
+          <select value={topicId} onChange={(e) => setTopicId(e.target.value)} disabled={!subjectId}>
+            <option value="">
+              {subjectId ? "Select a topic…" : "Select a subject first"}
+            </option>
+            {topicsForSubject.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
