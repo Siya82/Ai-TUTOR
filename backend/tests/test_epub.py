@@ -177,7 +177,7 @@ and use that to decide. Write down your reasons for each one before checking the
 
 
 def test_siyavula_equation_images_are_numbered(tmp_path):
-    from app.services.epub import Section, split_document
+    from app.services.epub import split_document
 
     sections = []
     split_document(SIYAVULA_LIKE, "OPS/x/ch.html", lambda p: True, sections)
@@ -208,7 +208,7 @@ def test_nav_document_skipped_by_property(tmp_path):
 
 
 def test_merged_sections_keep_equation_numbers_unique():
-    from app.services.epub import Section, merge_small_sections, split_document
+    from app.services.epub import merge_small_sections, split_document
 
     html = """<html><body><h2>Long section</h2><p>""" + "words " * 80 + """<img class="math-inline" src="e/1.png"/></p>
     <h2>Stub</h2><p>Note: <img class="math-inline" src="e/2.png"/></p></body></html>"""

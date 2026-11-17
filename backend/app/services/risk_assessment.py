@@ -13,6 +13,8 @@ re-forking two copies of the same three-signal logic.
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+
+from app.core.clock import utcnow_naive
 from enum import Enum
 
 from app.models import Attempt, Topic
@@ -53,7 +55,7 @@ def assess_risk(
     """
     Combines three interpretable signals into a risk level.
     """
-    now = now or datetime.utcnow()
+    now = now or utcnow_naive()
     factors: list[str] = []
     interventions: list[str] = []
 

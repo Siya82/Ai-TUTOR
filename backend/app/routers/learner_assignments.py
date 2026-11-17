@@ -14,6 +14,8 @@ assignments.py's submit_assignment_answer()); only what these
 endpoints SHOW the student is gated here.
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +34,7 @@ from app.services.assignments import (
     AssignmentClosed,
     AssignmentError,
     answers_closed_reason,
-    get_assignment_completion,
+    get_learner_completions,
     submit_assignment_answer,
 )
 from app.services.tutor import TutorClient
@@ -87,14 +89,15 @@ async def list_my_assignments(
         .all()
     )
 
+    # UPDATED 17 Nov 2026 (code review #16): this learner's own completion
+    # for every assignment in two queries (same rules as the teacher view),
+    # instead of the whole class's recomputed once per assignment.
+    mine_by_id = await get_learner_completions(
+        db, assignment_ids=[a.id for a in assignments], learner_id=learner.id
+    )
     summaries: list[LearnerAssignmentSummary] = []
     for assignment in assignments:
-        # Reuses the same completion computation the teacher-facing
-        # detail view uses (app/services/assignments.py) rather than a
-        # second, slightly-different "how much has this learner done"
-        # calculation -- one source of truth for completion status.
-        completions = await get_assignment_completion(db, assignment_id=assignment.id)
-        mine = next((c for c in completions if c.learner_id == learner.id), None)
+        mine = mine_by_id.get(assignment.id)
         withheld = _withholds_feedback(assignment)
         summaries.append(
             LearnerAssignmentSummary(
@@ -117,7 +120,7 @@ async def list_my_assignments(
 
 @router.get("/{assignment_id}", response_model=LearnerAssignmentDetail)
 async def get_my_assignment(
-    assignment_id: str,
+    assignment_id: uuid.UUID,
     learner: Learner = Depends(get_current_learner),
     db: AsyncSession = Depends(get_db),
 ) -> LearnerAssignmentDetail:
@@ -212,8 +215,8 @@ async def get_my_assignment(
 
 @router.post("/{assignment_id}/questions/{question_id}/answer", response_model=AnswerSubmitResult)
 async def answer_assignment_question(
-    assignment_id: str,
-    question_id: str,
+    assignment_id: uuid.UUID,
+    question_id: uuid.UUID,
     payload: AnswerSubmitRequest,
     learner: Learner = Depends(get_current_learner),
     db: AsyncSession = Depends(get_db),

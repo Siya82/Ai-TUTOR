@@ -35,7 +35,7 @@
  * now rather than left for the eye to group on its own.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 export default function SubjectTopicSidebar({
   subjects,
@@ -63,9 +63,13 @@ export default function SubjectTopicSidebar({
 
   // Follows the active subject if it changes from elsewhere (e.g. the
   // default subject loading in once subjects/topics finish fetching).
-  useEffect(() => {
+  // Code review #17: adjusted during render (React's recommended pattern
+  // for state derived from a prop) instead of in an effect.
+  const [followedSubjectId, setFollowedSubjectId] = useState(selectedSubjectId);
+  if (selectedSubjectId !== followedSubjectId) {
+    setFollowedSubjectId(selectedSubjectId);
     if (selectedSubjectId) setExpandedSubjectId(selectedSubjectId);
-  }, [selectedSubjectId]);
+  }
 
   const toggleSubject = (subjectId, firstTopicId) => {
     if (subjectId === expandedSubjectId) {

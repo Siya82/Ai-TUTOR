@@ -40,7 +40,7 @@ def _prune(q: deque, now: float) -> None:
 
 def retry_after_seconds(school_id, number: str, ip: str | None, now: float | None = None) -> int:
     """Seconds until this attempt may be made, or 0 if it may go ahead."""
-    now = now or time.monotonic()
+    now = time.monotonic() if now is None else now
     until = _locked_until.get(_key(school_id, number), 0)
     if until > now:
         return int(until - now) + 1
@@ -53,7 +53,7 @@ def retry_after_seconds(school_id, number: str, ip: str | None, now: float | Non
 
 
 def record_failure(school_id, number: str, ip: str | None, now: float | None = None) -> None:
-    now = now or time.monotonic()
+    now = time.monotonic() if now is None else now
     key = _key(school_id, number)
     q = _failures[key]
     _prune(q, now)

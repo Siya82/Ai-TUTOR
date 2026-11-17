@@ -1787,11 +1787,12 @@ async def main() -> None:
         # topics, questions) is needed everywhere, but the demo school and
         # its known-password accounts (DevPass123!) must never exist outside
         # development. Anywhere else this run stops after the content.
-        if settings.environment != "development":
+        if settings.environment.lower() not in ("development", "dev", "local"):
             await session.commit()
             print(
                 f"ENVIRONMENT={settings.environment}: curriculum content seeded; "
-                "dev school and dev accounts SKIPPED (development only)."
+                "dev school and dev accounts SKIPPED (only created when ENVIRONMENT is "
+                "development, dev or local)."
             )
             return
 

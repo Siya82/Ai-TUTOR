@@ -28,6 +28,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+
+from app.core.clock import utcnow_naive
 from typing import Iterable, Optional
 from uuid import UUID
 
@@ -100,7 +102,7 @@ def assess_learner_topics(
     Returns every candidate topic's assessment (low included), sorted
     highest risk first; callers filter to non-low for "flagged".
     """
-    now = now or datetime.utcnow()
+    now = now or utcnow_naive()
     by_topic: dict[UUID, list[AttemptRow]] = {}
     for a in attempts:
         by_topic.setdefault(a.topic_id, []).append(a)
@@ -155,7 +157,7 @@ def summarize_class_progress(
     per topic the class has actually attempted (so the teacher can see
     WHERE the class is weak, not just WHO is).
     """
-    now = now or datetime.utcnow()
+    now = now or utcnow_naive()
     learner_ids = {l.id for l in learners}
     scored = [a for a in attempts if a.is_correct is not None and a.learner_id in learner_ids]
 

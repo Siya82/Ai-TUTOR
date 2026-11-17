@@ -29,6 +29,8 @@ directly.
 import uuid
 from datetime import datetime
 
+from app.core.clock import utcnow_naive
+
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
@@ -111,7 +113,7 @@ class ContentChunk(Base):
     source: Mapped[str] = mapped_column(String(200))  # e.g. "2023 Paper 1 Memo"
     text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(1536))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 class School(Base):
@@ -128,7 +130,7 @@ class School(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     users: Mapped[list["User"]] = relationship(back_populates="school")
 
@@ -163,7 +165,7 @@ class User(Base):
     # token as "ver"; bumped on password change/reset and deactivation so
     # tokens issued before that stop working immediately.
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     # NEW 17 Nov 2026 (ADR-031). Staff need a name to be listed/allocated;
     # students keep theirs on Learner.display_name, so this stays NULL for them.
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -182,7 +184,7 @@ class Learner(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     grade: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     # Learner-chosen, changeable anytime — NOT a diagnosed "learning style".
     # See docs/ADR-002-personalization.md for why this is a preference,
@@ -234,7 +236,7 @@ class Question(Base):
     model_answer: Mapped[str] = mapped_column(Text, nullable=False)
     is_diagnostic: Mapped[bool] = mapped_column(Boolean, default=False)
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     # NEW 15 Nov 2026 (ADR-028, assignments). None for every seeded/
     # diagnostic/AI-generated question exactly as before -- set to the
@@ -261,7 +263,7 @@ class TutorSession(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"))
     topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("topics.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     messages: Mapped[list["TutorMessage"]] = relationship(
         back_populates="session", order_by="TutorMessage.created_at"
@@ -282,7 +284,7 @@ class TutorMessage(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tutor_sessions.id"))
     role: Mapped[str] = mapped_column(String(20))  # "user" | "assistant"
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     session: Mapped["TutorSession"] = relationship(back_populates="messages")
 
@@ -334,7 +336,7 @@ class PracticalRun(Base):
     practical_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("practicals.id"))
     inputs_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON-encoded input params
     outputs_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON-encoded computed results
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 class Attempt(Base):
@@ -348,7 +350,7 @@ class Attempt(Base):
     learner_response: Mapped[str] = mapped_column(Text, nullable=False)
     is_correct: Mapped[bool | None] = mapped_column(Boolean)  # null until marked
     ai_feedback: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     # NEW 15 Nov 2026 (ADR-028, assignments). None for every ordinary
     # diagnostic/adaptive-practice attempt exactly as before -- set only
@@ -381,7 +383,7 @@ class Assignment(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     instructions: Mapped[str | None] = mapped_column(Text)
     due_at: Mapped[datetime | None] = mapped_column(DateTime)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     # NEW 15 Nov 2026 (ADR-029). "practice" (default, matches every
     # assignment created before this) shows AI feedback the instant a
@@ -463,7 +465,7 @@ class Attachment(Base):
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
     extracted_text: Mapped[str | None] = mapped_column(Text)  # PDF/docx only; null for images
     extraction_warning: Mapped[str | None] = mapped_column(Text)  # e.g. a scanned PDF with no text layer
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +486,7 @@ class SchoolClass(Base):
     school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     grade: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 class ClassMember(Base):
@@ -514,7 +516,7 @@ class TeachingAllocation(Base):
     # NULL (migration 0012) = the WHOLE grade: every learner in the school in
     # the subject's grade, without needing classes to be set up first.
     class_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("school_classes.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 class StaffRole(Base):
@@ -531,7 +533,7 @@ class StaffRole(Base):
     subject_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     granted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 # ---------------------------------------------------------------------------
@@ -558,7 +560,7 @@ class Book(Base):
     # NEW (ADR-032 ePub addendum, migration 0010): "pdf" -> BookPage is a
     # printed page; "epub" -> BookPage is a section split at headings.
     format: Mapped[str] = mapped_column(String(10), nullable=False, default="pdf")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 class BookPage(Base):

@@ -98,8 +98,13 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
   };
 
   useEffect(() => {
-    loadRoster();
-    loadMe();
+    // Code review #17: run the fetch just after the effect (not in its
+    // synchronous body) so the loading/error resets don't cascade renders.
+    const id = setTimeout(() => {
+      loadRoster();
+      loadMe();
+    }, 0);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -532,7 +537,10 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
   };
 
   useEffect(() => {
-    loadAssignments();
+    // Code review #17: run the fetch just after the effect (not in its
+    // synchronous body) so the loading/error resets don't cascade renders.
+    const id = setTimeout(loadAssignments, 0);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -790,23 +798,36 @@ function CreateAssignmentForm({ token, onLogout, students, me, onCreated }) {
   // so the disables below aren't a new category of lint debt, just
   // one more instance of it.
   useEffect(() => {
-    if (!topicId) {
-      setBankQuestions([]);
+    // Code review #17: run the fetch just after the effect (not in its
+    // synchronous body) so the loading/error resets don't cascade renders.
+    let cancelled = false;
+    const id = setTimeout(() => {
       setBankError(null);
-      return;
-    }
-    setBankLoading(true);
-    setBankError(null);
-    fetchBankQuestions(token, topicId)
-      .then(setBankQuestions)
-      .catch((err) => {
-        if (err.status === 401) {
-          onLogout();
-          return;
-        }
-        setBankError(err.message);
-      })
-      .finally(() => setBankLoading(false));
+      if (!topicId) {
+        setBankQuestions([]);
+        return;
+      }
+      setBankLoading(true);
+      fetchBankQuestions(token, topicId)
+        .then((qs) => {
+          if (!cancelled) setBankQuestions(qs);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          if (err.status === 401) {
+            onLogout();
+            return;
+          }
+          setBankError(err.message);
+        })
+        .finally(() => {
+          if (!cancelled) setBankLoading(false);
+        });
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicId]);
 

@@ -18,7 +18,11 @@ function App() {
   // "checking" avoids flashing the login screen for a split second
   // while a stored token is still being validated against GET /auth/me
   // on first load.
-  const [status, setStatus] = useState("checking");
+  // Code review #17: decided up front (no token = logged out) rather than
+  // set synchronously inside the effect below.
+  const [status, setStatus] = useState(() =>
+    sessionStorage.getItem(TOKEN_STORAGE_KEY) ? "checking" : "loggedOut"
+  );
   // Code review #14: shown on the login screen after a session ends.
   const [notice, setNotice] = useState(null);
 
@@ -35,10 +39,7 @@ function App() {
 
   useEffect(() => {
     const storedToken = sessionStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!storedToken) {
-      setStatus("loggedOut");
-      return;
-    }
+    if (!storedToken) return;
     (async () => {
       try {
         const me = await fetchMe(storedToken);

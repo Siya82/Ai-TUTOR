@@ -42,7 +42,10 @@ export default function AssignmentsView({ auth, onLogout }) {
   };
 
   useEffect(() => {
-    loadAssignments();
+    // Code review #17: run the fetch just after the effect (not in its
+    // synchronous body) so the loading/error resets don't cascade renders.
+    const id = setTimeout(loadAssignments, 0);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -128,7 +131,10 @@ function AssignmentDetail({ auth, onLogout, assignmentId, onBack }) {
   };
 
   useEffect(() => {
-    load();
+    // Code review #17: run the fetch just after the effect (not in its
+    // synchronous body) so the loading/error resets don't cascade renders.
+    const id = setTimeout(load, 0);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentId]);
 

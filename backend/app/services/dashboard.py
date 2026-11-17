@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import (
     Learner, Attempt, Question, Topic, Subject, User, ClassMember
 )
-from app.services.risk_assessment import assess_risk, RiskLevel
+from app.services.risk_assessment import assess_risk
 from app.services.class_progress import (
     AttemptRow,
     LearnerRow,
@@ -334,7 +334,6 @@ async def get_class_progress(
     LEARNER are counted -- a Maths teacher's view of a learner never
     includes that learner's Accounting answers.
     """
-    from app.services.school_scope import ALL_SUBJECTS
 
     visible_ids = scope.academic_learner_ids()
     member_ids = None

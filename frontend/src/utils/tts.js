@@ -1,7 +1,9 @@
 // Thin wrapper around the browser's built-in Web Speech API.
 // No external service, no API cost -- works entirely client-side.
 
-let currentUtterance = null;
+// Held only so the browser doesn't garbage-collect a speaking utterance
+// (Chrome can drop its onend event otherwise); never read.
+let _currentUtterance = null;
 
 function cleanForSpeech(text) {
   return text
@@ -39,7 +41,7 @@ export function speak(text, onEnd) {
   if (onEnd) {
     utterance.onend = onEnd;
   }
-  currentUtterance = utterance;
+  _currentUtterance = utterance;
   window.speechSynthesis.speak(utterance);
 }
 
@@ -47,7 +49,7 @@ export function stopSpeaking() {
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
-  currentUtterance = null;
+  _currentUtterance = null;
 }
 
 // Added 8 Nov 2026: pause/resume (distinct from stop/cancel) so a

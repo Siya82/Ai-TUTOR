@@ -504,3 +504,56 @@ async def get_assignment_completion(
             )
         )
     return results
+
+
+async def get_learner_completions(
+    db: AsyncSession, *, assignment_ids: list[uuid.UUID], learner_id: uuid.UUID
+) -> dict[uuid.UUID, LearnerCompletion]:
+    """
+    NEW 17 Nov 2026 (code review #16). One learner's completion for many
+    assignments in two queries -- same rules as get_assignment_completion
+    (the latest attempt per question counts).
+    """
+    if not assignment_ids:
+        return {}
+    marks: dict[uuid.UUID, dict[uuid.UUID, int]] = {aid: {} for aid in assignment_ids}
+    for aid, qid, m in (
+        await db.execute(
+            select(
+                AssignmentQuestion.assignment_id,
+                AssignmentQuestion.question_id,
+                AssignmentQuestion.marks,
+            ).where(AssignmentQuestion.assignment_id.in_(assignment_ids))
+        )
+    ).all():
+        marks[aid][qid] = m
+    latest: dict[uuid.UUID, dict[uuid.UUID, Attempt]] = {aid: {} for aid in assignment_ids}
+    for attempt in (
+        await db.execute(
+            select(Attempt)
+            .where(Attempt.assignment_id.in_(assignment_ids), Attempt.learner_id == learner_id)
+            .order_by(Attempt.created_at)
+        )
+    ).scalars():
+        latest[attempt.assignment_id][attempt.question_id] = attempt
+    out: dict[uuid.UUID, LearnerCompletion] = {}
+    for aid in assignment_ids:
+        q_marks = marks[aid]
+        answered = latest[aid]
+        total = len(q_marks)
+        if not answered:
+            status = "not_started"
+        elif total > 0 and len(answered) >= total:
+            status = "completed"
+        else:
+            status = "in_progress"
+        out[aid] = LearnerCompletion(
+            learner_id=learner_id,
+            status=status,
+            answered_count=len(answered),
+            question_count=total,
+            correct_count=sum(1 for a in answered.values() if a.is_correct is True),
+            marks_earned=sum(q_marks.get(qid, 0) for qid, a in answered.items() if a.is_correct is True),
+            marks_total=sum(q_marks.values()),
+        )
+    return out
