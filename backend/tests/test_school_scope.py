@@ -130,3 +130,26 @@ def test_class_member_from_another_school_is_never_visible():
     s = _scope(allocations=[_alloc(MATHS_10, CLASS_10A)], members={CLASS_10A: {AMAHLE, outsider}})
     assert outsider not in s.roster_learner_ids
     assert outsider not in s.academic_learner_ids()
+
+
+def test_whole_grade_allocation_covers_every_learner_in_that_grade():
+    whole = AllocationRow(uuid.uuid4(), MATHS_10.id, MATHS_10.name, 10, None, None)
+    s = _scope(allocations=[whole])
+    assert s.roster_learner_ids == {AMAHLE, BONGANI, CEBO}  # all Grade 10, classes or not
+    assert DUMI not in s.roster_learner_ids  # Grade 11
+    assert s.subjects_for(CEBO) == {MATHS_10.id}
+    assert not s.can_see_subject(CEBO, PHYS_10.id)
+
+
+def test_teacher_with_several_grades_and_subjects():
+    s = _scope(
+        allocations=[
+            AllocationRow(uuid.uuid4(), MATHS_10.id, MATHS_10.name, 10, CLASS_10A, "10A"),
+            AllocationRow(uuid.uuid4(), PHYS_10.id, PHYS_10.name, 10, CLASS_10B, "10B"),
+            AllocationRow(uuid.uuid4(), MATHS_11.id, MATHS_11.name, 11, None, None),
+        ]
+    )
+    assert s.subjects_for(AMAHLE) == {MATHS_10.id}
+    assert s.subjects_for(CEBO) == {PHYS_10.id}
+    assert s.subjects_for(DUMI) == {MATHS_11.id}
+    assert s.visible_subject_ids([x.id for x in SUBJECTS]) == {MATHS_10.id, PHYS_10.id, MATHS_11.id}

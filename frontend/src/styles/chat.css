@@ -2021,3 +2021,18 @@ body {
   background: var(--color-background);
   padding: 0.6rem 0;
 }
+
+/* Allocate subjects / grades form (SchoolPanel.jsx) */
+.allocate-form .admin-form__fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+
+.allocate-form .admin-form__fieldset legend {
+  width: 100%;
+}
+
+.allocate-form__class {
+  margin-left: 1.5rem;
+}

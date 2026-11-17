@@ -142,3 +142,28 @@ grants, and year rollover of classes and allocations.
 - Learners who aren't in any class are visible only to whole-school roles and
   departmental heads, which is the correct default for a newly uploaded
   learner.
+
+
+## Follow-up (17 Nov 2026): several subjects and grades in one step, and whole-grade allocations
+
+Siya asked for the principal to be able to give a teacher different grades
+and different subjects. One-at-a-time, class-only allocation made that slow,
+and it was impossible before classes existed. Two changes:
+
+- **Whole-grade allocations** (migration 0012: `teaching_allocations.class_id`
+  is now nullable). No class means the teacher teaches that subject to
+  **every learner in the subject's grade** at the school, with no classes
+  needed. `build_scope()` grants exactly that subject for those learners. A
+  whole-grade teacher also sees that grade's classes (for class targeting and
+  the Progress class filter).
+- **Bulk allocation**: `POST /school/allocations/bulk` with
+  `{teacher_user_id, items: [{subject_id, class_id|null}]}`. Each item is
+  validated on its own. Duplicates and grade mismatches are reported in
+  `skipped`, not fatal. The School → Staff form now picks subjects ×
+  grades × (whole grade | specific classes), previews what it will add, and
+  submits once. Subjects not offered in a chosen grade are listed as "not
+  possible" instead of being sent.
+
+Single-allocation `POST /school/allocations` keeps working (with an optional
+`class_id`). Duplicate checks treat "whole grade" as its own target, because
+Postgres unique constraints don't compare NULLs.

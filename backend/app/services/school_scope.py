@@ -94,8 +94,8 @@ class AllocationRow:
     subject_id: UUID
     subject_name: str
     grade: int
-    class_id: UUID
-    class_name: str
+    class_id: Optional[UUID]  # None = the whole grade (ADR-031 follow-up, migration 0012)
+    class_name: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -209,8 +209,15 @@ def build_scope(
                     roster.add(lid)
                     grant(lid, {s.id})
 
-    # Teaching allocations: that class's learners, that subject.
+    # Teaching allocations: that class's learners, that subject -- or, for a
+    # whole-grade allocation (class_id None), every learner in that grade.
     for a in allocations:
+        if a.class_id is None:
+            for lid, grade in school_learners.items():
+                if grade == a.grade:
+                    roster.add(lid)
+                    grant(lid, {a.subject_id})
+            continue
         for lid in class_members.get(a.class_id, set()):
             if lid in school_learners:  # never leak across schools
                 roster.add(lid)
@@ -242,12 +249,12 @@ async def load_scope(db: AsyncSession, user: User) -> StaffScope:
         await db.execute(
             select(TeachingAllocation, Subject, SchoolClass)
             .join(Subject, TeachingAllocation.subject_id == Subject.id)
-            .join(SchoolClass, TeachingAllocation.class_id == SchoolClass.id)
+            .outerjoin(SchoolClass, TeachingAllocation.class_id == SchoolClass.id)
             .where(
                 TeachingAllocation.teacher_user_id == user.id,
                 TeachingAllocation.school_id == user.school_id,
             )
-            .order_by(SchoolClass.grade, SchoolClass.name, Subject.name)
+            .order_by(Subject.grade, SchoolClass.name.nullsfirst(), Subject.name)
         )
     ).all()
     allocations = [
@@ -256,8 +263,8 @@ async def load_scope(db: AsyncSession, user: User) -> StaffScope:
             subject_id=s.id,
             subject_name=s.name,
             grade=s.grade,
-            class_id=c.id,
-            class_name=c.name,
+            class_id=c.id if c else None,
+            class_name=c.name if c else None,
         )
         for a, s, c in alloc_rows
     ]
@@ -271,7 +278,7 @@ async def load_scope(db: AsyncSession, user: User) -> StaffScope:
             )
         ).all()
     }
-    class_ids = {a.class_id for a in allocations}
+    class_ids = {a.class_id for a in allocations if a.class_id is not None}
     class_members: dict[UUID, set[UUID]] = {}
     if class_ids:
         for cid, lid in (

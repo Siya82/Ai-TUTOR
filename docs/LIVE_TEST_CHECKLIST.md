@@ -19,12 +19,13 @@ CC BY-ND and will be refused) into `backend/content_sources/books/`, then
 
 ## Priority 0 — School roles and scoping (ADR-031)
 
-Run `alembic upgrade head` (migration 0008) and re-seed first.
+Run `alembic upgrade head` (migrations 0008 and 0012) and re-seed first.
 
 - [ ] Log in as the principal (`P00001` / `DevPass123!`): tabs include **School**; header says "Dev Principal · Principal"
 - [ ] School → Staff: create a login for a new teacher; note the one-time password
 - [ ] School → Classes: create a Grade 10 class, add two Grade 10 learners (a Grade 11 learner should be refused)
-- [ ] School → Staff: allocate the new teacher a subject for that class; give someone a departmental head role
+- [ ] School → Staff → **Allocate subjects / grades**: give the new teacher two subjects across two grades (whole grade), plus one specific class; check the chips and the "Skipped" message for a duplicate
+- [ ] Give someone a departmental head role
 - [ ] Log in as the new teacher: only Students / Assignments / Progress tabs; Students shows only their class; Assignments only offers their subject and class
 - [ ] Log in as `T00001`: sees only class 12A and the dev learner
 - [ ] Optional: `python -m scripts.provision_school --school "Test School" --principal "Test Principal"` prints a school id, staff number and one-time password

@@ -3011,3 +3011,21 @@ Verified: all six real books import against real Postgres (623, 582, 566,
 numbers). `pytest`: 218 passed. Real Maths Gr 10 "Worked example 1: Applying
 the exponential laws" renders with its equations, and an "Ask" sent 8 labelled
 equation images for an 8-equation highlight (Claude call stubbed).
+
+
+## 17 Nov 2026 — Allocate several subjects and grades at once; whole-grade allocations (ADR-031 follow-up)
+
+Siya: the principal must be able to allocate different grades and different
+subjects to a teacher. Added migration `0012` (`teaching_allocations.class_id`
+nullable = the whole grade), whole-grade handling in `school_scope.build_scope()`
+and `load_scope()` (outer join), `POST /school/allocations/bulk`, whole-grade
+allocations shown on every class of that grade, and a new Allocate form
+(subjects × grades × whole grade | classes, with a preview).
+
+Verified against real Postgres through the running API: a bulk request with 5
+items created 3 (Maths Gr 10 whole grade, Physical Sciences Gr 11 whole grade,
+Physical Sciences Gr 12 for 12A) and skipped 2 with reasons (duplicate, grade
+mismatch). The teacher then saw learners in Grades 10–12 only for those
+subjects, with classes 10A and 12A visible. 2 new `build_scope` tests;
+`pytest`: 220 passed. In the browser: picked Maths + Physical Sciences ×
+Grades 10 + 11 → "Allocate 4" → four whole-grade chips.

@@ -19,8 +19,8 @@ class AllocationOut(BaseModel):
     subject_id: uuid.UUID
     subject_name: str
     grade: int
-    class_id: uuid.UUID
-    class_name: str
+    class_id: Optional[uuid.UUID] = None  # None = the whole grade
+    class_name: Optional[str] = None
     teacher_user_id: Optional[uuid.UUID] = None
     teacher_name: Optional[str] = None
 
@@ -98,4 +98,21 @@ class RoleGrant(BaseModel):
 class AllocationCreate(BaseModel):
     teacher_user_id: uuid.UUID
     subject_id: uuid.UUID
-    class_id: uuid.UUID
+    class_id: Optional[uuid.UUID] = None  # omit for the whole grade
+
+
+class AllocationItem(BaseModel):
+    subject_id: uuid.UUID
+    class_id: Optional[uuid.UUID] = None
+
+
+class AllocationBulkCreate(BaseModel):
+    """Several subjects x grades/classes for one teacher in one go."""
+
+    teacher_user_id: uuid.UUID
+    items: list[AllocationItem] = Field(min_length=1, max_length=100)
+
+
+class AllocationBulkResult(BaseModel):
+    created: list[AllocationOut]
+    skipped: list[str]  # human-readable reasons (already allocated, grade mismatch...)

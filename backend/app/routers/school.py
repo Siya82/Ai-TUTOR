@@ -13,9 +13,10 @@ only) and every write is checked on the server:
 """
 
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -31,6 +32,8 @@ from app.models import (
     User,
 )
 from app.schemas.school import (
+    AllocationBulkCreate,
+    AllocationBulkResult,
     AllocationCreate,
     AllocationOut,
     ClassCreate,
@@ -78,10 +81,10 @@ async def _allocations(db: AsyncSession, school_id: uuid.UUID, **filters) -> lis
     stmt = (
         select(TeachingAllocation, Subject, SchoolClass, User)
         .join(Subject, TeachingAllocation.subject_id == Subject.id)
-        .join(SchoolClass, TeachingAllocation.class_id == SchoolClass.id)
+        .outerjoin(SchoolClass, TeachingAllocation.class_id == SchoolClass.id)
         .join(User, TeachingAllocation.teacher_user_id == User.id)
         .where(TeachingAllocation.school_id == school_id)
-        .order_by(SchoolClass.grade, SchoolClass.name, Subject.name)
+        .order_by(Subject.grade, Subject.name, SchoolClass.name.nullsfirst())
     )
     if "class_ids" in filters:
         stmt = stmt.where(TeachingAllocation.class_id.in_(filters["class_ids"]))
@@ -93,8 +96,8 @@ async def _allocations(db: AsyncSession, school_id: uuid.UUID, **filters) -> lis
             subject_id=s.id,
             subject_name=s.name,
             grade=s.grade,
-            class_id=c.id,
-            class_name=c.name,
+            class_id=c.id if c else None,
+            class_name=c.name if c else None,
             teacher_user_id=u.id,
             teacher_name=u.display_name or u.student_number,
         )
@@ -163,13 +166,16 @@ async def _class_summaries(db: AsyncSession, classes: list[SchoolClass], scope: 
         ).all()
     )
     allocs = await _allocations(db, scope.school_id, class_ids=ids)
+    # Whole-grade allocations cover every class in that grade, so show them too.
+    whole_grade = [a for a in await _allocations(db, scope.school_id) if a.class_id is None]
     return [
         ClassSummary(
             id=c.id,
             name=c.name,
             grade=c.grade,
             member_count=counts.get(c.id, 0),
-            allocations=[a for a in allocs if a.class_id == c.id],
+            allocations=[a for a in allocs if a.class_id == c.id]
+            + [a for a in whole_grade if a.grade == c.grade],
         )
         for c in classes
     ]
@@ -184,10 +190,12 @@ async def list_classes(
     sees the classes they are allocated to teach."""
     stmt = select(SchoolClass).where(SchoolClass.school_id == scope.school_id)
     if not (scope.can_manage_school or scope.whole_school_academic):
-        allocated = {a.class_id for a in scope.allocations}
-        if not allocated:
+        allocated = {a.class_id for a in scope.allocations if a.class_id is not None}
+        whole_grades = {a.grade for a in scope.allocations if a.class_id is None}
+        if not allocated and not whole_grades:
             return []
-        stmt = stmt.where(SchoolClass.id.in_(allocated))
+        # A whole-grade allocation covers every class in that grade.
+        stmt = stmt.where(or_(SchoolClass.id.in_(allocated), SchoolClass.grade.in_(whole_grades)))
     classes = (await db.execute(stmt.order_by(SchoolClass.grade, SchoolClass.name))).scalars().all()
     return await _class_summaries(db, classes, scope)
 
@@ -226,6 +234,7 @@ async def get_class(
         scope.can_manage_school
         or scope.whole_school_academic
         or class_id in {a.class_id for a in scope.allocations}
+        or cls.grade in {a.grade for a in scope.allocations if a.class_id is None}
     ):
         raise HTTPException(status_code=404, detail="Class not found")
     summary = (await _class_summaries(db, [cls], scope))[0]
@@ -443,49 +452,88 @@ async def revoke_role(
 # --- allocations ------------------------------------------------------------
 
 
+async def _add_allocation(
+    db: AsyncSession, scope: StaffScope, teacher: User, subject_id: uuid.UUID, class_id: Optional[uuid.UUID]
+) -> AllocationOut:
+    """Validates and adds one allocation (not committed). Raises
+    HTTPException with a readable reason when it can't be added."""
+    subject = await db.get(Subject, subject_id)
+    if subject is None:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    cls = None
+    if class_id is not None:
+        cls = await _class_in_school(db, class_id, scope)
+        if subject.grade != cls.grade:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{cls.name} is Grade {cls.grade} but {subject.name} Grade {subject.grade} was chosen",
+            )
+    where_class = (
+        TeachingAllocation.class_id.is_(None) if class_id is None else TeachingAllocation.class_id == class_id
+    )
+    dup = (
+        await db.execute(
+            select(TeachingAllocation.id).where(
+                TeachingAllocation.teacher_user_id == teacher.id,
+                TeachingAllocation.subject_id == subject.id,
+                where_class,
+            )
+        )
+    ).first()
+    target = cls.name if cls else f"the whole of Grade {subject.grade}"
+    if dup:
+        raise HTTPException(status_code=400, detail=f"{subject.name} for {target} is already allocated")
+    alloc = TeachingAllocation(
+        school_id=scope.school_id, teacher_user_id=teacher.id, subject_id=subject.id, class_id=class_id
+    )
+    db.add(alloc)
+    await db.flush()
+    return AllocationOut(
+        id=alloc.id,
+        subject_id=subject.id,
+        subject_name=subject.name,
+        grade=subject.grade,
+        class_id=cls.id if cls else None,
+        class_name=cls.name if cls else None,
+        teacher_user_id=teacher.id,
+        teacher_name=teacher.display_name or teacher.student_number,
+    )
+
+
 @router.post("/allocations", response_model=AllocationOut)
 async def create_allocation(
     payload: AllocationCreate,
     scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> AllocationOut:
+    """One subject to one class -- or, with no class_id, to the whole grade."""
     _require_manage(scope)
     teacher = await _staff_in_school(db, payload.teacher_user_id, scope)
-    cls = await _class_in_school(db, payload.class_id, scope)
-    subject = await db.get(Subject, payload.subject_id)
-    if subject is None:
-        raise HTTPException(status_code=404, detail="Subject not found")
-    if subject.grade != cls.grade:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{cls.name} is Grade {cls.grade} but that subject is Grade {subject.grade}",
-        )
-    dup = (
-        await db.execute(
-            select(TeachingAllocation.id).where(
-                TeachingAllocation.teacher_user_id == teacher.id,
-                TeachingAllocation.subject_id == subject.id,
-                TeachingAllocation.class_id == cls.id,
-            )
-        )
-    ).first()
-    if dup:
-        raise HTTPException(status_code=400, detail="That allocation already exists")
-    alloc = TeachingAllocation(
-        school_id=scope.school_id, teacher_user_id=teacher.id, subject_id=subject.id, class_id=cls.id
-    )
-    db.add(alloc)
+    out = await _add_allocation(db, scope, teacher, payload.subject_id, payload.class_id)
     await db.commit()
-    return AllocationOut(
-        id=alloc.id,
-        subject_id=subject.id,
-        subject_name=subject.name,
-        grade=subject.grade,
-        class_id=cls.id,
-        class_name=cls.name,
-        teacher_user_id=teacher.id,
-        teacher_name=teacher.display_name or teacher.student_number,
-    )
+    return out
+
+
+@router.post("/allocations/bulk", response_model=AllocationBulkResult)
+async def create_allocations_bulk(
+    payload: AllocationBulkCreate,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> AllocationBulkResult:
+    """NEW 17 Nov 2026: several subjects across several grades/classes for one
+    teacher in one step. Each item is checked on its own; ones that can't be
+    added (already allocated, wrong grade) are reported, not fatal."""
+    _require_manage(scope)
+    teacher = await _staff_in_school(db, payload.teacher_user_id, scope)
+    created: list[AllocationOut] = []
+    skipped: list[str] = []
+    for item in payload.items:
+        try:
+            created.append(await _add_allocation(db, scope, teacher, item.subject_id, item.class_id))
+        except HTTPException as exc:
+            skipped.append(str(exc.detail))
+    await db.commit()
+    return AllocationBulkResult(created=created, skipped=skipped)
 
 
 @router.delete("/allocations/{allocation_id}", status_code=204)

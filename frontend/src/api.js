@@ -513,6 +513,14 @@ export function createAllocation(token, { teacherUserId, subjectId, classId }) {
   });
 }
 
+/** NEW: several subjects x grades/classes for one teacher. items: [{ subjectId, classId|null }] */
+export function createAllocationsBulk(token, teacherUserId, items) {
+  return postJson("/school/allocations/bulk", token, {
+    teacher_user_id: teacherUserId,
+    items: items.map((i) => ({ subject_id: i.subjectId, class_id: i.classId || null })),
+  });
+}
+
 export function deleteAllocation(token, allocationId) {
   return deleteJson(`/school/allocations/${allocationId}`, token);
 }

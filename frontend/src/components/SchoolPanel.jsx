@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   addClassMembers,
-  createAllocation,
+  createAllocationsBulk,
   createClass,
   createStaff,
   deleteAllocation,
@@ -201,6 +201,7 @@ function ClassesSection({ token, classes, students, run }) {
                     c.allocations.map((a) => (
                       <div key={a.id}>
                         {a.subject_name} — {a.teacher_name}
+                        {!a.class_id && <span className="admin-screen__muted"> (whole grade)</span>}
                       </div>
                     ))
                   )}
@@ -410,6 +411,7 @@ function StaffSection({ token, me, staff, classes, subjects, run }) {
 
 function StaffCard({ token, me, member, classes, subjects, run }) {
   const [mode, setMode] = useState(null); // "role" | "allocate" | null
+  const [notice, setNotice] = useState(null);
   const isMe = member.user_id === me.user_id;
   const canRevoke = (role) => !isMe && me.grantable_roles.includes(role.role);
 
@@ -454,7 +456,7 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
           {member.allocations.length === 0 && <span className="admin-screen__muted">No classes</span>}
           {member.allocations.map((a) => (
             <span key={a.id} className="chip">
-              {a.subject_name} · {a.class_name}
+              {a.subject_name} · {a.class_name || `Grade ${a.grade} (whole grade)`}
               <button
                 type="button"
                 className="chip__remove"
@@ -468,13 +470,15 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
         </div>
       </div>
 
+      {notice && <div className="admin-screen__muted">{notice}</div>}
+
       <div className="staff-card__actions">
         <button
           type="button"
           className="admin-screen__link-button"
           onClick={() => setMode(mode === "allocate" ? null : "allocate")}
         >
-          Allocate a class
+          Allocate subjects / grades
         </button>
         {me.grantable_roles.length > 0 && !isMe && (
           <button
@@ -491,11 +495,15 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
         <AllocateForm
           classes={classes}
           subjects={subjects}
-          onSubmit={async (classId, subjectId) => {
-            const ok = await run(() =>
-              createAllocation(token, { teacherUserId: member.user_id, subjectId, classId })
-            );
-            if (ok) setMode(null);
+          onSubmit={async (items) => {
+            const result = await run(() => createAllocationsBulk(token, member.user_id, items));
+            if (result) {
+              setNotice(
+                `Added ${result.created.length} allocation${result.created.length === 1 ? "" : "s"}.` +
+                  (result.skipped.length ? ` Skipped: ${result.skipped.join("; ")}.` : "")
+              );
+              if (result.created.length) setMode(null);
+            }
           }}
         />
       )}
@@ -513,52 +521,109 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
   );
 }
 
+// UPDATED 17 Nov 2026: one teacher can be given several subjects across
+// several grades in one step -- to a whole grade (every learner in it, no
+// classes needed) or to specific classes in those grades.
 function AllocateForm({ classes, subjects, onSubmit }) {
-  const [classId, setClassId] = useState("");
-  const [subjectId, setSubjectId] = useState("");
-  const cls = classes.find((c) => c.id === classId);
-  const subjectOptions = cls ? subjects.filter((s) => s.grade === cls.grade) : [];
+  const [subjectNames, setSubjectNames] = useState([]);
+  const [grades, setGrades] = useState([]);
+  const [target, setTarget] = useState("grade"); // "grade" | "classes"
+  const [classIds, setClassIds] = useState([]);
 
-  if (classes.length === 0) {
-    return <p className="admin-screen__muted">Create a class first (Classes section).</p>;
+  const allNames = [...new Set(subjects.map((s) => s.name))].sort();
+  const gradesForNames = [
+    ...new Set(subjects.filter((s) => subjectNames.includes(s.name)).map((s) => s.grade)),
+  ].sort((a, b) => a - b);
+  const classesForGrades = classes.filter((c) => grades.includes(c.grade));
+
+  const toggle = (list, setList, value) =>
+    setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+
+  // Every (subject row, class|whole grade) pair the choices add up to.
+  const items = [];
+  const missing = [];
+  for (const name of subjectNames) {
+    for (const g of grades) {
+      const subject = subjects.find((s) => s.name === name && s.grade === g);
+      if (!subject) {
+        missing.push(`${name} isn't offered in Grade ${g}`);
+        continue;
+      }
+      if (target === "grade") {
+        items.push({ subjectId: subject.id, classId: null, label: `${name} · Grade ${g} (whole grade)` });
+      } else {
+        for (const c of classesForGrades.filter((cl) => cl.grade === g && classIds.includes(cl.id))) {
+          items.push({ subjectId: subject.id, classId: c.id, label: `${name} · ${c.name}` });
+        }
+      }
+    }
   }
+
   return (
-    <div className="admin-form admin-form--inline">
-      <label className="admin-form__field">
-        <span>Class</span>
-        <select
-          value={classId}
-          onChange={(e) => {
-            setClassId(e.target.value);
-            setSubjectId("");
-          }}
-        >
-          <option value="">Choose…</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} (Grade {c.grade})
-            </option>
+    <div className="admin-form allocate-form">
+      <fieldset className="admin-form__fieldset">
+        <legend>Subjects</legend>
+        {allNames.map((n) => (
+          <label key={n} className="admin-form__checkbox-row">
+            <input type="checkbox" checked={subjectNames.includes(n)} onChange={() => toggle(subjectNames, setSubjectNames, n)} />
+            {n}
+          </label>
+        ))}
+      </fieldset>
+
+      <fieldset className="admin-form__fieldset">
+        <legend>Grades</legend>
+        {subjectNames.length === 0 ? (
+          <p className="admin-screen__muted">Pick at least one subject first.</p>
+        ) : (
+          gradesForNames.map((g) => (
+            <label key={g} className="admin-form__checkbox-row">
+              <input type="checkbox" checked={grades.includes(g)} onChange={() => toggle(grades, setGrades, g)} />
+              Grade {g}
+            </label>
+          ))
+        )}
+      </fieldset>
+
+      <fieldset className="admin-form__fieldset">
+        <legend>Teach to</legend>
+        <label className="admin-form__checkbox-row">
+          <input type="radio" name="alloc-target" checked={target === "grade"} onChange={() => setTarget("grade")} />
+          The whole grade (every learner in it)
+        </label>
+        <label className="admin-form__checkbox-row">
+          <input type="radio" name="alloc-target" checked={target === "classes"} onChange={() => setTarget("classes")} />
+          Specific classes
+        </label>
+        {target === "classes" &&
+          (classesForGrades.length === 0 ? (
+            <p className="admin-screen__muted">
+              {grades.length ? "No classes in those grades yet — create them in the Classes section." : "Pick grades first."}
+            </p>
+          ) : (
+            classesForGrades.map((c) => (
+              <label key={c.id} className="admin-form__checkbox-row allocate-form__class">
+                <input type="checkbox" checked={classIds.includes(c.id)} onChange={() => toggle(classIds, setClassIds, c.id)} />
+                {c.name} (Grade {c.grade})
+              </label>
+            ))
           ))}
-        </select>
-      </label>
-      <label className="admin-form__field">
-        <span>Subject</span>
-        <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} disabled={!cls}>
-          <option value="">{cls ? "Choose…" : "Pick a class first"}</option>
-          {subjectOptions.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      </fieldset>
+
+      {(items.length > 0 || missing.length > 0) && (
+        <div className="admin-screen__muted">
+          {items.length > 0 && <>Will add: {items.map((i) => i.label).join(", ")}.</>}
+          {missing.length > 0 && <> Not possible: {missing.join("; ")}.</>}
+        </div>
+      )}
+
       <button
         type="button"
         className="admin-form__primary-button"
-        disabled={!classId || !subjectId}
-        onClick={() => onSubmit(classId, subjectId)}
+        disabled={items.length === 0}
+        onClick={() => onSubmit(items)}
       >
-        Allocate
+        Allocate {items.length || ""}
       </button>
     </div>
   );

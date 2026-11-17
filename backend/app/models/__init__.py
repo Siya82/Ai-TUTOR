@@ -507,7 +507,9 @@ class TeachingAllocation(Base):
     school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False)
     teacher_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("subjects.id"), nullable=False)
-    class_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("school_classes.id"), nullable=False)
+    # NULL (migration 0012) = the WHOLE grade: every learner in the school in
+    # the subject's grade, without needing classes to be set up first.
+    class_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("school_classes.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
