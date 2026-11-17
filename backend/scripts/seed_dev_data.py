@@ -40,6 +40,7 @@ import asyncio
 
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models import (
     ClassMember,
@@ -1781,6 +1782,18 @@ async def main() -> None:
             results.append(result)
             subject, topics_by_name, _, _ = result
             all_seeded_topics[(subject.name, subject.grade)] = topics_by_name
+
+        # NEW 17 Nov 2026 (code review #5): curriculum content (subjects,
+        # topics, questions) is needed everywhere, but the demo school and
+        # its known-password accounts (DevPass123!) must never exist outside
+        # development. Anywhere else this run stops after the content.
+        if settings.environment != "development":
+            await session.commit()
+            print(
+                f"ENVIRONMENT={settings.environment}: curriculum content seeded; "
+                "dev school and dev accounts SKIPPED (development only)."
+            )
+            return
 
         learner = await get_or_create_dev_learner(session)
         demo_school = await get_or_create_demo_school(session)

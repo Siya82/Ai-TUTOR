@@ -15,6 +15,8 @@
  * learnerId.
  */
 
+import { shrinkImageIfNeeded } from "./utils/shrinkImage";
+
 const API_BASE_URL = "http://localhost:8000";
 
 // FIX 13 Nov 2026 (ADR-016): FastAPI's `detail` is a plain string for a
@@ -78,15 +80,6 @@ export function fetchTopics(token) {
   return getJson("/topics/", token);
 }
 
-/**
- * All seeded learners, e.g. [{ id, display_name, grade, preferred_modality }, ...].
- * NOT used by the student chat flow since ADR-017 (a student's own
- * learner comes from login()/fetchMe() instead) -- kept for a future
- * teacher/admin dashboard that needs to list learners.
- */
-export function fetchLearners() {
-  return getJson("/learners/");
-}
 
 /** All schools, e.g. [{ id, name }, ...] -- for the login screen's school picker. NEW 14 Nov 2026 (ADR-017). */
 export function fetchSchools() {
@@ -187,8 +180,10 @@ export async function createStudent({ token, displayName, grade, studentNumber }
  * (e.g. missing columns), which the backend reports as a 400.
  */
 export async function bulkCreateStudents({ token, file }) {
+  // NEW 17 Nov 2026 (code review #3): shrink big phone photos first.
+  const toSend = await shrinkImageIfNeeded(file);
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", toSend);
 
   const response = await fetch(`${API_BASE_URL}/admin/students/bulk`, {
     method: "POST",
@@ -221,8 +216,10 @@ export async function uploadAttachment(file, token) {
     throw new Error("uploadAttachment requires an auth token.");
   }
 
+  // NEW 17 Nov 2026 (code review #3): shrink big phone photos first.
+  const toSend = await shrinkImageIfNeeded(file);
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", toSend);
 
   const response = await fetch(`${API_BASE_URL}/attachments/`, {
     method: "POST",

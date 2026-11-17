@@ -24,6 +24,7 @@ from app.core.security import get_current_learner
 from app.models import Attachment, Learner
 from app.schemas.attachments import AttachmentUploadResponse
 from app.services.attachments import (
+    MAX_IMAGE_BYTES,
     MAX_UPLOAD_BYTES,
     classify_content_type,
     extract_docx_text,
@@ -56,6 +57,11 @@ async def upload_attachment(
         raise HTTPException(
             status_code=413,
             detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)}MB).",
+        )
+    if kind == "image" and len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="This photo is too large (max 5MB). Try a smaller photo or a screenshot.",
         )
 
     storage_path = save_upload(data, file.filename or "upload", settings.upload_dir)

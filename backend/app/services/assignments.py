@@ -32,6 +32,32 @@ from app.services.answer_marking import MarkingResult, mark_answer
 from app.services.tutor import TutorClient
 
 
+class AssignmentClosed(Exception):
+    """
+    NEW 17 Nov 2026 (code review #2). The assignment no longer accepts
+    answers: a test whose results are released, or a test past its due
+    date. Routers turn this into a 409 with the message as-is.
+    """
+
+
+def answers_closed_reason(assignment: "Assignment", now: datetime | None = None) -> str | None:
+    """
+    Why this assignment won't take answers right now, or None if it will.
+    Practice work always stays open (late practice is still practice);
+    a test closes once results are released (otherwise a student could
+    read the feedback and re-submit for a better mark) or once its due
+    date has passed. due_at is stored as naive UTC, like every timestamp here.
+    """
+    if assignment.mode != "test":
+        return None
+    if assignment.results_released:
+        return "Results for this test have been released, so answers can no longer be changed."
+    now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+    if assignment.due_at is not None and now > assignment.due_at:
+        return "This test is past its due date, so it no longer accepts answers."
+    return None
+
+
 class AssignmentError(ValueError):
     """
     Raised for a caller mistake a router should turn into a 400/403/404
@@ -307,6 +333,10 @@ async def submit_assignment_answer(
     ).scalar_one_or_none()
     if targeted is None:
         raise AssignmentError("This assignment was not issued to this student")
+    assignment = await db.get(Assignment, assignment_id)
+    reason = answers_closed_reason(assignment) if assignment is not None else None
+    if reason:
+        raise AssignmentClosed(reason)
 
     in_assignment = (
         await db.execute(

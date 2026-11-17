@@ -177,6 +177,10 @@ function AssignmentDetail({ auth, onLogout, assignmentId, onBack }) {
                 : "This is a test — your answers are recorded, but results and feedback are withheld until your teacher releases them."}
             </p>
           )}
+          {detail.answers_closed && (
+            // NEW 17 Nov 2026 (code review #2): a released or overdue test
+            <div className="admin-screen__muted assignments-view__closed">{detail.answers_closed}</div>
+          )}
           <ol className="assignment-questions">
             {detail.questions.map((q) => (
               <AssignmentQuestionCard
@@ -185,6 +189,7 @@ function AssignmentDetail({ auth, onLogout, assignmentId, onBack }) {
                 onLogout={onLogout}
                 assignmentId={assignmentId}
                 question={q}
+                closed={Boolean(detail.answers_closed)}
                 onAnswered={(result) => handleAnswered(q.id, result)}
               />
             ))}
@@ -195,7 +200,7 @@ function AssignmentDetail({ auth, onLogout, assignmentId, onBack }) {
   );
 }
 
-function AssignmentQuestionCard({ auth, onLogout, assignmentId, question, onAnswered }) {
+function AssignmentQuestionCard({ auth, onLogout, assignmentId, question, closed, onAnswered }) {
   // Pre-fills from the student's own prior answer (question.learner_response)
   // so reopening an already-answered question shows what they wrote,
   // rather than an empty box -- this textarea is otherwise a plain,
@@ -233,18 +238,28 @@ function AssignmentQuestionCard({ auth, onLogout, assignmentId, question, onAnsw
       <p className="assignment-question-card__text">
         {question.text} <span className="admin-screen__muted">({question.marks} mark{question.marks === 1 ? "" : "s"})</span>
       </p>
+      {closed ? (
+        question.learner_response && (
+          <p className="assignment-question-card__answer">
+            <span className="admin-screen__muted">Your answer: </span>
+            {question.learner_response}
+          </p>
+        )
+      ) : (
       <form onSubmit={handleSubmit}>
         <textarea
           className="assignment-question-card__textarea"
           value={response}
           onChange={(e) => setResponse(e.target.value)}
           placeholder="Type your answer…"
+          maxLength={4000}
         />
         {error && <div className="admin-screen__error">{error}</div>}
         <button type="submit" disabled={submitting || !response.trim()}>
           {submitting ? "Submitting…" : question.answered ? "Re-submit answer" : "Submit answer"}
         </button>
       </form>
+      )}
 
       {question.answered && question.feedback_withheld && (
         // NEW (ADR-029): a "test"-mode assignment whose results haven't

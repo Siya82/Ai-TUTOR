@@ -28,7 +28,13 @@ from app.schemas.assignments import (
     LearnerAssignmentSummary,
     LearnerQuestionItem,
 )
-from app.services.assignments import AssignmentError, get_assignment_completion, submit_assignment_answer
+from app.services.assignments import (
+    AssignmentClosed,
+    AssignmentError,
+    answers_closed_reason,
+    get_assignment_completion,
+    submit_assignment_answer,
+)
 from app.services.tutor import TutorClient
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
@@ -98,6 +104,7 @@ async def list_my_assignments(
                 due_at=assignment.due_at,
                 mode=assignment.mode,
                 results_released=assignment.results_released,
+                answers_closed=answers_closed_reason(assignment),
                 status=mine.status if mine else "not_started",
                 answered_count=mine.answered_count if mine else 0,
                 question_count=mine.question_count if mine else 0,
@@ -198,6 +205,7 @@ async def get_my_assignment(
         due_at=assignment.due_at,
         mode=assignment.mode,
         results_released=assignment.results_released,
+        answers_closed=answers_closed_reason(assignment),
         questions=question_items,
     )
 
@@ -241,6 +249,8 @@ async def answer_assignment_question(
             question_id=question_id,
             learner_response=payload.learner_response,
         )
+    except AssignmentClosed as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except AssignmentError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     await db.commit()

@@ -77,6 +77,8 @@ class AssignmentSummary(BaseModel):
     created_at: datetime
     mode: str
     results_released: bool
+    # NEW 17 Nov 2026 (code review #2): why answers are closed, or None
+    answers_closed: str | None = None
     question_count: int
     target_count: int
     marks_total: int
@@ -118,6 +120,8 @@ class AssignmentDetail(BaseModel):
     created_at: datetime
     mode: str
     results_released: bool
+    # NEW 17 Nov 2026 (code review #2): why answers are closed, or None
+    answers_closed: str | None = None
     questions: list[AssignmentQuestionItem]
     completions: list[LearnerCompletionItem]
 
@@ -134,6 +138,8 @@ class LearnerAssignmentSummary(BaseModel):
     due_at: datetime | None
     mode: str
     results_released: bool
+    # NEW 17 Nov 2026 (code review #2): why answers are closed, or None
+    answers_closed: str | None = None
     status: str  # "not_started" | "in_progress" | "completed"
     answered_count: int
     question_count: int
@@ -172,6 +178,8 @@ class LearnerAssignmentDetail(BaseModel):
     due_at: datetime | None
     mode: str
     results_released: bool
+    # NEW 17 Nov 2026 (code review #2): why answers are closed, or None
+    answers_closed: str | None = None
     questions: list[LearnerQuestionItem]
 
 

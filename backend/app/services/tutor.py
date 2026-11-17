@@ -47,6 +47,26 @@ from app.core.config import settings
 # longer, multi-step explanations.
 MAX_TOKENS = 2048
 
+# NEW 17 Nov 2026 (code review #4). A topic's session lives forever, and the
+# whole history used to be sent on every turn -- cost grew with each message
+# and a long-used topic would eventually overflow the model's context. Only
+# the most recent turns are sent now; older ones stay in the database.
+MAX_HISTORY_MESSAGES = 20
+
+
+def trim_history(messages: list[dict], max_messages: int = MAX_HISTORY_MESSAGES) -> list[dict]:
+    """
+    The last `max_messages` of a stored conversation, starting on a user
+    turn (the Messages API expects user/assistant alternation that opens
+    with the user). Pure, so it's unit-tested without a database.
+    """
+    if max_messages <= 0:
+        return []
+    recent = messages[-max_messages:]
+    while recent and recent[0].get("role") != "user":
+        recent = recent[1:]
+    return recent
+
 _WORKED_EXAMPLE_ANCHOR = """\
 Calibration example -- match THIS depth of explanation on every problem, not just this one. \
 Note the $$...$$ formatting around every equation line -- this is required, see the MATH \

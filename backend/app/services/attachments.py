@@ -41,7 +41,13 @@ DOCX_CONTENT_TYPES = {
 
 _IMAGE_EXTENSIONS = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg", ".webp": "webp", ".gif": "gif"}
 
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20MB -- generous for a phone photo or a worksheet PDF
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20MB -- generous for a worksheet PDF
+
+# NEW 17 Nov 2026 (code review #3): Claude refuses images over 5MB, which
+# used to surface as a tutor 500. The browser now shrinks photos before
+# upload (frontend/src/utils/shrinkImage.js); this is the server-side floor
+# for anything that still arrives too big.
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 # Below this many characters of extracted text, treat a PDF/docx as having
 # "no usable text" rather than silently sending a near-empty block to

@@ -55,7 +55,7 @@ from app.services.books import (
     get_page,
     get_readable_book,
 )
-from app.services.tutor import TutorClient
+from app.services.tutor import TutorClient, trim_history
 from app.services.tutor_orchestration import prepare_tutor_turn
 
 router = APIRouter()
@@ -276,7 +276,8 @@ async def send_tutor_message(
     history_result = await db.execute(history_stmt)
     history = history_result.scalars().all()
 
-    claude_messages = [{"role": m.role, "content": m.content} for m in history]
+    # Code review #4: only the recent turns go to Claude (see trim_history).
+    claude_messages = trim_history([{"role": m.role, "content": m.content} for m in history])
 
     # NEW 13 Nov 2026 (ADR-016): when the student attached files, Claude
     # gets the rich multimodal content (image vision blocks and/or
