@@ -13,6 +13,8 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { IdCard, LayoutGrid } from "lucide-react";
+import { ICON_BUTTON } from "./icons";
 import {
   addClassMembers,
   createAllocationsBulk,
@@ -103,15 +105,16 @@ export default function SchoolPanel({ token, onLogout, me, students, onChanged }
     <div className="admin-panel">
       <div className="progress-filter" role="tablist" aria-label="School setup sections">
         {[
-          ["classes", "Classes"],
-          ["staff", "Staff"],
-        ].map(([id, label]) => (
+          ["classes", "Classes", LayoutGrid],
+          ["staff", "Staff", IdCard],
+        ].map(([id, label, Icon]) => (
           <button
             key={id}
             type="button"
             className={`progress-filter__chip${section === id ? " progress-filter__chip--active" : ""}`}
             onClick={() => setSection(id)}
           >
+            <Icon size={ICON_BUTTON} aria-hidden="true" />
             {label}
           </button>
         ))}

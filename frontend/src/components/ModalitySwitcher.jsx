@@ -13,9 +13,12 @@
  * they needed were removed, not just hidden -- see BUILD_LOG.md.
  */
 
+import { Type, Volume2 } from "lucide-react";
+import { ICON_BUTTON } from "./icons";
+
 const MODALITIES = [
-  { id: "text", label: "Text" },
-  { id: "audio", label: "Audio" },
+  { id: "text", label: "Text", icon: Type },
+  { id: "audio", label: "Audio", icon: Volume2 },
 ];
 
 export default function ModalitySwitcher({ modality, onChange }) {
@@ -30,6 +33,7 @@ export default function ModalitySwitcher({ modality, onChange }) {
           className={`modality-switcher__btn ${modality === m.id ? "is-active" : ""}`}
           onClick={() => onChange(m.id)}
         >
+          <m.icon size={ICON_BUTTON} aria-hidden="true" />
           {m.label}
         </button>
       ))}

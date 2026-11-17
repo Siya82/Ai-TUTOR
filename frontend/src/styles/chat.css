@@ -2036,3 +2036,35 @@ body {
 .allocate-form__class {
   margin-left: 1.5rem;
 }
+
+/*
+ * NEW 17 Nov 2026: Lucide icons beside labels (sizes in components/icons.js).
+ * Icons use currentColor, so they follow each button's active/inactive text
+ * colour automatically.
+ */
+.admin-screen__tab,
+.chat-screen__view-toggle-button,
+.modality-switcher__btn,
+.chat-screen__logout,
+.reader__ask-button,
+.progress-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chat-screen__attach-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-screen__tab svg,
+.chat-screen__view-toggle-button svg,
+.modality-switcher__btn svg,
+.chat-screen__logout svg,
+.reader__ask-button svg,
+.progress-filter__chip svg,
+.chat-screen__attach-button svg {
+  flex-shrink: 0;
+}

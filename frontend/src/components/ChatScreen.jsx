@@ -44,6 +44,8 @@ import MathVerifiedBadge from "./MathVerifiedBadge";
 import SymbolKeyboard from "./SymbolKeyboard";
 import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
 import LibraryView from "./LibraryView"; // NEW 17 Nov 2026 (ADR-032, e-book library)
+import { BookOpen, ClipboardList, LogOut, MessageCircle, Paperclip } from "lucide-react";
+import { ICON_BUTTON, ICON_NAV } from "./icons";
 
 function topicNameById(topics, id) {
   const topic = topics.find((t) => t.id === id);
@@ -536,6 +538,7 @@ export default function ChatScreen({ auth, onLogout }) {
               }
               onClick={() => setView("chat")}
             >
+              <MessageCircle size={ICON_NAV} aria-hidden="true" />
               Tutor chat
             </button>
             <button
@@ -546,6 +549,7 @@ export default function ChatScreen({ auth, onLogout }) {
               }
               onClick={() => setView("library")}
             >
+              <BookOpen size={ICON_NAV} aria-hidden="true" />
               Library
             </button>
             <button
@@ -556,6 +560,7 @@ export default function ChatScreen({ auth, onLogout }) {
               }
               onClick={() => setView("assignments")}
             >
+              <ClipboardList size={ICON_NAV} aria-hidden="true" />
               Assignments
             </button>
           </nav>
@@ -566,6 +571,7 @@ export default function ChatScreen({ auth, onLogout }) {
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">{auth.learner.display_name}</span>
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
+              <LogOut size={ICON_BUTTON} aria-hidden="true" />
               Log out
             </button>
           </div>
@@ -658,7 +664,7 @@ export default function ChatScreen({ auth, onLogout }) {
           title="Attach a photo, PDF, or Word document"
           aria-label="Attach a file"
         >
-          📎
+          <Paperclip size={ICON_BUTTON} aria-hidden="true" />
         </button>
         <input
           ref={draftInputRef}

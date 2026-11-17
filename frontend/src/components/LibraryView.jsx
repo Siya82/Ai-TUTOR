@@ -21,6 +21,8 @@ import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { fetchBook, fetchBookAsset, fetchBookPage, fetchBookPagePdf, fetchBooks } from "../api";
+import { Sparkles } from "lucide-react";
+import { ICON_BUTTON } from "./icons";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -310,6 +312,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
 
       <div className="reader__ask">
         <button type="button" className="reader__ask-button" onClick={() => ask("")} disabled={!pageData}>
+          <Sparkles size={ICON_BUTTON} aria-hidden="true" />
           {isEpub ? "Ask THUTOra about this section" : "Ask THUTOra about this page"}
         </button>
         {mode === "text" || isEpub ? (
@@ -320,6 +323,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
             disabled={!selection}
             title={selection ? `“${selection.slice(0, 80)}”` : "Highlight some text first"}
           >
+            <Sparkles size={ICON_BUTTON} aria-hidden="true" />
             {selection ? "Ask about what I highlighted" : "Highlight text to ask about it"}
           </button>
         ) : (

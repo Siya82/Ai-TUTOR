@@ -19,6 +19,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import ProgressPanel from "./ProgressPanel";
+import { BarChart3, ClipboardList, LogOut, School, Upload, UserPlus, Users } from "lucide-react";
+import { ICON_BUTTON, ICON_NAV } from "./icons";
 import SchoolPanel from "./SchoolPanel";
 import {
   bulkCreateStudents,
@@ -40,12 +42,12 @@ import {
 // member's scope from GET /school/me -- `when` is checked against it.
 // The server enforces the same rules; hiding a tab is only convenience.
 const TABS = [
-  { id: "roster", label: "Students", when: () => true },
-  { id: "add", label: "Add student", when: (me) => me.can_manage_school },
-  { id: "bulk", label: "Bulk upload", when: (me) => me.can_manage_school },
-  { id: "assignments", label: "Assignments", when: (me) => me.has_academic_access },
-  { id: "progress", label: "Progress", when: (me) => me.has_academic_access }, // ADR-030
-  { id: "school", label: "School", when: (me) => me.can_manage_school }, // ADR-031
+  { id: "roster", label: "Students", icon: Users, when: () => true },
+  { id: "add", label: "Add student", icon: UserPlus, when: (me) => me.can_manage_school },
+  { id: "bulk", label: "Bulk upload", icon: Upload, when: (me) => me.can_manage_school },
+  { id: "assignments", label: "Assignments", icon: ClipboardList, when: (me) => me.has_academic_access },
+  { id: "progress", label: "Progress", icon: BarChart3, when: (me) => me.has_academic_access }, // ADR-030
+  { id: "school", label: "School", icon: School, when: (me) => me.can_manage_school }, // ADR-031
 ];
 
 function roleSummary(me) {
@@ -119,6 +121,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
               {roleSummary(me)} — {auth.school.name}
             </span>
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
+              <LogOut size={ICON_BUTTON} aria-hidden="true" />
               Log out
             </button>
           </div>
@@ -133,6 +136,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
             className={`admin-screen__tab${tab === t.id ? " admin-screen__tab--active" : ""}`}
             onClick={() => setTab(t.id)}
           >
+            <t.icon size={ICON_NAV} aria-hidden="true" />
             {t.label}
           </button>
         ))}

@@ -3046,3 +3046,18 @@ frontend's API URL is hard-coded to `http://localhost:8000`. POPIA: prompts
 to Claude carry no learner names, student numbers or school names (checked),
 but s72 cross-border processing and the operator agreement still need
 handling before a real school. No infrastructure created.
+
+## 17 Nov 2026 — Lucide icons on tabs and key buttons
+
+Following Siya's icon mockup and spec (Lucide React as the source of truth;
+24px navigation, 20px buttons, 16px inline). Added `lucide-react` and
+`src/components/icons.js` (the size constants). Icons added to: student view
+toggle (MessageCircle / BookOpen / ClipboardList); Text/Audio (Type /
+Volume2); attach (Paperclip, replacing the 📎 emoji); reader Ask buttons
+(Sparkles); teacher tabs (Users / UserPlus / Upload / ClipboardList /
+BarChart3 / School); School sub-tabs (LayoutGrid / IdCard); Log out (LogOut)
+on both screens. Icons use currentColor, so active/inactive colours are
+unchanged, and they're `aria-hidden` next to visible labels. **Needs
+`npm install` in `frontend/`.** Checked: `vite build` clean, eslint clean on
+changed files (TeacherAdminScreen still has only its 3 pre-existing
+set-state-in-effect errors), screenshots of the teacher and student headers.
