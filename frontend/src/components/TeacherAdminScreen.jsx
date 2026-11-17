@@ -46,8 +46,8 @@ const TABS = [
   { id: "add", label: "Add student", icon: UserPlus, when: (me) => me.can_manage_school },
   { id: "bulk", label: "Bulk upload", icon: Upload, when: (me) => me.can_manage_school },
   { id: "assignments", label: "Assignments", icon: ClipboardList, when: (me) => me.has_academic_access },
-  { id: "progress", label: "Progress", icon: BarChart3, when: (me) => me.has_academic_access }, // ADR-030
-  { id: "school", label: "School", icon: School, when: (me) => me.can_manage_school }, // ADR-031
+  { id: "progress", label: "Progress", icon: BarChart3, product: "insights", when: (me) => me.has_academic_access }, // ADR-030
+  { id: "school", label: "School", icon: School, product: "insights", when: (me) => me.can_manage_school }, // ADR-031
 ];
 
 function roleSummary(me) {
@@ -108,11 +108,12 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
   };
 
   return (
-    <div className="admin-screen">
+    <div className="admin-screen" data-product="teach">
       <header className="chat-screen__header">
         <div className="chat-screen__brand">
           <img src="/thutora-teach-logo.png" alt="" className="chat-screen__brand-logo" />
-          THUTOra<span className="chat-screen__brand-dot">.</span>
+          THUTOra
+          <span className="product-badge">TEACH</span>
         </div>
         <div className="chat-screen__header-right">
           <div className="chat-screen__profile">
@@ -135,8 +136,12 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
             type="button"
             className={`admin-screen__tab${tab === t.id ? " admin-screen__tab--active" : ""}`}
             onClick={() => setTab(t.id)}
+            data-product={t.product}
           >
-            <t.icon size={ICON_NAV} aria-hidden="true" />
+            {/* ADR-034: Progress and School carry INSIGHTS blue; the rest TEACH purple */}
+            <span className="icon-chip">
+              <t.icon size={ICON_NAV} aria-hidden="true" />
+            </span>
             {t.label}
           </button>
         ))}
@@ -163,7 +168,11 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         {tab === "bulk" && (
           <BulkUploadPanel token={auth.token} onLogout={onLogout} onCreated={loadRoster} />
         )}
-        {tab === "progress" && <ProgressPanel token={auth.token} onLogout={onLogout} />}
+        {tab === "progress" && (
+          <div data-product="insights">
+            <ProgressPanel token={auth.token} onLogout={onLogout} />
+          </div>
+        )}
         {tab === "school" && me && (
           <SchoolPanel
             token={auth.token}

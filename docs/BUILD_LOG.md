@@ -3061,3 +3061,14 @@ unchanged, and they're `aria-hidden` next to visible labels. **Needs
 `npm install` in `frontend/`.** Checked: `vite build` clean, eslint clean on
 changed files (TeacherAdminScreen still has only its 3 pre-existing
 set-state-in-effect errors), screenshots of the teacher and student headers.
+
+## 17 Nov 2026 — Light theme and product colours (ADR-034)
+
+Implemented Siya's approved mockup: light theme, LEARN green / TEACH purple /
+INSIGHTS blue (Progress, School icon) / CONNECT orange, tinted icon circles on
+the navigation, LEARN/TEACH badges by the wordmark. Done mostly in
+`tokens.css` (product accents via `data-product`) plus a handful of hard-coded
+colours in `chat.css` (status tints, reader page edges, ePub worked-example
+box, user chat bubble now a tint with navy text). Checked: `vite build`,
+eslint (only TeacherAdminScreen's 3 pre-existing errors), screenshots of login,
+student chat, library, teacher Progress and School.

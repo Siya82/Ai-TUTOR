@@ -508,7 +508,7 @@ export default function ChatScreen({ auth, onLogout }) {
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-product="learn">
       {view === "chat" && (
         <aside className="app-shell__sidebar">
           <SubjectTopicSidebar
@@ -526,7 +526,8 @@ export default function ChatScreen({ auth, onLogout }) {
       <header className="chat-screen__header">
         <div className="chat-screen__brand">
           <img src="/thutora-learn-logo.png" alt="" className="chat-screen__brand-logo" />
-          THUTOra<span className="chat-screen__brand-dot">.</span>
+          THUTOra
+          <span className="product-badge">LEARN</span>
         </div>
         <div className="chat-screen__header-right">
           <nav className="chat-screen__view-toggle">
@@ -538,7 +539,7 @@ export default function ChatScreen({ auth, onLogout }) {
               }
               onClick={() => setView("chat")}
             >
-              <MessageCircle size={ICON_NAV} aria-hidden="true" />
+              <span className="icon-chip"><MessageCircle size={ICON_NAV} aria-hidden="true" /></span>
               Tutor chat
             </button>
             <button
@@ -549,7 +550,7 @@ export default function ChatScreen({ auth, onLogout }) {
               }
               onClick={() => setView("library")}
             >
-              <BookOpen size={ICON_NAV} aria-hidden="true" />
+              <span className="icon-chip"><BookOpen size={ICON_NAV} aria-hidden="true" /></span>
               Library
             </button>
             <button
@@ -560,7 +561,7 @@ export default function ChatScreen({ auth, onLogout }) {
               }
               onClick={() => setView("assignments")}
             >
-              <ClipboardList size={ICON_NAV} aria-hidden="true" />
+              <span className="icon-chip"><ClipboardList size={ICON_NAV} aria-hidden="true" /></span>
               Assignments
             </button>
           </nav>

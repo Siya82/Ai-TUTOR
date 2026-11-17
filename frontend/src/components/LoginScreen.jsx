@@ -104,7 +104,9 @@ export default function LoginScreen({ onLogin }) {
   const brand = (
     <div className="login-screen__brand">
       <img src="/thutora-logo.png" alt="" className="login-screen__brand-logo" />
-      THUTOra<span className="login-screen__brand-dot">.</span>
+      <span>
+        THUTOra<span className="login-screen__brand-dot">.</span>
+      </span>
     </div>
   );
 
