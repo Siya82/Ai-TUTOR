@@ -241,7 +241,7 @@ export async function uploadAttachment(file, token) {
   return response.json();
 }
 
-export async function sendTutorMessage({ message, sessionId, topicId, attachmentIds, token }) {
+export async function sendTutorMessage({ message, sessionId, topicId, attachmentIds, bookContext, token }) {
   if (!token || !topicId) {
     throw new Error("sendTutorMessage requires an auth token and a real topicId (fetch them first).");
   }
@@ -255,6 +255,15 @@ export async function sendTutorMessage({ message, sessionId, topicId, attachment
   // attached them.
   if (attachmentIds && attachmentIds.length > 0) {
     payload.attachment_ids = attachmentIds;
+  }
+  // NEW 17 Nov 2026 (ADR-032): asking from the e-book reader. The server
+  // loads the page text itself; only the highlight is sent from here.
+  if (bookContext) {
+    payload.book_context = {
+      book_id: bookContext.bookId,
+      page_number: bookContext.pageNumber,
+      selected_text: bookContext.selectedText || undefined,
+    };
   }
 
   const response = await fetch(`${API_BASE_URL}/tutor/message`, {
@@ -506,4 +515,37 @@ export function createAllocation(token, { teacherUserId, subjectId, classId }) {
 
 export function deleteAllocation(token, allocationId) {
   return deleteJson(`/school/allocations/${allocationId}`, token);
+}
+
+/*
+ * NEW 17 Nov 2026 (ADR-032, e-book library). Learners see books at or
+ * below their grade; the server checks the grade on every call.
+ */
+
+export function fetchBooks(token) {
+  return getJson("/books/", token);
+}
+
+export function fetchBook(token, bookId) {
+  return getJson(`/books/${bookId}`, token);
+}
+
+/** { page_number, page_count, text, has_text, topic_id, topic_name, attribution } */
+export function fetchBookPage(token, bookId, pageNumber) {
+  return getJson(`/books/${bookId}/pages/${pageNumber}`, token);
+}
+
+/** That single page as a small PDF (ArrayBuffer), for rendering with pdf.js. */
+export async function fetchBookPagePdf(token, bookId, pageNumber) {
+  const response = await fetch(`${API_BASE_URL}/books/${bookId}/pages/${pageNumber}/pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `Page PDF failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.arrayBuffer();
 }

@@ -526,3 +526,52 @@ class StaffRole(Base):
     grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     granted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# NEW 17 Nov 2026 (ADR-032, e-book library and reader).
+# ---------------------------------------------------------------------------
+
+
+class Book(Base):
+    """An openly-licensed textbook (e.g. Siyavula CC-BY) a learner can read
+    and ask THUTOra about. The PDF itself lives in
+    backend/content_sources/books/<file_name> and is not committed."""
+
+    __tablename__ = "books"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("subjects.id"), nullable=False)
+    publisher: Mapped[str | None] = mapped_column(String(100))
+    licence: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g. "CC-BY 3.0"
+    attribution: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(String(500))
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class BookPage(Base):
+    """Extracted text of one page: the low-data text view, the source of
+    selectable text, and the passage sent to the tutor."""
+
+    __tablename__ = "book_pages"
+    __table_args__ = (UniqueConstraint("book_id", "page_number", name="uq_book_page"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    book_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("books.id"), nullable=False)
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-based, as printed by the PDF viewer
+    text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class BookTopicRange(Base):
+    """Optional: pages start_page..end_page (inclusive) cover this CAPS topic."""
+
+    __tablename__ = "book_topic_ranges"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    book_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("books.id"), nullable=False)
+    topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("topics.id"), nullable=False)
+    start_page: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_page: Mapped[int] = mapped_column(Integer, nullable=False)

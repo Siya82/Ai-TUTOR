@@ -2908,3 +2908,49 @@ Screens checked in headless Chrome as principal and teacher.
 
 **Behaviour change to know about:** a staff login with no allocation and no
 role sees no learners. Re-seed after migrating.
+
+## 17 Nov 2026 — E-book library, reader and "Ask THUTOra about this" (ADR-032)
+
+Siya asked how learners could study from e-books and ask THUTOra about
+anything they don't understand. Licensing was checked first: Siyavula's
+unbranded Mathematics/Physical Sciences Gr 10–12 editions are CC-BY 3.0
+(commercial use with attribution); DBE "Mind the Gap" guides are
+non-commercial and excluded; publishers' e-books need licences.
+
+**Backend:** migration `0009` (`books`, `book_pages`, `book_topic_ranges`).
+New `app/services/books.py`, `app/routers/books.py` (`GET /books/`,
+`/books/{id}`, `/books/{id}/pages/{n}`, `/books/{id}/pages/{n}/pdf`, the last
+returning just that one page), `app/schemas/books.py`.
+`POST /tutor/message` takes an optional `book_context`; the server loads the
+page text itself, applies the grade rule, puts the passage in front of the
+question for that turn, and stores only a short summary in history.
+Retrieval now labels every grounding excerpt with its source so the tutor can
+cite pages (one existing test assertion still holds after dropping the
+duplicated source list from the header). New `scripts/ingest_books.py` with a
+`BOOKS` manifest for the six Siyavula books, `--outline` to help fill topic
+page ranges, `--manifest` for custom lists, and graceful skipping of
+embeddings when `OPENAI_API_KEY` isn't set.
+
+**Frontend:** new `LibraryView.jsx` (book list by grade; reader with
+one-page PDFs rendered by `pdfjs-dist`, a low-data selectable Text view, "Ask
+THUTOra about this page" and "Ask about what I highlighted", and CC-BY
+attribution under each page). `ChatScreen.jsx` has a Library toggle, a book
+chip on the composer and on sent messages, and "Open page" to jump back.
+**New npm dependency: `pdfjs-dist`** (run `npm install` in `frontend/`).
+
+**Verified** in the sandbox against real Postgres: migration 0009, ingesting a
+generated 5-page test PDF (pages, topic ranges, idempotent re-run, embedding
+with a stubbed embedder producing "p. N" chunk sources, skip-on-missing-key),
+grade checks (a Grade 10 learner gets 403 on a Grade 11 book's pages, PDF and
+"Ask"; the list hides it; teachers see all), single-page PDF download (~1 KB),
+404 for a missing page, and a `book_context` tutor turn with the Claude call
+stubbed (passage, highlight and page reference reach the model; history stores
+only the summary). `pytest`: 195 passed (9 new in `tests/test_books.py`).
+`vite build` clean; eslint clean on new/changed files. The full flow (library,
+page render, text highlight, ask, answer with book chip) was clicked through
+in headless Chrome.
+
+**Still needed from Siya:** download the Siyavula CC-BY PDFs into
+`backend/content_sources/books/`, run `alembic upgrade head`,
+`python -m scripts.ingest_books`, `npm install` in `frontend/`, then fill in
+topic page ranges (optional, for page-cited answers).

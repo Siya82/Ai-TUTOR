@@ -43,6 +43,7 @@ import MarkdownMessage from "./MarkdownMessage";
 import MathVerifiedBadge from "./MathVerifiedBadge";
 import SymbolKeyboard from "./SymbolKeyboard";
 import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
+import LibraryView from "./LibraryView"; // NEW 17 Nov 2026 (ADR-032, e-book library)
 
 function topicNameById(topics, id) {
   const topic = topics.find((t) => t.id === id);
@@ -139,6 +140,29 @@ function AssistantMessage({ message, topics }) {
 // both in the pending-attachment chips and on a sent user message.
 const ATTACHMENT_KIND_LABEL = { image: "Image", pdf: "PDF", docx: "Word" };
 
+// NEW 17 Nov 2026 (ADR-032): the page a question is about, shown on the
+// composer before sending and on the sent message. "Open" goes back to it.
+function BookChip({ book, onOpen, onRemove }) {
+  const sel = book.selectedText ? book.selectedText.replace(/\s+/g, " ") : "";
+  return (
+    <div className="book-chip">
+      <span aria-hidden="true">📖</span>
+      <span>
+        {book.bookTitle}, p. {book.pageNumber}
+        {sel && <span className="book-chip__sel"> — “{sel.length > 60 ? `${sel.slice(0, 60)}…` : sel}”</span>}
+      </span>
+      <button type="button" className="book-chip__open" onClick={onOpen}>
+        Open page
+      </button>
+      {onRemove && (
+        <button type="button" className="book-chip__remove" onClick={onRemove} aria-label="Don't attach this page">
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AttachmentChip({ attachment, onRemove }) {
   const { original_filename, kind, uploading, error, extraction_warning, previewUrl } = attachment;
 
@@ -192,7 +216,12 @@ export default function ChatScreen({ auth, onLogout }) {
   // NEW 15 Nov 2026 (ADR-028, assignments). A lightweight in-screen
   // toggle rather than a real route -- matches how TeacherAdminScreen.jsx
   // switches its own tabs with local state, not a router.
-  const [view, setView] = useState("chat"); // "chat" | "assignments"
+  const [view, setView] = useState("chat"); // "chat" | "assignments" | "library"
+  // NEW 17 Nov 2026 (ADR-032): where the reader is (kept here so it reopens on
+  // the same page after asking), and the page reference waiting to be sent
+  // with the next question.
+  const [readerPosition, setReaderPosition] = useState(null); // { bookId, page } | null
+  const [pendingBook, setPendingBook] = useState(null); // { bookId, bookTitle, pageNumber, selectedText }
   const [subjects, setSubjects] = useState([]);
   const [topics, setTopics] = useState([]);
   const [subjectId, setSubjectId] = useState(null);
@@ -382,12 +411,44 @@ export default function ChatScreen({ auth, onLogout }) {
   const attachmentsUploading = pendingAttachments.some((a) => a.uploading);
   const readyAttachments = pendingAttachments.filter((a) => a.id && !a.error);
 
+  // NEW 17 Nov 2026 (ADR-032): "Ask THUTOra" from the reader. Picks the topic
+  // the page is mapped to; otherwise keeps the current topic if it's in the
+  // book's subject, else the first topic of that subject.
+  const handleAskFromBook = (ctx) => {
+    let nextTopic = ctx.topicId ? topics.find((t) => t.id === ctx.topicId) : null;
+    if (!nextTopic) {
+      const current = topics.find((t) => t.id === topicId);
+      nextTopic =
+        current && current.subject_id === ctx.subjectId
+          ? current
+          : topics.find((t) => t.subject_id === ctx.subjectId) || current;
+    }
+    if (nextTopic) {
+      setSubjectId(nextTopic.subject_id);
+      setTopicId(nextTopic.id);
+    }
+    setPendingBook({
+      bookId: ctx.bookId,
+      bookTitle: ctx.bookTitle,
+      pageNumber: ctx.pageNumber,
+      selectedText: ctx.selectedText,
+    });
+    setView("chat");
+    setTimeout(() => draftInputRef.current?.focus(), 0);
+  };
+
+  const openBookPage = (bookId, page) => {
+    setReaderPosition({ bookId, page });
+    setView("library");
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
     const text = draft.trim();
-    if ((!text && readyAttachments.length === 0) || !topicId || sending || attachmentsUploading) {
+    if ((!text && readyAttachments.length === 0 && !pendingBook) || !topicId || sending || attachmentsUploading) {
       return;
     }
+    const bookContext = pendingBook;
 
     setSending(true);
     setSendError(null);
@@ -395,10 +456,12 @@ export default function ChatScreen({ auth, onLogout }) {
       ...prev,
       {
         role: "user",
-        text,
+        text: text || (bookContext ? "Please explain this to me." : text),
         attachments: readyAttachments.map((a) => ({ original_filename: a.original_filename, kind: a.kind, previewUrl: a.previewUrl })),
+        book: bookContext,
       },
     ]);
+    setPendingBook(null);
     setDraft("");
     const attachmentIds = readyAttachments.map((a) => a.id);
     setPendingAttachments([]);
@@ -409,6 +472,7 @@ export default function ChatScreen({ auth, onLogout }) {
         sessionId,
         topicId,
         attachmentIds,
+        bookContext,
         token: auth.token,
       });
       setSessionId(response.session_id);
@@ -477,6 +541,16 @@ export default function ChatScreen({ auth, onLogout }) {
               type="button"
               className={
                 "chat-screen__view-toggle-button" +
+                (view === "library" ? " chat-screen__view-toggle-button--active" : "")
+              }
+              onClick={() => setView("library")}
+            >
+              Library
+            </button>
+            <button
+              type="button"
+              className={
+                "chat-screen__view-toggle-button" +
                 (view === "assignments" ? " chat-screen__view-toggle-button--active" : "")
               }
               onClick={() => setView("assignments")}
@@ -499,6 +573,14 @@ export default function ChatScreen({ auth, onLogout }) {
 
       {view === "assignments" ? (
         <AssignmentsView auth={auth} onLogout={onLogout} />
+      ) : view === "library" ? (
+        <LibraryView
+          auth={auth}
+          onLogout={onLogout}
+          position={readerPosition}
+          onPositionChange={setReaderPosition}
+          onAsk={handleAskFromBook}
+        />
       ) : (
       <>
       {loadError && <div className="chat-screen__error">{loadError}</div>}
@@ -517,6 +599,7 @@ export default function ChatScreen({ auth, onLogout }) {
                   ))}
                 </div>
               )}
+              {m.book && <BookChip book={m.book} onOpen={() => openBookPage(m.book.bookId, m.book.pageNumber)} />}
               {m.text}
             </div>
           ) : (
@@ -532,6 +615,16 @@ export default function ChatScreen({ auth, onLogout }) {
         topicName={topics.find((t) => t.id === topicId)?.name}
         onInsert={insertSymbol}
       />
+
+      {pendingBook && (
+        <div className="attachment-chip-row">
+          <BookChip
+            book={pendingBook}
+            onOpen={() => openBookPage(pendingBook.bookId, pendingBook.pageNumber)}
+            onRemove={() => setPendingBook(null)}
+          />
+        </div>
+      )}
 
       {pendingAttachments.length > 0 && (
         <div className="attachment-chip-row">
@@ -573,7 +666,9 @@ export default function ChatScreen({ auth, onLogout }) {
           onChange={(e) => setDraft(e.target.value)}
           onPaste={handleDraftPaste}
           placeholder={
-            subjectNameById(subjects, subjectId)
+            pendingBook
+              ? `What don't you understand on p. ${pendingBook.pageNumber}? (or just press Send)`
+              : subjectNameById(subjects, subjectId)
               ? `Ask THUTOra a ${subjectNameById(subjects, subjectId)} question… (or attach/paste a photo of your work)`
               : "Ask THUTOra a question…"
           }
@@ -584,7 +679,7 @@ export default function ChatScreen({ auth, onLogout }) {
           disabled={
             sending ||
             attachmentsUploading ||
-            (!draft.trim() && readyAttachments.length === 0) ||
+            (!draft.trim() && readyAttachments.length === 0 && !pendingBook) ||
             !topicId
           }
         >

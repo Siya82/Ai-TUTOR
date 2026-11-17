@@ -45,6 +45,12 @@ from app.services.attachments import build_attachment_content_blocks, history_su
 from app.services.diagnosis import diagnose_root_gap
 from app.services.math_guard import verify_tutor_response
 from app.services.retrieval import get_grounding_text
+from app.services.books import (
+    book_history_summary,
+    build_book_passage,
+    get_page,
+    get_readable_book,
+)
 from app.services.tutor import TutorClient
 from app.services.tutor_orchestration import prepare_tutor_turn
 
@@ -186,6 +192,24 @@ async def send_tutor_message(
     attachments = await _fetch_owned_attachments(db, learner.id, payload.attachment_ids)
     attachment_dicts = [_attachment_to_dict(a) for a in attachments]
 
+    # NEW 17 Nov 2026 (ADR-032, e-book reader). The page text is loaded here,
+    # server-side, after the same grade check the Library applies -- only
+    # the learner's highlight comes from the client.
+    book_passage = None
+    book_summary = None
+    if payload.book_context is not None:
+        ctx = payload.book_context
+        book, _subject = await get_readable_book(db, ctx.book_id, learner)
+        page = await get_page(db, book, ctx.page_number)
+        book_passage = build_book_passage(
+            title=book.title,
+            page_number=page.page_number,
+            page_text=page.text,
+            selected_text=ctx.selected_text,
+            attribution=book.attribution,
+        )
+        book_summary = book_history_summary(book.title, page.page_number, ctx.selected_text)
+
     prerequisite_chain = await _resolve_prerequisite_chain(db, requested_topic)
     attempts_by_topic = await _fetch_scored_attempts_by_topic(
         db, learner.id, [t.id for t in prerequisite_chain]
@@ -210,7 +234,8 @@ async def send_tutor_message(
     else:
         diagnosis_preview = diagnose_root_gap(prerequisite_chain, attempts_by_topic)
         preview_topic_id = diagnosis_preview.recommended_topic.id
-    grounding_query_text = payload.message.strip() or requested_topic.name
+    selection = (payload.book_context.selected_text or "").strip() if payload.book_context else ""
+    grounding_query_text = payload.message.strip() or selection or requested_topic.name
     grounding_text = await get_grounding_text(
         db, preview_topic_id, grounding_query_text
     )
@@ -246,17 +271,25 @@ async def send_tutor_message(
     message_text = payload.message.strip() or (
         "Please look at the attached file and help me with it."
         if attachment_dicts
+        else "Please explain this to me."
+        if book_passage
         else payload.message
     )
 
     if attachment_dicts:
         user_content = build_attachment_content_blocks(attachment_dicts)
+        if book_passage:
+            user_content.append({"type": "text", "text": book_passage})
         user_content.append({"type": "text", "text": message_text})
+    elif book_passage:
+        user_content = f"{book_passage}\n\n{message_text}"
     else:
         user_content = message_text
     claude_messages.append({"role": "user", "content": user_content})
 
     persisted_content = history_summary_for(attachment_dicts, message_text)
+    if book_summary:  # ADR-032: store a short note, not the whole page
+        persisted_content = f"{book_summary} {persisted_content}"
     user_message = TutorMessage(session_id=session.id, role="user", content=persisted_content)
     db.add(user_message)
     await db.flush()  # need user_message.id to backfill the attachments below

@@ -53,15 +53,20 @@ def _cosine_distance(a: list[float], b: list[float]) -> float:
 
 
 def _format_grounding_text(chunks: list[ContentChunk]) -> str:
-    sources = sorted({c.source for c in chunks})
-    body = "\n\n---\n\n".join(c.text for c in chunks)
+    # UPDATED 17 Nov 2026 (ADR-032): each chunk carries its own source label
+    # (e.g. "Everything Maths Grade 10 (Siyavula), p. 87") so the tutor can
+    # point the learner to the exact page. The header no longer repeats the
+    # source list, since every excerpt is now labelled where it appears.
+    body = "\n\n---\n\n".join(f"[{c.source}]\n{c.text}" for c in chunks)
     return (
-        f"[CAPS content grounding -- real ingested source material ({'; '.join(sources)}), "
+        f"[CAPS content grounding -- real ingested source material, each excerpt labelled with its source, "
         f"see ADR-021. Prefer this material over your own general knowledge whenever it's "
         f"relevant, especially for matching/identification/fact-based questions -- that is "
         f"exactly the failure mode this was built to reduce. If this material doesn't cover "
         f"what the learner is asking, fall back to general CAPS curriculum knowledge rather "
-        f"than forcing a match to it.]\n\n{body}"
+        f"than forcing a match to it. When an excerpt below is labelled with a book page, "
+        f"tell the learner where to read more, e.g. 'see p. 87 of Everything Maths Grade 10'.]"
+        f"\n\n{body}"
     )
 
 

@@ -4,6 +4,18 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 
 **One-time catch-up before anything below:** `git pull`, `pip install -r requirements.txt` (or run `start-thutora.ps1`), `alembic upgrade head` (picks up migrations 0004–0006), then `python -m scripts.seed_dev_data` to re-seed and backfill.
 
+## Priority 0b — E-book library (ADR-032)
+
+Setup: `alembic upgrade head` (0009), `npm install` in `frontend/`, download at
+least `everything-maths-grade-10.pdf` (unbranded CC-BY edition) into
+`backend/content_sources/books/`, then `python -m scripts.ingest_books`.
+
+- [ ] Student → Library shows the book under its grade; a Grade 10 student doesn't see Grade 11/12 books
+- [ ] Open it: the page renders; ‹ › and typing a page number work; Text view shows the page text
+- [ ] Highlight a sentence in Text view → "Ask about what I highlighted" → chat opens with the book chip → Send → the answer talks about that page
+- [ ] "Open page" on the chip returns to the same page
+- [ ] Optional: fill a few topic page ranges in `ingest_books.py`, set `OPENAI_API_KEY`, re-run, and check answers from the normal chat cite "p. N"
+
 ## Priority 0 — School roles and scoping (ADR-031)
 
 Run `alembic upgrade head` (migration 0008) and re-seed first.

@@ -11,6 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.books import BookContext  # ADR-032
+
 
 class TutorMessageRequest(BaseModel):
     # FIX 14 Nov 2026 (ADR-017, student login): learner_id used to be
@@ -33,10 +35,13 @@ class TutorMessageRequest(BaseModel):
     # Claude. Optional and defaults to empty so every existing caller
     # (and every existing test) keeps working unchanged.
     attachment_ids: list[UUID] = Field(default_factory=list)
+    # NEW 17 Nov 2026 (ADR-032): set when the learner asks from the e-book
+    # reader. The server loads the page text itself.
+    book_context: BookContext | None = None
 
     @model_validator(mode="after")
     def _require_message_or_attachment(self) -> "TutorMessageRequest":
-        if not self.message.strip() and not self.attachment_ids:
+        if not self.message.strip() and not self.attachment_ids and self.book_context is None:
             raise ValueError(
                 "message must not be blank unless at least one attachment_id is provided"
             )
