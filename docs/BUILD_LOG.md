@@ -2988,3 +2988,26 @@ the topic switched to the mapped one. `vite build` and eslint clean.
 **Still needed from Siya:** download the CC BY ePubs, `alembic upgrade head`
 (0010), `python -m scripts.ingest_books`. The real ePubs' structure hasn't
 been seen yet, so the section splitting may need tuning once one arrives.
+
+## 17 Nov 2026 — Library tuned against the real Siyavula CC BY ePubs
+
+Found the six English "ePUB (CC-BY)" downloads on siyavula.com/read in the
+built-in browser (the pane couldn't save files, and the shell is blocked from
+siyavula.com, so Siya downloaded them). I renamed them into
+`backend/content_sources/books/` and inspected them: all CC BY 4.0;
+equations are PNG images with no TeX; chapters start in `NN-…-00` files.
+
+Changes: equation images numbered and sent to the tutor as labelled vision
+blocks (highlight-aware, capped at 40); chapter detection plus migration 0011
+(`book_pages.chapter`); manifest maps topics to chapter titles for all six
+books; worked examples kept as their own sections; soft split counts
+equations; merged sections renumbered; `sv-*` structural styling; nav document
+skipped; licence regex accepts "CC-BY"; reader groups sections by chapter,
+opens at Chapter 1, keeps the toolbar sticky, and highlights keep their
+`[eq N]` markers.
+
+Verified: all six real books import against real Postgres (623, 582, 566,
+582, 667 and 911 sections; every topic range resolves; no duplicate equation
+numbers). `pytest`: 218 passed. Real Maths Gr 10 "Worked example 1: Applying
+the exponential laws" renders with its equations, and an "Ask" sent 8 labelled
+equation images for an 8-equation highlight (Claude call stubbed).

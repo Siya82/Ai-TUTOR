@@ -145,11 +145,19 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
         if (cancelled) return;
         setBook(b);
         if (!b.file_available || b.format === "epub") setMode("text");
+        // An ePub opens on its copyright notice; start at Chapter 1 instead.
+        if (b.format === "epub" && page === 1) {
+          const firstChapter = (b.sections || []).find((sec) => sec.chapter);
+          if (firstChapter && firstChapter.number !== 1) onPageChange(firstChapter.number);
+        }
       })
       .catch((err) => !cancelled && handleErr(err));
     return () => {
       cancelled = true;
     };
+    // Runs once per book on purpose: the chapter-1 jump must not re-fire on
+    // every page change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.token, bookId]);
 
   useEffect(() => {
@@ -176,8 +184,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
   };
 
   const captureSelection = () => {
-    const text = window.getSelection()?.toString().trim() || "";
-    setSelection(text.slice(0, 1500));
+    setSelection(selectionWithMarkers().slice(0, 1500));
   };
 
   const ask = (selectedText) =>
@@ -209,10 +216,14 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
               onChange={(e) => goTo(Number(e.target.value))}
               aria-label="Section"
             >
-              {(book.sections || []).map((sec) => (
-                <option key={sec.number} value={sec.number}>
-                  {sec.number}. {sec.title}
-                </option>
+              {groupByChapter(book.sections || []).map(([chapter, secs]) => (
+                <optgroup key={`${chapter}-${secs[0].number}`} label={chapter || "Front matter"}>
+                  {secs.map((sec) => (
+                    <option key={sec.number} value={sec.number}>
+                      {sec.title}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           ) : (
@@ -319,6 +330,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
       </div>
 
       <div className="reader__footer">
+        {pageData?.chapter && <span>{pageData.chapter} · </span>}
         {pageData?.topic_name && <span>Topic: {pageData.topic_name} · </span>}
         <span>{book?.attribution}</span>
       </div>
@@ -399,7 +411,9 @@ function EpubSection({ token, bookId, html, onSelect }) {
           img.replaceWith(document.createTextNode(img.alt ? `[Figure: ${img.alt}]` : "[Figure]"));
         });
     });
-    root.scrollIntoView({ block: "start" });
+    // New section: back to the top of the reader (not the whole page, which
+    // would scroll the toolbar away).
+    root.closest(".reader")?.scrollTo({ top: 0 });
     return () => {
       cancelled = true;
       urls.forEach((u) => URL.revokeObjectURL(u));
@@ -416,4 +430,33 @@ function EpubSection({ token, bookId, html, onSelect }) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
+}
+
+// Consecutive sections of the same chapter -> one <optgroup>.
+function groupByChapter(sections) {
+  const groups = [];
+  for (const sec of sections) {
+    const last = groups[groups.length - 1];
+    if (last && last[0] === sec.chapter) last[1].push(sec);
+    else groups.push([sec.chapter, [sec]]);
+  }
+  return groups;
+}
+
+// The learner's selection as text, with each equation/figure image inside it
+// replaced by its "[eq N]" / "[figure N]" marker. Siyavula's equations are
+// images, so a plain toString() would silently drop all the maths; the
+// markers let the server send exactly those images to the tutor.
+function selectionWithMarkers() {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return "";
+  const box = document.createElement("div");
+  for (let i = 0; i < sel.rangeCount; i += 1) box.appendChild(sel.getRangeAt(i).cloneContents());
+  box.querySelectorAll("img[data-eq]").forEach((img) => {
+    img.replaceWith(document.createTextNode(` [eq ${img.getAttribute("data-eq")}] `));
+  });
+  box.querySelectorAll("img[data-fig]").forEach((img) => {
+    img.replaceWith(document.createTextNode(` [figure ${img.getAttribute("data-fig")}] `));
+  });
+  return box.textContent.replace(/\s+/g, " ").trim();
 }

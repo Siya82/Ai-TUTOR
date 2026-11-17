@@ -117,3 +117,70 @@ async def get_page(db: AsyncSession, book: Book, page_number: int) -> BookPage:
     if page is None:
         raise HTTPException(status_code=404, detail=f"Page {page_number} not found in this book")
     return page
+
+
+# ---------------------------------------------------------------------------
+# NEW 17 Nov 2026 (ADR-032 ePub addendum). Siyavula's ePubs draw every
+# equation as a PNG (no TeX, no MathML), so a section's text reaches the
+# tutor with "[eq N]" / "[figure N]" placeholders. These helpers pick the
+# matching images out of the ePub and send them as vision blocks labelled
+# with the same numbers, so Claude can read the maths the learner sees.
+# ---------------------------------------------------------------------------
+
+import base64  # noqa: E402
+import re  # noqa: E402
+
+MAX_EQUATION_IMAGES = 40
+MAX_FIGURE_IMAGES = 4
+_IMG_REF = re.compile(r'<img\b[^>]*?data-asset="([^"]+)"[^>]*>')
+_MARKER = re.compile(r"\[(eq|figure) (\d+)")
+
+
+def book_image_refs(html: str) -> list[tuple[str, int, str]]:
+    """[(kind, number, zip path)] for every numbered image in a section, in order."""
+    out = []
+    for m in _IMG_REF.finditer(html or ""):
+        tag = m.group(0)
+        eq = re.search(r'data-eq="(\d+)"', tag)
+        fig = re.search(r'data-fig="(\d+)"', tag)
+        if eq:
+            out.append(("eq", int(eq.group(1)), m.group(1)))
+        elif fig:
+            out.append(("figure", int(fig.group(1)), m.group(1)))
+    return out
+
+
+def choose_book_images(
+    refs: list[tuple[str, int, str]], selected_text: Optional[str]
+) -> list[tuple[str, int, str]]:
+    """With a highlight: exactly the images it covers (its [eq N]/[figure N]
+    markers). Without: the section's equations and first few figures, capped
+    so a long exercise list can't flood the request."""
+    if selected_text and selected_text.strip():
+        wanted = {(k, int(n)) for k, n in _MARKER.findall(selected_text)}
+        chosen = [r for r in refs if (r[0], r[1]) in wanted]
+        return chosen[:MAX_EQUATION_IMAGES + MAX_FIGURE_IMAGES]
+    eqs = [r for r in refs if r[0] == "eq"][:MAX_EQUATION_IMAGES]
+    figs = [r for r in refs if r[0] == "figure"][:MAX_FIGURE_IMAGES]
+    return eqs + figs
+
+
+def build_book_image_blocks(epub_path, chosen: list[tuple[str, int, str]]) -> list[dict]:
+    """Claude content blocks: a short label, then the image, per chosen ref.
+    Missing or non-image members are skipped rather than failing the turn."""
+    from app.services.epub import read_asset
+
+    blocks: list[dict] = []
+    for kind, number, member in chosen:
+        try:
+            data, media_type = read_asset(epub_path, member)
+        except (KeyError, OSError):
+            continue
+        if media_type == "image/svg+xml":
+            continue  # the vision API takes raster images only
+        blocks.append({"type": "text", "text": f"[{kind} {number}]:"})
+        blocks.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": media_type, "data": base64.b64encode(data).decode("ascii")},
+        })
+    return blocks

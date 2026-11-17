@@ -30,6 +30,7 @@ class BookTopicRangeOut(BaseModel):
 class SectionTitle(BaseModel):
     number: int
     title: Optional[str]
+    chapter: Optional[str] = None
 
 
 class BookDetail(BookSummary):
@@ -49,6 +50,7 @@ class BookPageOut(BaseModel):
     attribution: str
     title: Optional[str] = None  # ePub section heading
     html: Optional[str] = None  # ePub section, sanitised at import
+    chapter: Optional[str] = None
 
 
 class BookContext(BaseModel):

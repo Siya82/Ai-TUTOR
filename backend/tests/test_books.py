@@ -122,3 +122,46 @@ def test_epub_section_passage_cites_the_section_not_a_page():
     assert 'the section "Laws of exponents"' in text
     assert "p. 12" not in text
     assert book_history_summary("T", 12, None, section_title="Laws of exponents") == '(Reading T, the section "Laws of exponents")'
+
+
+# --- ADR-032 ePub addendum: chapters -> topics, and equation images -------------
+
+from scripts.ingest_books import chapter_key, chapter_runs, resolve_topic_ranges  # noqa: E402
+from app.services.books import book_image_refs, choose_book_images, MAX_EQUATION_IMAGES  # noqa: E402
+
+
+def test_chapter_runs_handles_repeats_and_front_matter():
+    chapters = [None, "Chapter 1: Algebraic expressions", "Chapter 1: Algebraic expressions",
+                "Chapter 5: Trigonometry", "Chapter 6: Functions", "Chapter 11: Trigonometry"]
+    runs = chapter_runs(chapters)
+    assert runs["algebraic expressions"] == [(2, 3)]
+    assert runs["trigonometry"] == [(4, 4), (6, 6)]
+    assert "" not in runs
+    assert chapter_key("Chapter 2: Newton’s laws") == "newton's laws"
+
+
+def test_resolve_topic_ranges_by_chapter_and_number():
+    chapters = ["Chapter 1: Exponents", "Chapter 1: Exponents", "Chapter 2: Functions"]
+    ranges, problems = resolve_topic_ranges(
+        {"Exponents": ["exponents"], "Functions": ["Functions"], "Odd": [1, 1], "Missing": ["Calculus"]},
+        chapters,
+    )
+    assert ("Exponents", 1, 2) in ranges and ("Functions", 3, 3) in ranges and ("Odd", 1, 1) in ranges
+    assert problems == ["'Missing': no chapter called 'Calculus' in this book"]
+
+
+SECTION_HTML = (
+    '<p>a <img data-asset="OPS/x/equation/1.png" class="eq-inline" data-eq="1" alt="[eq 1]"> and '
+    '<img data-asset="OPS/x/equation/2.png" class="eq-inline" data-eq="2" alt="[eq 2]"></p>'
+    '<img data-asset="OPS/x/tikz/f.png" data-fig="1" alt="">'
+)
+
+
+def test_book_image_refs_and_choice():
+    refs = book_image_refs(SECTION_HTML)
+    assert refs == [("eq", 1, "OPS/x/equation/1.png"), ("eq", 2, "OPS/x/equation/2.png"), ("figure", 1, "OPS/x/tikz/f.png")]
+    assert choose_book_images(refs, "explain [eq 2] please") == [("eq", 2, "OPS/x/equation/2.png")]
+    assert choose_book_images(refs, "plain words only") == []
+    assert choose_book_images(refs, None) == refs
+    many = [("eq", i, f"e{i}.png") for i in range(1, 100)]
+    assert len(choose_book_images(many, "")) == MAX_EQUATION_IMAGES

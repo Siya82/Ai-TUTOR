@@ -71,10 +71,10 @@ async def book_detail(
     sections = []
     if book.format == "epub":
         sections = [
-            SectionTitle(number=n, title=t)
-            for n, t in (
+            SectionTitle(number=n, title=t, chapter=c)
+            for n, t, c in (
                 await db.execute(
-                    select(BookPage.page_number, BookPage.title)
+                    select(BookPage.page_number, BookPage.title, BookPage.chapter)
                     .where(BookPage.book_id == book.id)
                     .order_by(BookPage.page_number)
                 )
@@ -116,6 +116,7 @@ async def page_text(
         attribution=book.attribution,
         title=page.title,
         html=page.html,
+        chapter=page.chapter,
     )
 
 

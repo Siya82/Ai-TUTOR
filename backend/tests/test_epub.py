@@ -116,7 +116,7 @@ def test_text_uses_tex_annotation_and_figure_alt(tmp_path):
     book = parse_epub(_epub(tmp_path))
     laws = next(s for s in book.sections if s.title == "Laws of exponents")
     assert "$a^m \\times a^n = a^{m+n}$" in laws.text
-    assert "[Figure: Graph of y = 2^x]" in laws.text
+    assert "[figure 1: Graph of y = 2^x]" in laws.text
 
 
 def test_licence_detected_from_book(tmp_path):
@@ -134,6 +134,8 @@ def test_licence_detected_from_book(tmp_path):
         ("licensed CC BY 3.0, see creativecommons.org/licenses/by/3.0/", "CC BY 3.0"),
         ("https://creativecommons.org/licenses/by/4.0/", "CC BY 4.0"),
         ("CC BY-NC-SA 4.0", "CC BY-NC-SA 4.0"),
+        ("This book is released under the CC-BY 4.0 license.", "CC BY 4.0"),  # Siyavula ePub wording
+        ("released under the CC-BY-ND 3.0 license", "CC BY-ND 3.0"),
         ("All rights reserved", None),
     ],
 )
@@ -162,3 +164,60 @@ def test_read_asset_only_serves_images(tmp_path):
         read_asset(path, "OEBPS/missing.png")
     with pytest.raises(KeyError):
         read_asset(path, "../../etc/passwd.png")
+
+
+SIYAVULA_LIKE = """<html><head><script src="mathjax/MathJax.js"></script></head><body>
+<div class="worked_example evil"><h1 class="title">Worked example 1: Rational numbers</h1>
+<div class="question"><p>Which of these is rational? <img class="math-inline" src="equation/a1.png"/> or
+<img class="math-inline" src="equation/b2.png"/>. Think about whether each decimal terminates or repeats,
+and use that to decide. Write down your reasons for each one before checking the answer below.</p></div>
+<img class="math-block" src="equation/c3.png"/>
+<div class="figure"><img src="tikzpicture/d4.png" alt="d4.png"/></div>
+</div></body></html>"""
+
+
+def test_siyavula_equation_images_are_numbered(tmp_path):
+    from app.services.epub import Section, split_document
+
+    sections = []
+    split_document(SIYAVULA_LIKE, "OPS/x/ch.html", lambda p: True, sections)
+    sec = [s for s in sections if s.text.strip()][0]
+    assert sec.title == "Worked example 1: Rational numbers"
+    assert 'class="eq-inline" data-eq="1"' in sec.html and 'data-eq="2"' in sec.html
+    assert 'class="eq-block" data-eq="3"' in sec.html
+    assert 'data-fig="1" alt=""' in sec.html  # hash filename alt dropped
+    assert "[eq 1]" in sec.text and "[eq 3]" in sec.text and "[figure 1]" in sec.text
+    assert 'class="sv-worked_example"' in sec.html and "evil" not in sec.html
+    assert 'class="sv-question"' in sec.html
+    assert "mathjax" not in sec.html.lower()
+
+
+def test_nav_document_skipped_by_property(tmp_path):
+    opf = OPF.replace('<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml"/>',
+                      '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>')
+    opf = opf.replace('<itemref idref="nav" linear="no"/>', '<itemref idref="nav"/>')
+    path = tmp_path / "b.epub"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", CONTAINER)
+        zf.writestr("OEBPS/content.opf", opf.format(rights="CC BY 4.0"))
+        zf.writestr("OEBPS/front.xhtml", FRONT)
+        zf.writestr("OEBPS/nav.xhtml", "<html><body><h1>Contents</h1><p>" + "x " * 400 + "</p></body></html>")
+        zf.writestr("OEBPS/text/chapter 1.xhtml", CHAPTER)
+        zf.writestr("OEBPS/images/graph.png", b"png")
+    assert "Contents" not in [s.title for s in parse_epub(path).sections]
+
+
+def test_merged_sections_keep_equation_numbers_unique():
+    from app.services.epub import Section, merge_small_sections, split_document
+
+    html = """<html><body><h2>Long section</h2><p>""" + "words " * 80 + """<img class="math-inline" src="e/1.png"/></p>
+    <h2>Stub</h2><p>Note: <img class="math-inline" src="e/2.png"/></p></body></html>"""
+    raw = []
+    split_document(html, "OPS/c.html", lambda p: True, raw)
+    merged = merge_small_sections(raw, min_chars=600)
+    assert len(merged) == 1
+    sec = merged[0]
+    assert sec.equations == 2
+    assert 'data-eq="1"' in sec.html and 'data-eq="2"' in sec.html
+    assert sec.html.count('data-eq="1"') == 1
+    assert "[eq 1]" in sec.text and "[eq 2]" in sec.text

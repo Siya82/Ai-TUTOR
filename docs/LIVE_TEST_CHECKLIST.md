@@ -6,7 +6,7 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 
 ## Priority 0b — E-book library (ADR-032)
 
-Setup: `alembic upgrade head` (0009 + 0010), `npm install` in `frontend/`, download at
+Setup: `alembic upgrade head` (0009–0011), `npm install` in `frontend/`, download at
 least `everything-maths-grade-10.epub` (Siyavula's **unbranded CC BY ePub**; the PDFs are
 CC BY-ND and will be refused) into `backend/content_sources/books/`, then
 `python -m scripts.ingest_books`.

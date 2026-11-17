@@ -1962,3 +1962,62 @@ body {
 .reader__epub ::selection {
   background: rgba(0, 191, 166, 0.35);
 }
+
+/* Siyavula ePubs: equations are small PNGs; keep inline ones in the line of text */
+.reader__epub img.eq-inline {
+  display: inline;
+  vertical-align: middle;
+  margin: 0 0.1em;
+  max-height: 2.6em;
+}
+
+.reader__epub img.eq-block {
+  margin: 0.6rem auto;
+}
+
+.reader__epub .sv-worked_example {
+  border: 1px solid #b8e8df;
+  border-left: 4px solid #00bfa6;
+  background: #f2fbf9;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.reader__epub .sv-worked_example h1,
+.reader__epub .sv-worked_example h2,
+.reader__epub .sv-worked_example h3 {
+  font-size: 1.05rem;
+}
+
+.reader__epub .sv-question {
+  font-weight: 500;
+}
+
+.reader__epub .sv-workstep {
+  border-top: 1px dashed #b8e8df;
+  padding-top: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.reader__epub .sv-note,
+.reader__epub .sv-definition {
+  background: #f4f6fa;
+  border-left: 4px solid #6c5ce7;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  margin: 0.75rem 0;
+}
+
+.reader__epub .sv-exercises {
+  border-top: 2px solid #e1e6ee;
+  padding-top: 0.5rem;
+}
+
+.reader__toolbar {
+  position: sticky;
+  top: -1.25rem; /* cancel .reader's top padding so it sits flush */
+  z-index: 2;
+  background: var(--color-background);
+  padding: 0.6rem 0;
+}

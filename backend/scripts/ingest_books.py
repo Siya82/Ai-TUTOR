@@ -28,9 +28,9 @@ DBE's Siyavula page:
 https://www.education.gov.za/Curriculum/LearningandTeachingSupportMaterials(LTSM)/SiyavulaTextbooks/tabid/591/Default.aspx
 Save each PDF under backend/content_sources/books/ with the file_name below.
 
-TOPIC RANGES: fill in "topics" as {"<seeded topic name>": [first, last]} --
-section numbers for an ePub, page numbers for a PDF (1 = the first page of the
-file). `--outline <file>` lists sections/pages to make this quick.
+TOPICS: each book maps seeded topic names to the book's chapter titles
+(ePubs), or to [first, last] page numbers (PDFs). `--outline <file>` lists
+the chapters and sections.
 Unmapped pages are still readable; they just aren't used for page-cited answers.
 """
 
@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 
 import httpx
 from pathlib import Path
@@ -62,39 +63,147 @@ _SIYAVULA_URL = "https://www.siyavula.com"
 # + attribution are taken from the book itself at import time ({licence}).
 _ATTRIBUTION = "{title} by Siyavula Education and volunteers. Licensed under {licence}. " + _SIYAVULA_URL
 
+def _siyavula(file_name: str, title: str, subject: str, grade: int, topics: dict) -> dict:
+    return {
+        "file_name": file_name,
+        "title": title,
+        "subject": subject,
+        "grade": grade,
+        "publisher": "Siyavula",
+        "licence": "CC BY",  # expected; the book's own licence statement wins
+        "attribution": _ATTRIBUTION,
+        "source_url": _SIYAVULA_URL,
+        "topics": topics,
+    }
+
+
+# Topic -> the book's chapter title(s) that teach it (matched case-insensitively,
+# without the "Chapter N:" prefix). Checked against the real Siyavula CC BY
+# ePubs on 17 Nov 2026. Chapters with no seeded CAPS topic (e.g. Grade 11
+# "Linear programming", every Chemistry chapter) are simply left unmapped:
+# still readable, just not tied to a tutor topic.
 BOOKS: list[dict] = [
-    *(
-        {
-            "file_name": f"everything-maths-grade-{g}.epub",
-            "title": f"Everything Maths Grade {g}",
-            "subject": "Pure Mathematics",
-            "grade": g,
-            "publisher": "Siyavula",
-            "licence": "CC BY",  # expected; the book's own licence statement wins
-            "attribution": _ATTRIBUTION,
-            "source_url": _SIYAVULA_URL,
-            "topics": {},  # section ranges per topic -- see docstring
-        }
-        for g in (10, 11, 12)
-    ),
-    *(
-        {
-            "file_name": f"everything-science-grade-{g}.epub",
-            "title": f"Everything Science Grade {g}",
-            "subject": "Physical Sciences",
-            "grade": g,
-            "publisher": "Siyavula",
-            "licence": "CC BY",
-            "attribution": _ATTRIBUTION,
-            "source_url": _SIYAVULA_URL,
-            "topics": {},  # TODO(Siya): Physics-strand topics only -- Chemistry isn't seeded
-        }
-        for g in (10, 11, 12)
-    ),
+    _siyavula("everything-maths-grade-10.epub", "Everything Maths Grade 10", "Pure Mathematics", 10, {
+        "Algebraic Expressions": ["Algebraic expressions"],
+        "Exponents": ["Exponents"],
+        "Number Patterns": ["Number patterns"],
+        "Equations and Inequalities": ["Equations and inequalities"],
+        "Trigonometry": ["Trigonometry"],  # chapters 5 and 11
+        "Functions": ["Functions"],
+        "Euclidean Geometry": ["Euclidean geometry"],  # chapters 7 and 12
+        "Analytical Geometry": ["Analytical geometry"],
+        "Finance, Growth and Decay": ["Finance and growth"],
+        "Statistics": ["Statistics"],
+        "Measurement": ["Measurements"],
+        "Probability": ["Probability"],
+    }),
+    _siyavula("everything-maths-grade-11.epub", "Everything Maths Grade 11", "Pure Mathematics", 11, {
+        "Exponents and Surds": ["Exponents and surds"],
+        "Equations and Inequalities": ["Equations and inequalities"],
+        "Number Patterns": ["Number patterns"],
+        "Analytical Geometry": ["Analytical geometry"],
+        "Functions": ["Functions"],
+        "Trigonometry": ["Trigonometry"],
+        "Measurement": ["Measurement"],
+        "Euclidean Geometry": ["Euclidean geometry"],
+        "Finance, Growth and Decay": ["Finance, growth and decay"],
+        "Probability": ["Probability"],
+        "Statistics": ["Statistics"],
+    }),
+    _siyavula("everything-maths-grade-12.epub", "Everything Maths Grade 12", "Pure Mathematics", 12, {
+        "Sequences and Series": ["Sequences and series"],
+        "Functions and Inverse Functions": ["Functions"],
+        "Exponential and Logarithmic Functions": ["Functions"],  # logs are taught in the Functions chapter
+        "Finance, Growth and Decay": ["Finance"],
+        "Trigonometry: Compound Angles": ["Trigonometry"],
+        "Trigonometry: 2D and 3D Problems": ["Trigonometry"],
+        "Polynomials": ["Polynomials"],
+        "Differential Calculus": ["Differential calculus"],
+        "Analytical Geometry": ["Analytical geometry"],
+        "Euclidean Geometry": ["Euclidean geometry"],
+        "Statistics: Regression and Correlation": ["Statistics"],
+        "Counting and Probability": ["Probability"],
+    }),
+    _siyavula("everything-science-grade-10.epub", "Everything Science Grade 10", "Physical Sciences", 10, {
+        "Vectors in Two Dimensions": ["Vectors and scalars"],
+        "Motion in One Dimension": ["Motion in one dimension"],
+        "Mechanical Energy": ["Mechanical energy"],
+        "Waves, Sound and Light": ["Transverse pulses", "Transverse waves", "Longitudinal waves", "Sound"],
+        "Electromagnetic Radiation": ["Electromagnetic radiation"],
+        "Magnetism": ["Magnetism"],
+        "Electrostatics": ["Electrostatics"],
+        "Electric Circuits": ["Electric circuits"],
+    }),
+    _siyavula("everything-science-grade-11.epub", "Everything Science Grade 11", "Physical Sciences", 11, {
+        "Vectors in Two Dimensions": ["Vectors in two dimensions"],
+        "Newton's Laws": ["Newton's laws"],
+        "Newton's Universal Law of Gravitation": ["Newton's laws"],  # taught inside that chapter
+        "Electrostatics": ["Electrostatics"],
+        "Electromagnetism": ["Electromagnetism"],
+        "Electric Circuits": ["Electric circuits"],
+    }),
+    _siyavula("everything-science-grade-12.epub", "Everything Science Grade 12", "Physical Sciences", 12, {
+        "Momentum and Impulse": ["Momentum and impulse"],
+        "Vertical Projectile Motion": ["Vertical projectile motion in one dimension"],
+        "Work, Energy and Power": ["Work, energy and power"],
+        "Doppler Effect": ["Doppler effect"],
+        "Electric Circuits": ["Electric circuits"],
+        "Electrodynamics": ["Electrodynamics"],
+        "Photoelectric Effect": ["Optical phenomena and properties of matter"],
+    }),
 ]
 
 
 # --- pure helpers (unit-tested) -------------------------------------------
+
+
+_CHAPTER_PREFIX = re.compile(r"^\s*chapter\s+\d+\s*:\s*", re.I)
+
+
+def chapter_key(chapter: str | None) -> str:
+    """'Chapter 2: Exponents' -> 'exponents' (also normalises curly quotes)."""
+    if not chapter:
+        return ""
+    name = _CHAPTER_PREFIX.sub("", chapter).replace("\u2019", "'").strip().lower()
+    return re.sub(r"\s+", " ", name)
+
+
+def chapter_runs(section_chapters: list[str | None]) -> dict[str, list[tuple[int, int]]]:
+    """{chapter key: [(first, last), ...]} over 1-based section numbers.
+    A chapter that appears twice (Grade 10 Trigonometry, chapters 5 and 11)
+    gets two runs."""
+    runs: dict[str, list[tuple[int, int]]] = {}
+    prev, start = None, 1
+    for i, ch in enumerate(section_chapters + [object()], start=1):
+        key = chapter_key(ch) if isinstance(ch, (str, type(None))) else None
+        if key != prev:
+            if prev:
+                runs.setdefault(prev, []).append((start, i - 1))
+            prev, start = key, i
+    return runs
+
+
+def resolve_topic_ranges(topics: dict, section_chapters: list[str | None]) -> tuple[list[tuple[str, int, int]], list[str]]:
+    """Manifest topics -> [(topic name, first, last)], plus problems.
+    A value is either [first, last] (page/section numbers) or a list of
+    chapter titles (ePubs)."""
+    out, problems = [], []
+    runs = chapter_runs(section_chapters)
+    for name, value in topics.items():
+        if isinstance(value, (list, tuple)) and value and all(isinstance(v, str) for v in value):
+            for chapter in value:
+                found = runs.get(chapter_key(chapter))
+                if not found:
+                    problems.append(f"{name!r}: no chapter called {chapter!r} in this book")
+                    continue
+                out.extend((name, a, b) for a, b in found)
+        else:
+            bad = validate_ranges({name: value}, len(section_chapters))
+            if bad:
+                problems.extend(bad)
+            else:
+                out.append((name, value[0], value[1]))
+    return out, problems
 
 
 def validate_ranges(topics: dict, page_count: int) -> list[str]:
@@ -187,17 +296,19 @@ async def ingest_book(session, spec: dict, embed: bool, allow_restricted: bool =
         pages = [sec.text for sec in parsed.sections]
         page_titles = [sec.title for sec in parsed.sections]
         page_html = [sec.html for sec in parsed.sections]
+        page_chapters = [sec.chapter for sec in parsed.sections]
         detected = parsed.licence
     else:
         pages = extract_pages(path)
         page_titles = [None] * len(pages)
         page_html = [None] * len(pages)
+        page_chapters = [None] * len(pages)
         detected = detect_licence("\n".join(pages[:12]))
     licence, message = licence_decision(detected, spec["licence"], allow_restricted)
     print(f"  {message}")
     if licence is None:
         return
-    problems = validate_ranges(spec.get("topics", {}), len(pages))
+    wanted_ranges, problems = resolve_topic_ranges(spec.get("topics", {}), page_chapters)
     if problems:
         print("  SKIP (fix the topic ranges in the manifest):")
         for p in problems:
@@ -226,13 +337,14 @@ async def ingest_book(session, spec: dict, embed: bool, allow_restricted: bool =
     for number, text in enumerate(pages, start=1):
         if not text:
             empty += 1
-        title, html = page_titles[number - 1], page_html[number - 1]
+        title, html, chapter = page_titles[number - 1], page_html[number - 1], page_chapters[number - 1]
         if number in existing:
             existing[number].text = text
             existing[number].title = title
             existing[number].html = html
+            existing[number].chapter = chapter
         else:
-            session.add(BookPage(book_id=book.id, page_number=number, text=text, title=title, html=html))
+            session.add(BookPage(book_id=book.id, page_number=number, text=text, title=title, html=html, chapter=chapter))
     if len(existing) > len(pages):  # the PDF got shorter: drop stale pages
         await session.execute(
             delete(BookPage).where(BookPage.book_id == book.id, BookPage.page_number > len(pages))
@@ -240,7 +352,7 @@ async def ingest_book(session, spec: dict, embed: bool, allow_restricted: bool =
 
     await session.execute(delete(BookTopicRange).where(BookTopicRange.book_id == book.id))
     ranges = []
-    for topic_name, (start, end) in spec.get("topics", {}).items():
+    for topic_name, start, end in wanted_ranges:
         topic = (
             await session.execute(
                 select(Topic).where(Topic.subject_id == subject.id, Topic.name == topic_name)
@@ -304,8 +416,12 @@ async def main(args) -> None:
         if path.suffix.lower() == ".epub":
             parsed = parse_epub(path)
             print(f"{parsed.title}  --  licence found: {parsed.licence or 'none'}")
+            current = object()
             for number, sec in enumerate(parsed.sections, start=1):
-                print(f"§ {number:>4}  {sec.title[:70]}  ({len(sec.text)} chars)")
+                if sec.chapter != current:
+                    current = sec.chapter
+                    print(f"\n== {sec.chapter or '(front matter)'}")
+                print(f"§ {number:>4}  {sec.title[:70]}  ({len(sec.text)} chars, {sec.equations} eq)")
         else:
             pages = extract_pages(path)
             print(f"licence found: {detect_licence(chr(10).join(pages[:12])) or 'none'}")

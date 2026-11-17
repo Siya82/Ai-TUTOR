@@ -569,6 +569,7 @@ class BookPage(Base):
     # ePub only (migration 0010): the section's sanitised HTML and heading
     title: Mapped[str | None] = mapped_column(String(300), nullable=True)
     html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chapter: Mapped[str | None] = mapped_column(String(300), nullable=True)  # migration 0011
 
 
 class BookTopicRange(Base):

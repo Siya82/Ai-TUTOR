@@ -46,8 +46,12 @@ from app.services.diagnosis import diagnose_root_gap
 from app.services.math_guard import verify_tutor_response
 from app.services.retrieval import get_grounding_text
 from app.services.books import (
+    BOOKS_DIR,
     book_history_summary,
+    book_image_refs,
+    build_book_image_blocks,
     build_book_passage,
+    choose_book_images,
     get_page,
     get_readable_book,
 )
@@ -197,6 +201,7 @@ async def send_tutor_message(
     # the learner's highlight comes from the client.
     book_passage = None
     book_summary = None
+    book_image_blocks: list[dict] = []
     if payload.book_context is not None:
         ctx = payload.book_context
         book, _subject = await get_readable_book(db, ctx.book_id, learner)
@@ -209,6 +214,19 @@ async def send_tutor_message(
             attribution=book.attribution,
             section_title=page.title if book.format == "epub" else None,
         )
+        if book.format == "epub":
+            # ADR-032 addendum: equations in Siyavula ePubs are images; send the
+            # ones the learner is looking at, labelled [eq N] like the text.
+            book_file = BOOKS_DIR / book.file_name
+            if book_file.exists():
+                book_image_blocks = build_book_image_blocks(
+                    book_file, choose_book_images(book_image_refs(page.html or ""), ctx.selected_text)
+                )
+            if book_image_blocks:
+                book_passage += (
+                    "\n\n[The [eq N] and [figure N] markers above are images; they follow, "
+                    "each labelled with its marker. Read the maths from them.]"
+                )
         book_summary = book_history_summary(
             book.title, page.page_number, ctx.selected_text,
             section_title=page.title if book.format == "epub" else None,
@@ -280,10 +298,11 @@ async def send_tutor_message(
         else payload.message
     )
 
-    if attachment_dicts:
-        user_content = build_attachment_content_blocks(attachment_dicts)
+    if attachment_dicts or book_image_blocks:
+        user_content = build_attachment_content_blocks(attachment_dicts) if attachment_dicts else []
         if book_passage:
             user_content.append({"type": "text", "text": book_passage})
+            user_content.extend(book_image_blocks)
         user_content.append({"type": "text", "text": message_text})
     elif book_passage:
         user_content = f"{book_passage}\n\n{message_text}"

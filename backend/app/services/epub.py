@@ -38,14 +38,14 @@ from xml.etree import ElementTree as ET
 _LICENCE_PATTERNS = [
     # Most specific first. Text inside books is often broken by hyphenation or
     # missing spaces, so the patterns allow for that.
-    (re.compile(r"CC\s*BY[\s-]*NC[\s-]*ND\s*(\d\.\d)?", re.I), "CC BY-NC-ND"),
-    (re.compile(r"CC\s*BY[\s-]*NC[\s-]*SA\s*(\d\.\d)?", re.I), "CC BY-NC-SA"),
-    (re.compile(r"CC\s*BY[\s-]*NC\s*(\d\.\d)?", re.I), "CC BY-NC"),
-    (re.compile(r"CC\s*BY[\s-]*ND\s*(\d\.\d)?", re.I), "CC BY-ND"),
-    (re.compile(r"CC\s*BY[\s-]*SA\s*(\d\.\d)?", re.I), "CC BY-SA"),
+    (re.compile(r"CC[\s-]*BY[\s-]*NC[\s-]*ND\s*(\d\.\d)?", re.I), "CC BY-NC-ND"),
+    (re.compile(r"CC[\s-]*BY[\s-]*NC[\s-]*SA\s*(\d\.\d)?", re.I), "CC BY-NC-SA"),
+    (re.compile(r"CC[\s-]*BY[\s-]*NC\s*(\d\.\d)?", re.I), "CC BY-NC"),
+    (re.compile(r"CC[\s-]*BY[\s-]*ND\s*(\d\.\d)?", re.I), "CC BY-ND"),
+    (re.compile(r"CC[\s-]*BY[\s-]*SA\s*(\d\.\d)?", re.I), "CC BY-SA"),
     (re.compile(r"Attribution[\s-]*No[\s-]*Deriv", re.I), "CC BY-ND"),
     (re.compile(r"Attribution[\s-]*Non[\s-]*Commercial", re.I), "CC BY-NC"),
-    (re.compile(r"CC\s*BY\s*(\d\.\d)", re.I), "CC BY"),
+    (re.compile(r"CC[\s-]*BY\s*(\d\.\d)", re.I), "CC BY"),
     (re.compile(r"creativecommons\.org/licenses/by/(\d\.\d)", re.I), "CC BY"),
     (re.compile(r"Creative\s*Commons\s*Attribution\s*(\d\.\d)", re.I), "CC BY"),
 ]
@@ -115,12 +115,15 @@ def read_package(zf: zipfile.ZipFile) -> EpubDoc:
         manifest[item.get("id")] = (
             posixpath.normpath(posixpath.join(opf_dir, unquote(item.get("href", "")))),
             item.get("media-type", ""),
+            item.get("properties", "") or "",
         )
     spine = []
     for ref in opf.findall(".//opf:spine/opf:itemref", _NS):
         if ref.get("linear", "yes") == "no":
             continue
-        path, media = manifest.get(ref.get("idref"), (None, None))
+        path, media, props = manifest.get(ref.get("idref"), (None, None, ""))
+        if "nav" in props.split():
+            continue  # the ePub's own table of contents, not book content
         if path and "html" in media:
             spine.append(path)
     return EpubDoc(title=text_of("title"), rights=text_of("rights"), spine=spine)
@@ -157,10 +160,22 @@ _ALLOWED_ATTRS = {
     "menclose": {"notation"},
     "mfenced": {"open", "close", "separators"},
 }
+# Siyavula's own structural classes worth styling (worked examples, notes...).
+# Kept as "sv-<name>"; every other class is dropped.
+_KEPT_CLASSES = {"worked_example", "question", "workstep", "note", "definition", "visit",
+                 "exercises", "summary", "figure", "title", "tip", "warning", "aside"}
+_FILENAME_ALT = re.compile(r"^[\w-]+\.(png|jpe?g|gif|svg|webp)$", re.I)
+
 _BLOCK_FOR_TEXT = {"p", "div", "section", "article", "li", "tr", "h1", "h2", "h3", "h4",
                    "h5", "h6", "br", "table", "figure", "figcaption", "blockquote", "pre", "dt", "dd", "hr"}
 SPLIT_HEADINGS = {"h1", "h2", "h3"}
 MIN_SECTION_CHARS = 300  # merge tinier sections forward, so the reader isn't full of stubs
+# Long stretches with no heading (end-of-chapter exercises can run to 25k+
+# characters and hundreds of equation images) are cut into "(continued)"
+# sections at the next block boundary past this size.
+SOFT_MAX_SECTION_CHARS = 5000
+_SOFT_SPLIT_AFTER = {"p", "li", "div", "table", "ol", "ul", "figure", "blockquote"}
+CHAPTER_HEADING = re.compile(r"^\s*Chapter\s+\d+\s*:", re.I)
 
 
 @dataclass
@@ -168,6 +183,9 @@ class Section:
     title: str
     html_parts: list[str] = field(default_factory=list)
     text_parts: list[str] = field(default_factory=list)
+    equations: int = 0  # numbered [eq N] within this section
+    figures: int = 0  # numbered [figure N] within this section
+    chapter: Optional[str] = None  # e.g. "Chapter 2: Exponents"
 
     @property
     def html(self) -> str:
@@ -187,8 +205,9 @@ class _Splitter(HTMLParser):
     old section and re-opened in the new one, so every section is
     well-formed on its own."""
 
-    def __init__(self, doc_path: str, asset_exists, sections: list[Section]):
+    def __init__(self, doc_path: str, asset_exists, sections: list[Section], chapter: Optional[str] = None):
         super().__init__(convert_charrefs=True)
+        self.chapter = chapter
         self.doc_dir = posixpath.dirname(doc_path)
         self.asset_exists = asset_exists
         self.sections = sections
@@ -212,15 +231,31 @@ class _Splitter(HTMLParser):
             k = k.lower()
             if tag == "img":
                 continue
+            if k == "class" and v:
+                kept = [f"sv-{c}" for c in v.split() if c in _KEPT_CLASSES]
+                if kept:
+                    out.append(f' class="{" ".join(kept)}"')
+                continue
             if k in allowed and v is not None and not v.lower().startswith("javascript"):
                 out.append(f' {k}="{escape(v, quote=True)}"')
         if tag == "img":
             a = dict((k.lower(), v) for k, v in attrs)
             src = a.get("src") or ""
             path = posixpath.normpath(posixpath.join(self.doc_dir, unquote(src.split("#")[0])))
-            if src and not src.startswith(("http:", "https:", "data:")) and self.asset_exists(path):
-                out.append(f' data-asset="{escape(path, quote=True)}"')
-            out.append(f' alt="{escape(a.get("alt") or "", quote=True)}"')
+            out.append(f' data-asset="{escape(path, quote=True)}"')
+            classes = (a.get("class") or "").split()
+            if "math-inline" in classes or "math-block" in classes:
+                # Equations are images in Siyavula's ePubs (no TeX inside), so
+                # each gets a number the tutor can be shown alongside [eq N].
+                self.cur.equations += 1
+                kind = "eq-inline" if "math-inline" in classes else "eq-block"
+                out.append(f' class="{kind}" data-eq="{self.cur.equations}" alt="[eq {self.cur.equations}]"')
+            else:
+                self.cur.figures += 1
+                alt = a.get("alt") or ""
+                if _FILENAME_ALT.match(alt.strip()):
+                    alt = ""  # a hash filename isn't a description
+                out.append(f' data-fig="{self.cur.figures}" alt="{escape(alt, quote=True)}"')
         return "".join(out)
 
     def _local_image(self, attrs) -> bool:
@@ -233,7 +268,7 @@ class _Splitter(HTMLParser):
     def _new_section(self, title: str) -> None:
         for tag, _ in reversed(self.open):
             self.cur.html_parts.append(f"</{tag}>")
-        self.sections.append(Section(title=title))
+        self.sections.append(Section(title=title, chapter=self.chapter))
         for _, rendered in self.open:
             self.cur.html_parts.append(rendered)
 
@@ -274,9 +309,13 @@ class _Splitter(HTMLParser):
         if tag in _BLOCK_FOR_TEXT:
             self.cur.text_parts.append("\n")
         if tag == "img":
-            alt = dict(attrs).get("alt")
-            if alt:
-                self.cur.text_parts.append(f"[Figure: {alt}]")
+            m = re.search(r'data-eq="(\d+)"', rendered)
+            if m:
+                self.cur.text_parts.append(f" [eq {m.group(1)}] ")
+            else:
+                fig = re.search(r'data-fig="(\d+)"', rendered).group(1)
+                alt = re.search(r' alt="([^"]*)"', rendered).group(1)
+                self.cur.text_parts.append(f"[figure {fig}{': ' + alt if alt else ''}]")
         if tag not in _VOID:
             self.open.append((tag, rendered))
 
@@ -322,6 +361,11 @@ class _Splitter(HTMLParser):
                 break
         if tag in _BLOCK_FOR_TEXT:
             self.cur.text_parts.append("\n")
+        if tag in _SOFT_SPLIT_AFTER and (
+            sum(len(t) for t in self.cur.text_parts) + 40 * self.cur.equations > SOFT_MAX_SECTION_CHARS
+        ):
+            base = re.sub(r" \(continued\)$", "", self.cur.title or "")
+            self._new_section(f"{base} (continued)" if base else "")
 
     def handle_data(self, data):
         if self.in_tex_annotation:
@@ -342,13 +386,41 @@ class _Splitter(HTMLParser):
         self.open = []
 
 
-def split_document(xhtml: str, doc_path: str, asset_exists, sections: list[Section]) -> None:
+def split_document(
+    xhtml: str, doc_path: str, asset_exists, sections: list[Section], chapter: Optional[str] = None
+) -> None:
     """Appends this XHTML document's content to `sections` (starting a new
     section at the document start and at every h1-h3)."""
-    sections.append(Section(title=""))
-    parser = _Splitter(doc_path, asset_exists, sections)
+    sections.append(Section(title="", chapter=chapter))
+    parser = _Splitter(doc_path, asset_exists, sections, chapter=chapter)
     parser.feed(xhtml)
     parser.close()
+
+
+def _shifted(sec: Section, eq_offset: int, fig_offset: int) -> tuple[str, str]:
+    """sec's html and text with its [eq N]/[figure N] numbers moved up by the
+    given offsets, so two sections can be joined without duplicate numbers."""
+    html, text = sec.html, sec.text
+    if eq_offset:
+        html = re.sub(r'data-eq="(\d+)" alt="\[eq \d+\]"',
+                      lambda m: f'data-eq="{int(m.group(1)) + eq_offset}" alt="[eq {int(m.group(1)) + eq_offset}]"', html)
+        text = re.sub(r"\[eq (\d+)\]", lambda m: f"[eq {int(m.group(1)) + eq_offset}]", text)
+    if fig_offset:
+        html = re.sub(r'data-fig="(\d+)"', lambda m: f'data-fig="{int(m.group(1)) + fig_offset}"', html)
+        text = re.sub(r"\[figure (\d+)", lambda m: f"[figure {int(m.group(1)) + fig_offset}", text)
+    return html, text
+
+
+def _join(first: Section, second: Section, title: str, chapter: Optional[str]) -> Section:
+    html2, text2 = _shifted(second, first.equations, first.figures)
+    return Section(
+        title=title,
+        html_parts=[first.html, html2],
+        text_parts=[first.text, "\n\n", text2],
+        chapter=chapter,
+        equations=first.equations + second.equations,
+        figures=first.figures + second.figures,
+    )
 
 
 def merge_small_sections(sections: list[Section], min_chars: int = MIN_SECTION_CHARS) -> list[Section]:
@@ -358,6 +430,7 @@ def merge_small_sections(sections: list[Section], min_chars: int = MIN_SECTION_C
       into the next section, so the chapter title stays with its content;
     - any other short section (a two-line note after a heading) is folded
       BACK into the previous section, which it belongs to.
+    Joined sections are renumbered so [eq N]/[figure N] stay unique.
     """
     out: list[Section] = []
     carry: Optional[Section] = None
@@ -365,25 +438,25 @@ def merge_small_sections(sections: list[Section], min_chars: int = MIN_SECTION_C
         if not s.text.strip():
             continue
         if carry is not None:
-            s = Section(
-                title=s.title or carry.title,
-                html_parts=[carry.html, s.html],
-                text_parts=[carry.text, "\n\n", s.text],
-            )
+            s = _join(carry, s, s.title or carry.title, s.chapter or carry.chapter)
             carry = None
         body_chars = len(s.text) - len(s.title)
-        if len(s.text) < min_chars:
+        # Equations are images here, so a maths-heavy worked example has little
+        # text; count each equation image as ~40 characters of content so it
+        # stays its own section rather than being folded away.
+        size = len(s.text) + 40 * s.equations
+        if size < min_chars:
             if body_chars < 40 or not out:
                 carry = s  # heading-only stub (or nothing before it): attach forward
                 continue
             prev = out[-1]
-            out[-1] = Section(title=prev.title, html_parts=[prev.html, s.html], text_parts=[prev.text, "\n\n", s.text])
+            out[-1] = _join(prev, s, prev.title, prev.chapter)
             continue
         out.append(s)
     if carry is not None:
         if out:
             last = out[-1]
-            out[-1] = Section(title=last.title, html_parts=[last.html, carry.html], text_parts=[last.text, "\n\n", carry.text])
+            out[-1] = _join(last, carry, last.title, last.chapter)
         else:
             out.append(carry)
     for i, s in enumerate(out, start=1):
@@ -406,11 +479,25 @@ def parse_epub(path) -> ParsedEpub:
         names = set(zf.namelist())
         sections: list[Section] = []
         front_text = []
+        chapter: Optional[str] = None
         for doc in pkg.spine:
             if doc not in names:
                 continue
             xhtml = zf.read(doc).decode("utf-8", errors="replace")
-            split_document(xhtml, doc, lambda p: p in names, sections)
+            # A chapter starts where a spine document OPENS with a "Chapter N:"
+            # heading. Only the first heading counts: Siyavula books also
+            # mention other chapters' titles in boxes inside a chapter.
+            first = re.search(r"<h[1-3][^>]*>(.*?)</h[1-3]>", xhtml, re.S | re.I)
+            if first:
+                heading = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", first.group(1))).strip()
+                numbered_file = re.search(r"/(\d+)-[^/]*-00\.[^/]*$", doc)
+                if CHAPTER_HEADING.match(heading):
+                    chapter = heading
+                elif numbered_file and heading:
+                    # Siyavula names each chapter's first file "NN-slug-00...";
+                    # a few chapters' headings lack the "Chapter N:" prefix.
+                    chapter = f"Chapter {int(numbered_file.group(1))}: {heading}"
+            split_document(xhtml, doc, lambda p: p in names, sections, chapter=chapter)
         merged = merge_small_sections(sections)
         for s in merged[:6]:
             front_text.append(s.text)

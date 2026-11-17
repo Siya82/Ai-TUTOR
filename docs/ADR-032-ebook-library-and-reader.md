@@ -162,3 +162,32 @@ expected licence is used with a warning. The manifest now lists `.epub` files.
 there's no separate Text mode) with a section picker as the table of contents.
 "Ask THUTOra about this section" and "Ask about what I highlighted" work as
 before. PDFs keep working exactly as before for any CC BY PDF.
+
+### Tuned against the real Siyavula ePubs (17 Nov 2026)
+
+All six English **ePUB (CC-BY)** books were downloaded from siyavula.com/read
+and checked. Each states "This book is released under the CC-BY 4.0 license",
+and the importer detects that. What the real files changed:
+
+- **Equations are PNG images.** There is no TeX or MathML, and MathJax is
+  bundled but unused. Each equation image gets a number (`data-eq`), shown
+  inline in the reader. In the text sent to the tutor it appears as
+  `[eq N]`. When the learner asks, the server sends those images to Claude as
+  vision blocks labelled `[eq N]`: exactly the ones in their highlight, or up
+  to 40 from the section. The highlight keeps the markers, so the maths isn't
+  silently dropped. Merged sections are renumbered so numbers stay unique.
+- **Chapters.** A chapter starts where a spine file opens with a
+  "Chapter N:" heading, or, for the few chapters without that prefix, where a
+  `NN-…-00` file opens. Stored in `book_pages.chapter` (migration 0011). The
+  reader groups its section picker by chapter and opens at Chapter 1, not the
+  copyright notice.
+- **Topics map to chapter titles**, not section numbers, in the `BOOKS`
+  manifest (e.g. "Waves, Sound and Light" → Transverse pulses, Transverse
+  waves, Longitudinal waves, Sound). Chapters with no seeded topic
+  (Chemistry, Grade 11 Linear programming) stay readable but unmapped.
+- **Section sizes.** Splitting is at h1–h3; worked examples become their own
+  sections, with equation images counted towards size; long runs are cut
+  into "(continued)" sections. Result: roughly 570–910 sections per book.
+- Siyavula's structural classes (worked example, question, workstep, note,
+  definition) are kept as `sv-*` for styling. The ePub's own nav document is
+  skipped.
