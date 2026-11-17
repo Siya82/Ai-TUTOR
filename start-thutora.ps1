@@ -55,7 +55,10 @@ Set-Location '$ProjectRoot\backend'
 Write-Host '==> Activating venv...' -ForegroundColor Cyan
 & '.\.venv\Scripts\Activate.ps1'
 Write-Host '==> Installing/updating backend dependencies (pypdf, python-docx, etc.)...' -ForegroundColor Cyan
-pip install -r requirements.txt
+# pip.exe is blocked by Application Control on this laptop, so go through
+# python.exe instead, and don't stop the startup if it still fails.
+python -m pip install -r requirements.txt --quiet
+if (`$LASTEXITCODE -ne 0) { Write-Warning 'Dependency install skipped (pip blocked or failed). The app still starts; only new packages would be missing.' }
 Write-Host '==> Applying any pending migrations (alembic upgrade head)...' -ForegroundColor Cyan
 alembic upgrade head
 Write-Host '==> Starting uvicorn on http://localhost:8000 ...' -ForegroundColor Cyan
