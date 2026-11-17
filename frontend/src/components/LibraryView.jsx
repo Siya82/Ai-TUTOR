@@ -10,12 +10,17 @@
  *     hand the page reference back to ChatScreen via onAsk().
  *
  * The CC-BY attribution is shown under every page, as the licence requires.
+ *
+ * UPDATED 17 Nov 2026 (ADR-032 ePub addendum): Siyavula's CC BY editions are
+ * ePubs, which have no printed pages. An ePub book is read SECTION by section
+ * (split at headings on import); its HTML was sanitised server-side, and its
+ * images are fetched with the learner's token and shown as blob URLs.
  */
 
 import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { fetchBook, fetchBookPage, fetchBookPagePdf, fetchBooks } from "../api";
+import { fetchBook, fetchBookAsset, fetchBookPage, fetchBookPagePdf, fetchBooks } from "../api";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -104,7 +109,8 @@ function BookList({ auth, onLogout, onOpen }) {
                   <span className="book-card__subject">{b.subject_name}</span>
                   <span className="book-card__title">{b.title}</span>
                   <span className="book-card__meta">
-                    {b.page_count} pages · {b.publisher || "Open textbook"} · {b.licence}
+                    {b.page_count} {b.format === "epub" ? "sections" : "pages"} · {b.publisher || "Open textbook"} ·{" "}
+                    {b.licence}
                   </span>
                 </button>
               ))}
@@ -138,7 +144,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
       .then((b) => {
         if (cancelled) return;
         setBook(b);
-        if (!b.file_available) setMode("text");
+        if (!b.file_available || b.format === "epub") setMode("text");
       })
       .catch((err) => !cancelled && handleErr(err));
     return () => {
@@ -163,6 +169,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
   }, [auth.token, bookId, page]);
 
   const pageCount = book?.page_count || pageData?.page_count || 0;
+  const isEpub = book?.format === "epub";
   const goTo = (n) => {
     const target = Math.min(Math.max(1, n), pageCount || 1);
     if (target !== page) onPageChange(target);
@@ -179,6 +186,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
       bookTitle: book?.title || "",
       subjectId: book?.subject_id,
       pageNumber: page,
+      sectionTitle: isEpub ? pageData?.title || "" : "",
       topicId: pageData?.topic_id || null,
       selectedText: selectedText || "",
     });
@@ -194,6 +202,20 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
           <button type="button" onClick={() => goTo(page - 1)} disabled={page <= 1} aria-label="Previous page">
             ‹
           </button>
+          {isEpub ? (
+            <select
+              className="reader__section-select"
+              value={page}
+              onChange={(e) => goTo(Number(e.target.value))}
+              aria-label="Section"
+            >
+              {(book.sections || []).map((sec) => (
+                <option key={sec.number} value={sec.number}>
+                  {sec.number}. {sec.title}
+                </option>
+              ))}
+            </select>
+          ) : (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -207,6 +229,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
               aria-label="Page number"
             />
           </form>
+          )}
           <span className="reader__muted">/ {pageCount || "…"}</span>
           <button
             type="button"
@@ -217,6 +240,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
             ›
           </button>
         </div>
+        {!isEpub && (
         <div className="reader__mode" role="group" aria-label="Reading mode">
           <button
             type="button"
@@ -236,12 +260,26 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
             Text
           </button>
         </div>
+        )}
       </div>
 
       {error && <div className="chat-screen__error">{error}</div>}
 
       <div className="reader__body">
-        {mode === "page" ? (
+        {!book ? (
+          <p className="reader__muted">Loading book…</p>
+        ) : isEpub ? (
+          pageData ? (
+            <EpubSection
+              token={auth.token}
+              bookId={bookId}
+              html={pageData.html || ""}
+              onSelect={captureSelection}
+            />
+          ) : (
+            <p className="reader__muted">Loading section…</p>
+          )
+        ) : mode === "page" ? (
           <PdfPage token={auth.token} bookId={bookId} page={page} onError={handleErr} />
         ) : pageData ? (
           pageData.has_text ? (
@@ -261,9 +299,9 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
 
       <div className="reader__ask">
         <button type="button" className="reader__ask-button" onClick={() => ask("")} disabled={!pageData}>
-          Ask THUTOra about this page
+          {isEpub ? "Ask THUTOra about this section" : "Ask THUTOra about this page"}
         </button>
-        {mode === "text" ? (
+        {mode === "text" || isEpub ? (
           <button
             type="button"
             className="reader__ask-button reader__ask-button--secondary"
@@ -334,5 +372,48 @@ function PdfPage({ token, bookId, page, onError }) {
       {loading && <p className="reader__muted">Loading page…</p>}
       <canvas ref={canvasRef} className="reader__canvas" aria-label={`Page ${page}`} />
     </div>
+  );
+}
+
+// NEW (ADR-032 ePub addendum). One ePub section. The HTML was rebuilt from an
+// allow-list at import time (no scripts, styles, links or event handlers), so
+// it is safe to insert. Images carry data-asset paths and are loaded through
+// the authenticated assets endpoint, then shown as blob URLs.
+function EpubSection({ token, bookId, html, onSelect }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return undefined;
+    let cancelled = false;
+    const urls = [];
+    root.querySelectorAll("img[data-asset]").forEach((img) => {
+      fetchBookAsset(token, bookId, img.getAttribute("data-asset"))
+        .then((blob) => {
+          if (cancelled) return;
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          img.src = url;
+        })
+        .catch(() => {
+          img.replaceWith(document.createTextNode(img.alt ? `[Figure: ${img.alt}]` : "[Figure]"));
+        });
+    });
+    root.scrollIntoView({ block: "start" });
+    return () => {
+      cancelled = true;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [token, bookId, html]);
+
+  return (
+    <div
+      ref={ref}
+      className="reader__epub"
+      onMouseUp={onSelect}
+      onTouchEnd={onSelect}
+      onKeyUp={onSelect}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

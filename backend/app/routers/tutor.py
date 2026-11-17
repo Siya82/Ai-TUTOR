@@ -207,8 +207,12 @@ async def send_tutor_message(
             page_text=page.text,
             selected_text=ctx.selected_text,
             attribution=book.attribution,
+            section_title=page.title if book.format == "epub" else None,
         )
-        book_summary = book_history_summary(book.title, page.page_number, ctx.selected_text)
+        book_summary = book_history_summary(
+            book.title, page.page_number, ctx.selected_text,
+            section_title=page.title if book.format == "epub" else None,
+        )
 
     prerequisite_chain = await _resolve_prerequisite_chain(db, requested_topic)
     attempts_by_topic = await _fetch_scored_attempts_by_topic(

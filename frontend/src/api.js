@@ -549,3 +549,13 @@ export async function fetchBookPagePdf(token, bookId, pageNumber) {
   }
   return response.arrayBuffer();
 }
+
+/** NEW (ADR-032 ePub addendum): an image inside an ePub, as a Blob (needs the auth header, so it can't be a plain <img src>). */
+export async function fetchBookAsset(token, bookId, assetPath) {
+  const response = await fetch(
+    `${API_BASE_URL}/books/${bookId}/assets?path=${encodeURIComponent(assetPath)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!response.ok) throw httpError(`Image failed with status ${response.status}`, response.status);
+  return response.blob();
+}

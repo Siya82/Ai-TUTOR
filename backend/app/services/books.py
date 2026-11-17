@@ -34,21 +34,35 @@ def topic_for_page(ranges: list[BookTopicRange], page_number: int) -> Optional[B
     return None
 
 
+def location_label(page_number: int, section_title: Optional[str] = None) -> str:
+    """'p. 87' for a PDF page; 'the section "Laws of exponents"' for an ePub
+    section (ePubs have no printed page numbers)."""
+    return f'the section "{section_title}"' if section_title else f"p. {page_number}"
+
+
 def build_book_passage(
-    *, title: str, page_number: int, page_text: str, selected_text: Optional[str], attribution: str
+    *,
+    title: str,
+    page_number: int,
+    page_text: str,
+    selected_text: Optional[str],
+    attribution: str,
+    section_title: Optional[str] = None,
 ) -> str:
     """The text block put in front of the learner's question for one turn."""
     page_text = (page_text or "").strip()
     if len(page_text) > MAX_PAGE_CHARS:
         page_text = page_text[:MAX_PAGE_CHARS] + " [...]"
+    where = location_label(page_number, section_title)
+    unit = "Section" if section_title else "Page"
     lines = [
-        f'[The learner is reading "{title}", page {page_number}, and is asking about it. '
-        f"Explain using this page where it helps, refer to it as p. {page_number}, and don't "
+        f'[The learner is reading "{title}", {where}, and is asking about it. '
+        f"Explain using it where it helps, refer to it as {where}, and don't "
         f"just restate it -- teach. Source: {attribution}]",
         "",
-        f"--- Page {page_number} ---",
+        f"--- {unit}: {section_title or page_number} ---",
         page_text or "(This page has no extractable text -- it may be a scanned image or diagram.)",
-        "--- end of page ---",
+        f"--- end of {unit.lower()} ---",
     ]
     if selected_text and selected_text.strip():
         sel = selected_text.strip()[:MAX_SELECTION_CHARS]
@@ -56,9 +70,11 @@ def build_book_passage(
     return "\n".join(lines)
 
 
-def book_history_summary(title: str, page_number: int, selected_text: Optional[str]) -> str:
+def book_history_summary(
+    title: str, page_number: int, selected_text: Optional[str], section_title: Optional[str] = None
+) -> str:
     """What gets stored in chat history instead of the whole page."""
-    base = f"(Reading {title}, p. {page_number}"
+    base = f"(Reading {title}, {location_label(page_number, section_title)}"
     if selected_text and selected_text.strip():
         sel = " ".join(selected_text.split())
         sel = sel if len(sel) <= 80 else sel[:80] + "…"

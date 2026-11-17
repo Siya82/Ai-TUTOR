@@ -6,13 +6,14 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 
 ## Priority 0b — E-book library (ADR-032)
 
-Setup: `alembic upgrade head` (0009), `npm install` in `frontend/`, download at
-least `everything-maths-grade-10.pdf` (unbranded CC-BY edition) into
-`backend/content_sources/books/`, then `python -m scripts.ingest_books`.
+Setup: `alembic upgrade head` (0009 + 0010), `npm install` in `frontend/`, download at
+least `everything-maths-grade-10.epub` (Siyavula's **unbranded CC BY ePub**; the PDFs are
+CC BY-ND and will be refused) into `backend/content_sources/books/`, then
+`python -m scripts.ingest_books`.
 
 - [ ] Student → Library shows the book under its grade; a Grade 10 student doesn't see Grade 11/12 books
-- [ ] Open it: the page renders; ‹ › and typing a page number work; Text view shows the page text
-- [ ] Highlight a sentence in Text view → "Ask about what I highlighted" → chat opens with the book chip → Send → the answer talks about that page
+- [ ] Open it: the section renders with its pictures and maths; ‹ › and the section picker work
+- [ ] Highlight a sentence → "Ask about what I highlighted" → chat opens with the book chip → Send → the answer talks about that section
 - [ ] "Open page" on the chip returns to the same page
 - [ ] Optional: fill a few topic page ranges in `ingest_books.py`, set `OPENAI_API_KEY`, re-run, and check answers from the normal chat cite "p. N"
 

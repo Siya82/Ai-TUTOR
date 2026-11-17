@@ -115,3 +115,50 @@ A **Library** view next to Chat and Assignments:
   analytics.
 - Search inside a book; bookmarks; reading progress.
 - Offline caching for poor connectivity.
+
+## Addendum (17 Nov 2026): ePub, and a licence gate on import
+
+**What changed the plan.** The first PDFs downloaded from Siyavula were all
+the **branded CC BY-ND** editions (CC BY-ND 4.0 for Maths Gr 10, CC BY-ND 3.0
+for the others), not CC BY. Siyavula offers the **CC BY (unbranded)** editions
+as **ePub**. Siya chose (via `AskUserQuestion`, "Recommended") to switch to
+the CC BY ePubs rather than use the ND PDFs while asking Siyavula for
+permission. The science PDFs' text layers were also poor (words run together),
+which the ePubs avoid.
+
+**ePub support** (`app/services/epub.py`, standard library only, because new
+pip installs are blocked on the dev laptop):
+
+- Reads `META-INF/container.xml` → OPF → spine; non-linear items (e.g. the
+  nav document) are skipped.
+- An ePub has no printed pages, so each book is split into **sections** at
+  h1–h3. Each section is stored as a `BookPage`: `page_number` is the section
+  number, plus new `title` and `html` columns (migration 0010, which also adds
+  `books.format`). When a split falls inside open elements, they're closed and
+  re-opened so every section is well-formed. Heading-only stubs are carried
+  forward and short notes are folded back.
+- **HTML is rebuilt from an allow-list** at import time: no scripts, styles,
+  links, iframes, forms or event-handler attributes. Remote or missing images
+  are replaced by their alt text, so there are no tracking pixels. Local
+  images become `<img data-asset="…">` and are fetched through the new
+  authenticated `GET /books/{id}/assets?path=…`, which serves only image types
+  and only members of that book's own zip. MathML is kept, since browsers
+  render it natively.
+- The section text sent to the tutor uses MathML's TeX annotation where
+  present (`$a^m \times a^n = a^{m+n}$`), and figure alt text.
+- Questions about an ePub cite the section ("the section 'Laws of
+  exponents'") instead of a page number. Retrieval chunks are labelled the
+  same way.
+
+**Licence gate.** `ingest_books.py` now reads each book's own licence
+statement (PDF front pages, or the ePub's `dc:rights` plus front matter) and
+**only imports CC BY / CC BY-SA**. ND/NC books are refused with an
+explanation; `--allow-restricted` exists for local testing only. The stored
+licence and the attribution shown under every section come from what the book
+says, not from the manifest. If no licence statement is found, the manifest's
+expected licence is used with a warning. The manifest now lists `.epub` files.
+
+**Reader.** For ePubs the reader shows the section's HTML (selectable, so
+there's no separate Text mode) with a section picker as the table of contents.
+"Ask THUTOra about this section" and "Ask about what I highlighted" work as
+before. PDFs keep working exactly as before for any CC BY PDF.

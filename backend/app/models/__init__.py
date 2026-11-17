@@ -549,6 +549,9 @@ class Book(Base):
     source_url: Mapped[str | None] = mapped_column(String(500))
     file_name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     page_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # NEW (ADR-032 ePub addendum, migration 0010): "pdf" -> BookPage is a
+    # printed page; "epub" -> BookPage is a section split at headings.
+    format: Mapped[str] = mapped_column(String(10), nullable=False, default="pdf")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -561,8 +564,11 @@ class BookPage(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     book_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("books.id"), nullable=False)
-    page_number: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-based, as printed by the PDF viewer
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-based: PDF page, or ePub section number
     text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # ePub only (migration 0010): the section's sanitised HTML and heading
+    title: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    html: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class BookTopicRange(Base):

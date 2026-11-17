@@ -29,3 +29,4 @@ _ARCHIVE_ai-caps-tutor-DO-NOT-USE/
 
 # E-book PDFs (ADR-032) -- large, licensed content; loaded by scripts/ingest_books.py
 backend/content_sources/books/*.pdf
+backend/content_sources/books/*.epub

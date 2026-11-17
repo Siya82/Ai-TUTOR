@@ -148,7 +148,7 @@ function BookChip({ book, onOpen, onRemove }) {
     <div className="book-chip">
       <span aria-hidden="true">📖</span>
       <span>
-        {book.bookTitle}, p. {book.pageNumber}
+        {book.bookTitle}, {book.sectionTitle ? `“${book.sectionTitle}”` : `p. ${book.pageNumber}`}
         {sel && <span className="book-chip__sel"> — “{sel.length > 60 ? `${sel.slice(0, 60)}…` : sel}”</span>}
       </span>
       <button type="button" className="book-chip__open" onClick={onOpen}>
@@ -431,6 +431,7 @@ export default function ChatScreen({ auth, onLogout }) {
       bookId: ctx.bookId,
       bookTitle: ctx.bookTitle,
       pageNumber: ctx.pageNumber,
+      sectionTitle: ctx.sectionTitle,
       selectedText: ctx.selectedText,
     });
     setView("chat");
@@ -667,7 +668,9 @@ export default function ChatScreen({ auth, onLogout }) {
           onPaste={handleDraftPaste}
           placeholder={
             pendingBook
-              ? `What don't you understand on p. ${pendingBook.pageNumber}? (or just press Send)`
+              ? `What don't you understand ${
+                  pendingBook.sectionTitle ? "in this section" : `on p. ${pendingBook.pageNumber}`
+                }? (or just press Send)`
               : subjectNameById(subjects, subjectId)
               ? `Ask THUTOra a ${subjectNameById(subjects, subjectId)} question… (or attach/paste a photo of your work)`
               : "Ask THUTOra a question…"

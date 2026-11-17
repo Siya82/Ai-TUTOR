@@ -41,7 +41,7 @@ def test_passage_includes_page_selection_and_attribution():
         selected_text="  2x + 3 = 7 ",
         attribution="Siyavula, CC BY 3.0",
     )
-    assert "Everything Maths Grade 10" in text and "page 87" in text and "p. 87" in text
+    assert "Everything Maths Grade 10" in text and "Page: 87" in text and "p. 87" in text
     assert "Solve 2x + 3 = 7." in text
     assert 'highlighted: "2x + 3 = 7"' in text
     assert "CC BY 3.0" in text
@@ -104,9 +104,21 @@ def test_first_line():
     assert first_line("") == "(no text on this page)"
 
 
-def test_manifest_is_cc_by_siyavula_only():
-    # ADR-032: only CC-BY (commercial use allowed) books, never "Mind the Gap" (non-commercial)
+def test_manifest_is_cc_by_siyavula_epubs_only():
+    # ADR-032: only CC BY (commercial use + adaptation allowed) books -- Siyavula's
+    # unbranded ePubs, not its CC BY-ND PDFs, and never "Mind the Gap" (non-commercial)
     for spec in BOOKS:
-        assert spec["licence"] == "CC-BY 3.0"
-        assert "CC BY 3.0" in spec["attribution"]
+        assert spec["licence"] == "CC BY"
+        assert spec["file_name"].endswith(".epub")
+        assert "{licence}" in spec["attribution"]  # filled from the book's own licence statement
         assert "mind" not in spec["file_name"].lower()
+
+
+def test_epub_section_passage_cites_the_section_not_a_page():
+    text = build_book_passage(
+        title="Everything Maths Grade 10", page_number=12, page_text="a^m x a^n = a^(m+n)",
+        selected_text=None, attribution="A", section_title="Laws of exponents",
+    )
+    assert 'the section "Laws of exponents"' in text
+    assert "p. 12" not in text
+    assert book_history_summary("T", 12, None, section_title="Laws of exponents") == '(Reading T, the section "Laws of exponents")'

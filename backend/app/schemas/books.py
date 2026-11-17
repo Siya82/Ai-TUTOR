@@ -15,8 +15,9 @@ class BookSummary(BaseModel):
     publisher: Optional[str]
     licence: str
     attribution: str
-    page_count: int
+    page_count: int  # PDF pages, or ePub sections
     file_available: bool
+    format: str = "pdf"  # "pdf" | "epub" (ADR-032 ePub addendum)
 
 
 class BookTopicRangeOut(BaseModel):
@@ -26,9 +27,15 @@ class BookTopicRangeOut(BaseModel):
     end_page: int
 
 
+class SectionTitle(BaseModel):
+    number: int
+    title: Optional[str]
+
+
 class BookDetail(BookSummary):
     source_url: Optional[str]
     topic_ranges: list[BookTopicRangeOut]
+    sections: list[SectionTitle] = []  # ePub table of contents; empty for PDFs
 
 
 class BookPageOut(BaseModel):
@@ -40,6 +47,8 @@ class BookPageOut(BaseModel):
     topic_id: Optional[uuid.UUID]
     topic_name: Optional[str]
     attribution: str
+    title: Optional[str] = None  # ePub section heading
+    html: Optional[str] = None  # ePub section, sanitised at import
 
 
 class BookContext(BaseModel):

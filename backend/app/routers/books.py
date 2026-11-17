@@ -9,15 +9,16 @@ NEW 17 Nov 2026.
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_learner_or_teacher
-from app.models import Book, BookTopicRange, Learner, Subject, Topic, User
-from app.schemas.books import BookDetail, BookPageOut, BookSummary, BookTopicRangeOut
+from app.models import Book, BookPage, BookTopicRange, Learner, Subject, Topic, User
+from app.schemas.books import BookDetail, BookPageOut, BookSummary, BookTopicRangeOut, SectionTitle
+from app.services.epub import read_asset
 from app.services.books import BOOKS_DIR, get_page, get_readable_book, single_page_pdf, topic_for_page
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -35,6 +36,7 @@ def _summary(book: Book, subject: Subject) -> dict:
         attribution=book.attribution,
         page_count=book.page_count,
         file_available=(BOOKS_DIR / book.file_name).exists(),
+        format=book.format,
     )
 
 
@@ -66,9 +68,22 @@ async def book_detail(
             .order_by(BookTopicRange.start_page)
         )
     ).all()
+    sections = []
+    if book.format == "epub":
+        sections = [
+            SectionTitle(number=n, title=t)
+            for n, t in (
+                await db.execute(
+                    select(BookPage.page_number, BookPage.title)
+                    .where(BookPage.book_id == book.id)
+                    .order_by(BookPage.page_number)
+                )
+            ).all()
+        ]
     return BookDetail(
         **_summary(book, subject),
         source_url=book.source_url,
+        sections=sections,
         topic_ranges=[
             BookTopicRangeOut(topic_id=t.id, topic_name=t.name, start_page=r.start_page, end_page=r.end_page)
             for r, t in ranges
@@ -99,6 +114,8 @@ async def page_text(
         topic_id=topic.id if topic else None,
         topic_name=topic.name if topic else None,
         attribution=book.attribution,
+        title=page.title,
+        html=page.html,
     )
 
 
@@ -112,6 +129,8 @@ async def page_pdf(
     """Just this one page, so a learner on mobile data downloads a page,
     not the whole book."""
     book, _ = await get_readable_book(db, book_id, identity[1])
+    if book.format != "pdf":
+        raise HTTPException(status_code=404, detail="This book has no PDF pages (it's an ePub)")
     path = BOOKS_DIR / book.file_name
     if not path.exists():
         raise HTTPException(status_code=404, detail="This book's PDF isn't on the server yet")
@@ -123,4 +142,32 @@ async def page_pdf(
         content=data,
         media_type="application/pdf",
         headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.get("/{book_id}/assets")
+async def book_asset(
+    book_id: uuid.UUID,
+    path: str = Query(..., max_length=500),
+    identity: tuple[User, Learner | None] = Depends(get_current_learner_or_teacher),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """NEW (ADR-032 ePub addendum): an image from inside an ePub, by its
+    path in the zip (the `data-asset` attribute the importer wrote). Only
+    image types are served, and only from inside the book's own zip file --
+    `path` is a zip member name, never a filesystem path."""
+    book, _ = await get_readable_book(db, book_id, identity[1])
+    if book.format != "epub":
+        raise HTTPException(status_code=404, detail="Not found")
+    file_path = BOOKS_DIR / book.file_name
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="This book's file isn't on the server yet")
+    try:
+        data, media_type = read_asset(file_path, path)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Not found")
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Cache-Control": "private, max-age=604800", "X-Content-Type-Options": "nosniff"},
     )

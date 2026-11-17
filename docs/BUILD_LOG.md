@@ -2954,3 +2954,37 @@ in headless Chrome.
 `backend/content_sources/books/`, run `alembic upgrade head`,
 `python -m scripts.ingest_books`, `npm install` in `frontend/`, then fill in
 topic page ranges (optional, for page-cited answers).
+
+## 17 Nov 2026 — ePub support and a licence gate for the Library (ADR-032 addendum)
+
+Siya's first downloads were Siyavula's branded PDFs. Checking their front
+matter on his machine showed all four are **CC BY-ND** (Maths Gr 10: 4.0;
+Maths Gr 12, Science Gr 10/11: 3.0), not CC BY, and the science PDFs' text
+layers run words together. The files had also saved as `*.pdf.pdf` because
+Windows hides extensions (renamed in place). Siya chose to switch to the CC BY
+(unbranded) **ePubs**.
+
+**Built:** `app/services/epub.py` (standard library ePub reader: spine order,
+split into sections at h1–h3 with well-formed re-opening, allow-list HTML
+sanitiser, local-images-only via `data-asset`, MathML kept, TeX annotations
+used for tutor text, licence detection). Migration `0010` (`books.format`,
+`book_pages.title`, `book_pages.html`). New `GET /books/{id}/assets` (image
+types only, zip members only). `ingest_books.py`: `.epub` manifest, licence
+gate (only CC BY / CC BY-SA unless `--allow-restricted`), licence and
+attribution taken from the book itself, ePub `--outline`. Tutor passages and
+chat history cite the section title for ePubs. Reader: section picker,
+sanitised HTML with authenticated image loading, "Ask about this section".
+
+**Verified:** 14 new tests in `tests/test_epub.py` (spine and non-linear
+skipping, splitting inside open elements, sanitising scripts, handlers,
+styles, `javascript:`, remote images, TeX annotation text, licence detection
+including the exact run-together text from Siya's science PDF, the gate, and
+asset serving refusing non-images and path tricks). Full `pytest`: 210 passed.
+Import of a synthetic CC BY ePub against real Postgres; a synthetic CC BY-ND
+PDF is refused. Clicked through in headless Chrome: list → section picker →
+MathML and image render → highlight → ask → chat chip cites the section and
+the topic switched to the mapped one. `vite build` and eslint clean.
+
+**Still needed from Siya:** download the CC BY ePubs, `alembic upgrade head`
+(0010), `python -m scripts.ingest_books`. The real ePubs' structure hasn't
+been seen yet, so the section splitting may need tuning once one arrives.

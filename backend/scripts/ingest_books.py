@@ -17,9 +17,10 @@ Usage (from backend/):
     python -m scripts.ingest_books --outline everything-maths-grade-10.pdf
     python -m scripts.ingest_books --manifest my_books.json
 
-LICENCE: use the *unbranded* Siyavula editions, which are CC-BY 3.0 (commercial
-use allowed with attribution). The branded editions are CC-BY-ND. Check the
-licence page inside each PDF before ingesting. Do NOT add DBE "Mind the Gap"
+LICENCE: use the *unbranded* Siyavula editions (CC BY), which Siyavula ships as
+ePub. Its PDFs are the branded CC BY-ND editions, and this script refuses
+them: it reads each book's own licence statement and only imports CC BY /
+CC BY-SA (see licence_decision()). Do NOT add DBE "Mind the Gap"
 guides: they are non-commercial. See docs/ADR-032-ebook-library-and-reader.md.
 
 Where to download: Siyavula's textbook pages (https://www.siyavula.com) or the
@@ -27,9 +28,9 @@ DBE's Siyavula page:
 https://www.education.gov.za/Curriculum/LearningandTeachingSupportMaterials(LTSM)/SiyavulaTextbooks/tabid/591/Default.aspx
 Save each PDF under backend/content_sources/books/ with the file_name below.
 
-TOPIC RANGES: fill in "topics" as {"<seeded topic name>": [first_page, last_page]}
-using page numbers as your PDF viewer shows them (1 = the first page of the
-file). `--outline <file>` prints each page's first line to make this quick.
+TOPIC RANGES: fill in "topics" as {"<seeded topic name>": [first, last]} --
+section numbers for an ePub, page numbers for a PDF (1 = the first page of the
+file). `--outline <file>` lists sections/pages to make this quick.
 Unmapped pages are still readable; they just aren't used for page-cited answers.
 """
 
@@ -48,39 +49,43 @@ from sqlalchemy import delete, select
 from app.core.database import async_session_factory
 from app.models import Book, BookPage, BookTopicRange, ContentChunk, Subject, Topic
 from app.services.embeddings import EmbeddingsNotConfiguredError, embed_texts
+from app.services.epub import COMMERCIAL_ADAPTABLE, detect_licence, licence_family, parse_epub
 from scripts.ingest_content import chunk_text
 
 BOOKS_DIR = Path(__file__).resolve().parent.parent / "content_sources" / "books"
 EMBED_BATCH_SIZE = 32
 
 _SIYAVULA_URL = "https://www.siyavula.com"
-_MATHS = "Everything Maths Grade {g} by Siyavula and volunteers. Licensed under CC BY 3.0. " + _SIYAVULA_URL
-_SCIENCE = "Everything Science Grade {g} by Siyavula and volunteers. Licensed under CC BY 3.0. " + _SIYAVULA_URL
+# UPDATED 17 Nov 2026 (ADR-032 ePub addendum): Siyavula's downloadable PDFs
+# turned out to be the branded CC BY-ND editions; the CC BY (unbranded)
+# editions are ePubs. So the manifest now lists .epub files, and the licence
+# + attribution are taken from the book itself at import time ({licence}).
+_ATTRIBUTION = "{title} by Siyavula Education and volunteers. Licensed under {licence}. " + _SIYAVULA_URL
 
 BOOKS: list[dict] = [
     *(
         {
-            "file_name": f"everything-maths-grade-{g}.pdf",
+            "file_name": f"everything-maths-grade-{g}.epub",
             "title": f"Everything Maths Grade {g}",
             "subject": "Pure Mathematics",
             "grade": g,
             "publisher": "Siyavula",
-            "licence": "CC-BY 3.0",
-            "attribution": _MATHS.format(g=g),
+            "licence": "CC BY",  # expected; the book's own licence statement wins
+            "attribution": _ATTRIBUTION,
             "source_url": _SIYAVULA_URL,
-            "topics": {},  # TODO(Siya): fill in page ranges per topic, see docstring
+            "topics": {},  # section ranges per topic -- see docstring
         }
         for g in (10, 11, 12)
     ),
     *(
         {
-            "file_name": f"everything-science-grade-{g}.pdf",
+            "file_name": f"everything-science-grade-{g}.epub",
             "title": f"Everything Science Grade {g}",
             "subject": "Physical Sciences",
             "grade": g,
             "publisher": "Siyavula",
-            "licence": "CC-BY 3.0",
-            "attribution": _SCIENCE.format(g=g),
+            "licence": "CC BY",
+            "attribution": _ATTRIBUTION,
             "source_url": _SIYAVULA_URL,
             "topics": {},  # TODO(Siya): Physics-strand topics only -- Chemistry isn't seeded
         }
@@ -116,6 +121,14 @@ def page_source_label(title: str, publisher: str | None, page_number: int, part:
     return f"{title}{who}, p. {page_number}{suffix}"
 
 
+def section_source_label(title: str, publisher: str | None, section_title: str, part: int, parts: int) -> str:
+    """ePub sections have no page numbers: cite the section heading instead,
+    e.g. 'Everything Maths Grade 10 (Siyavula), section "Laws of exponents"'."""
+    who = f" ({publisher})" if publisher else ""
+    suffix = f" #{part + 1}" if parts > 1 else ""
+    return f'{title}{who}, section "{section_title}"{suffix}'
+
+
 def first_line(text: str, limit: int = 90) -> str:
     for line in text.splitlines():
         line = line.strip()
@@ -129,10 +142,31 @@ def extract_pages(path: Path) -> list[str]:
     return [(page.extract_text() or "").strip() for page in reader.pages]
 
 
+def licence_decision(detected: str | None, expected: str, allow_restricted: bool) -> tuple[str | None, str]:
+    """(licence to store, message). licence None = don't import.
+
+    ADR-032: THUTOra is commercial and generates explanations from the text,
+    so only licences that allow commercial use AND adaptation (CC BY, CC BY-SA)
+    are imported. A restrictive licence (ND/NC) is refused unless
+    --allow-restricted is passed for local testing. If no licence statement
+    can be found, the manifest's expected licence is used with a warning."""
+    if detected is None:
+        return expected, f"WARNING: no licence statement found in the book; using the manifest's {expected!r}. Check it by hand."
+    family = licence_family(detected)
+    if family in COMMERCIAL_ADAPTABLE:
+        return detected, f"Licence: {detected}"
+    if allow_restricted:
+        return detected, f"Licence: {detected} -- RESTRICTED, imported only because of --allow-restricted (local testing only)"
+    return None, (
+        f"SKIP: this file is licensed {detected}, which doesn't allow THUTOra's use "
+        "(ADR-032). Use the CC BY (unbranded) edition instead."
+    )
+
+
 # --- DB work ----------------------------------------------------------------
 
 
-async def ingest_book(session, spec: dict, embed: bool) -> None:
+async def ingest_book(session, spec: dict, embed: bool, allow_restricted: bool = False) -> None:
     path = BOOKS_DIR / spec["file_name"]
     if not path.exists():
         print(f"  SKIP (file not found): {path}")
@@ -147,7 +181,22 @@ async def ingest_book(session, spec: dict, embed: bool) -> None:
         print(f"  SKIP (subject not seeded): {spec['subject']} Gr{spec['grade']} -- run scripts.seed_dev_data first")
         return
 
-    pages = extract_pages(path)
+    is_epub = path.suffix.lower() == ".epub"
+    if is_epub:
+        parsed = parse_epub(path)
+        pages = [sec.text for sec in parsed.sections]
+        page_titles = [sec.title for sec in parsed.sections]
+        page_html = [sec.html for sec in parsed.sections]
+        detected = parsed.licence
+    else:
+        pages = extract_pages(path)
+        page_titles = [None] * len(pages)
+        page_html = [None] * len(pages)
+        detected = detect_licence("\n".join(pages[:12]))
+    licence, message = licence_decision(detected, spec["licence"], allow_restricted)
+    print(f"  {message}")
+    if licence is None:
+        return
     problems = validate_ranges(spec.get("topics", {}), len(pages))
     if problems:
         print("  SKIP (fix the topic ranges in the manifest):")
@@ -162,8 +211,9 @@ async def ingest_book(session, spec: dict, embed: bool) -> None:
     book.title = spec["title"]
     book.subject_id = subject.id
     book.publisher = spec.get("publisher")
-    book.licence = spec["licence"]
-    book.attribution = spec["attribution"]
+    book.licence = licence
+    book.attribution = spec["attribution"].format(title=spec["title"], licence=licence)
+    book.format = "epub" if is_epub else "pdf"
     book.source_url = spec.get("source_url")
     book.page_count = len(pages)
     await session.flush()
@@ -176,10 +226,13 @@ async def ingest_book(session, spec: dict, embed: bool) -> None:
     for number, text in enumerate(pages, start=1):
         if not text:
             empty += 1
+        title, html = page_titles[number - 1], page_html[number - 1]
         if number in existing:
             existing[number].text = text
+            existing[number].title = title
+            existing[number].html = html
         else:
-            session.add(BookPage(book_id=book.id, page_number=number, text=text))
+            session.add(BookPage(book_id=book.id, page_number=number, text=text, title=title, html=html))
     if len(existing) > len(pages):  # the PDF got shorter: drop stale pages
         await session.execute(
             delete(BookPage).where(BookPage.book_id == book.id, BookPage.page_number > len(pages))
@@ -199,7 +252,8 @@ async def ingest_book(session, spec: dict, embed: bool) -> None:
         session.add(BookTopicRange(book_id=book.id, topic_id=topic.id, start_page=start, end_page=end))
         ranges.append((topic, start, end))
 
-    print(f"  {len(pages)} pages ({empty} with no text layer), {len(ranges)} topic range(s)")
+    unit = "sections" if is_epub else "pages"
+    print(f"  {len(pages)} {unit} ({empty} with no text), {len(ranges)} topic range(s)")
 
     if not embed or not ranges:
         if ranges and not embed:
@@ -215,7 +269,12 @@ async def ingest_book(session, spec: dict, embed: bool) -> None:
                 continue
             parts = chunk_text(text)
             for i, part in enumerate(parts):
-                todo.append((topic.id, page_source_label(book.title, book.publisher, number, i, len(parts)), part))
+                label = (
+                    section_source_label(book.title, book.publisher, page_titles[number - 1], i, len(parts))
+                    if is_epub
+                    else page_source_label(book.title, book.publisher, number, i, len(parts))
+                )
+                todo.append((topic.id, label, part))
     known = set(
         (await session.execute(select(ContentChunk.topic_id, ContentChunk.source).where(
             ContentChunk.source.startswith(f"{book.title}")
@@ -242,8 +301,16 @@ async def ingest_book(session, spec: dict, embed: bool) -> None:
 async def main(args) -> None:
     if args.outline:
         path = BOOKS_DIR / args.outline
-        for number, text in enumerate(extract_pages(path), start=1):
-            print(f"p. {number:>4}  {first_line(text)}")
+        if path.suffix.lower() == ".epub":
+            parsed = parse_epub(path)
+            print(f"{parsed.title}  --  licence found: {parsed.licence or 'none'}")
+            for number, sec in enumerate(parsed.sections, start=1):
+                print(f"§ {number:>4}  {sec.title[:70]}  ({len(sec.text)} chars)")
+        else:
+            pages = extract_pages(path)
+            print(f"licence found: {detect_licence(chr(10).join(pages[:12])) or 'none'}")
+            for number, text in enumerate(pages, start=1):
+                print(f"p. {number:>4}  {first_line(text)}")
         return
 
     books = BOOKS
@@ -253,7 +320,7 @@ async def main(args) -> None:
     async with async_session_factory() as session:
         for spec in books:
             print(f"{spec['title']}  ({spec['file_name']})")
-            await ingest_book(session, spec, embed=not args.no_embed)
+            await ingest_book(session, spec, embed=not args.no_embed, allow_restricted=args.allow_restricted)
             await session.commit()
     print("\nDone. Re-running is safe.")
 
@@ -263,4 +330,9 @@ if __name__ == "__main__":
     parser.add_argument("--outline", help="Print each page's first line for this file in content_sources/books/")
     parser.add_argument("--manifest", help="JSON file with a list of book specs, instead of BOOKS")
     parser.add_argument("--no-embed", action="store_true", help="Skip embedding even if OPENAI_API_KEY is set")
+    parser.add_argument(
+        "--allow-restricted",
+        action="store_true",
+        help="LOCAL TESTING ONLY: import a CC BY-ND/NC book anyway (ADR-032 forbids it in production)",
+    )
     asyncio.run(main(parser.parse_args()))
