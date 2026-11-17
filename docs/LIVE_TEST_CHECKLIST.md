@@ -4,6 +4,11 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 
 **One-time catch-up before anything below:** `git pull`, `pip install -r requirements.txt` (or run `start-thutora.ps1`), `alembic upgrade head` (picks up migrations 0004–0006), then `python -m scripts.seed_dev_data` to re-seed and backfill.
 
+## Quick look — icons and product colours (ADR-034)
+
+- [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
+- [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
+
 ## Priority 0b — E-book library (ADR-032)
 
 Setup: `alembic upgrade head` (0009–0011), `npm install` in `frontend/`, download at

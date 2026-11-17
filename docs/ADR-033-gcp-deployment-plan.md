@@ -1,5 +1,7 @@
 # ADR-033: Deploying THUTOra to Google Cloud (staging and production)
 
+> **On hold (17 Nov 2026):** Siya paused the GCP move; fix the issues in `CODE_REVIEW_2026-11-17.md` first.
+
 **Status:** Proposed. Plan only; no infrastructure created yet.
 **Date:** 17 November 2026
 
