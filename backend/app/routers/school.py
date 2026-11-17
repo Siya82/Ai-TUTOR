@@ -32,6 +32,11 @@ from app.models import (
     User,
 )
 from app.schemas.school import (
+    ActiveUpdate,
+    ClassUpdate,
+    PasswordResetResult,
+    PromoteRequest,
+    PromoteResult,
     AllocationBulkCreate,
     AllocationBulkResult,
     AllocationCreate,
@@ -48,7 +53,7 @@ from app.schemas.school import (
     StaffCreateResult,
     StaffOut,
 )
-from app.services.auth import provision_teacher
+from app.services.auth import generate_temp_password, hash_password, provision_teacher
 from app.services.school_scope import (
     DEPARTMENTAL_HEAD,
     ROLE_LABELS,
@@ -340,6 +345,7 @@ async def list_staff(
             user_id=u.id,
             display_name=u.display_name,
             staff_number=u.student_number,
+            is_active=bool(u.is_active),
             roles=[_role_out(r) for r in roles if r.user_id == u.id],
             allocations=[a for a in allocs if a.teacher_user_id == u.id],
         )
@@ -547,4 +553,162 @@ async def delete_allocation(
     if alloc is None or alloc.school_id != scope.school_id:
         raise HTTPException(status_code=404, detail="Allocation not found")
     await db.delete(alloc)
+    await db.commit()
+
+
+# --- account and year-end admin (code review #13, 17 Nov 2026) ------------------
+
+
+async def _user_in_school(db: AsyncSession, user_id: uuid.UUID, scope: StaffScope) -> User:
+    user = await db.get(User, user_id)
+    if user is None or user.school_id != scope.school_id:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+async def _may_manage_account(db: AsyncSession, user: User, scope: StaffScope) -> bool:
+    """School management may manage any account in the school; a teacher may
+    reset the password of a learner on their own roster (a forgotten
+    password is usually noticed in class)."""
+    if scope.can_manage_school:
+        return True
+    if user.role != "student":
+        return False
+    learner = (await db.execute(select(Learner).where(Learner.user_id == user.id))).scalar_one_or_none()
+    return learner is not None and scope.can_see_roster(learner.id)
+
+
+@router.post("/users/{user_id}/reset-password", response_model=PasswordResetResult)
+async def reset_password(
+    user_id: uuid.UUID,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> PasswordResetResult:
+    """
+    Issues a new one-time password for a learner or staff member who forgot
+    theirs. They must choose a new one at next login, and any session they
+    still have open ends (token_version).
+    """
+    user = await _user_in_school(db, user_id, scope)
+    if user.id == scope.user_id:
+        raise HTTPException(status_code=400, detail="Use Change password for your own account")
+    if not await _may_manage_account(db, user, scope):
+        raise HTTPException(status_code=403, detail="You can't reset this person's password")
+    temp = generate_temp_password()
+    user.password_hash = hash_password(temp)
+    user.must_change_password = True
+    user.token_version = (user.token_version or 0) + 1
+    await db.commit()
+    return PasswordResetResult(user_id=user.id, temp_password=temp)
+
+
+@router.post("/users/{user_id}/active", status_code=204)
+async def set_active(
+    user_id: uuid.UUID,
+    payload: ActiveUpdate,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """
+    Deactivate (or reactivate) a learner or staff member who has left. Their
+    data stays; they just can't log in, and a learner drops out of rosters,
+    progress and new assignments.
+    """
+    _require_manage(scope)
+    user = await _user_in_school(db, user_id, scope)
+    if user.id == scope.user_id:
+        raise HTTPException(status_code=400, detail="You can't deactivate your own account")
+    user.is_active = payload.active
+    if not payload.active:
+        user.token_version = (user.token_version or 0) + 1
+    await db.commit()
+
+
+@router.post("/learners/promote", response_model=PromoteResult)
+async def promote_learners(
+    payload: PromoteRequest,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> PromoteResult:
+    """
+    Year end: every active learner in `grade` moves up one grade. Classes
+    belong to a grade, so promoted learners leave their old classes (put
+    them in next year's classes afterwards). Grade 12 isn't promoted --
+    deactivate leavers instead.
+    """
+    _require_manage(scope)
+    learners = (
+        await db.execute(
+            select(Learner)
+            .join(User, Learner.user_id == User.id)
+            .where(
+                User.school_id == scope.school_id,
+                User.role == "student",
+                User.is_active.is_(True),
+                Learner.grade == payload.grade,
+            )
+        )
+    ).scalars().all()
+    ids = [l.id for l in learners]
+    removed = 0
+    if ids:
+        old_class_ids = (
+            await db.execute(
+                select(SchoolClass.id).where(
+                    SchoolClass.school_id == scope.school_id, SchoolClass.grade == payload.grade
+                )
+            )
+        ).scalars().all()
+        if old_class_ids:
+            result = await db.execute(
+                delete(ClassMember).where(
+                    ClassMember.learner_id.in_(ids), ClassMember.class_id.in_(old_class_ids)
+                )
+            )
+            removed = result.rowcount or 0
+        for learner in learners:
+            learner.grade = payload.grade + 1
+    await db.commit()
+    return PromoteResult(promoted=len(ids), removed_from_classes=removed)
+
+
+@router.patch("/classes/{class_id}", response_model=ClassSummary)
+async def rename_class(
+    class_id: uuid.UUID,
+    payload: ClassUpdate,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> ClassSummary:
+    _require_manage(scope)
+    cls = await _class_in_school(db, class_id, scope)
+    name = payload.name.strip()
+    clash = (
+        await db.execute(
+            select(SchoolClass.id).where(
+                SchoolClass.school_id == scope.school_id,
+                func.lower(SchoolClass.name) == name.lower(),
+                SchoolClass.id != cls.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if clash is not None:
+        raise HTTPException(status_code=400, detail=f"A class called {name} already exists")
+    cls.name = name
+    await db.commit()
+    return (await _class_summaries(db, [cls], scope))[0]
+
+
+@router.delete("/classes/{class_id}", status_code=204)
+async def delete_class(
+    class_id: uuid.UUID,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Deletes the class, its member list and its subject allocations. The
+    learners themselves, and all their work, are untouched."""
+    _require_manage(scope)
+    cls = await _class_in_school(db, class_id, scope)
+    await db.execute(delete(ClassMember).where(ClassMember.class_id == cls.id))
+    await db.execute(delete(TeachingAllocation).where(TeachingAllocation.class_id == cls.id))
+    await db.delete(cls)
     await db.commit()

@@ -39,9 +39,21 @@ function formatErrorDetail(detail, fallback) {
 // status (where there is one) as `.status`, so a caller can tell a 401
 // (expired/invalid token -- time to log out again) apart from any
 // other failure without string-matching the message.
-function httpError(message, status) {
+// UPDATED 17 Nov 2026 (code review #14): a 401 on any authenticated call
+// means the session is over (expired, password changed elsewhere, or the
+// account was deactivated). Rather than every screen handling that itself
+// (several didn't), App registers one handler that logs out with a notice.
+// Login and change-password pass quiet=true: their 401 means "wrong
+// password", not "session over".
+let onUnauthorized = null;
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+}
+
+function httpError(message, status, { quiet = false } = {}) {
   const err = new Error(message);
   err.status = status;
+  if (status === 401 && !quiet && onUnauthorized) onUnauthorized();
   return err;
 }
 
@@ -101,7 +113,8 @@ export async function login({ schoolId, studentNumber, password }) {
     const errorBody = await response.json().catch(() => ({}));
     throw httpError(
       formatErrorDetail(errorBody.detail, `Login failed with status ${response.status}`),
-      response.status
+      response.status,
+      { quiet: true }
     );
   }
   return response.json();
@@ -128,7 +141,8 @@ export async function changePassword({ token, currentPassword, newPassword }) {
     const errorBody = await response.json().catch(() => ({}));
     throw httpError(
       formatErrorDetail(errorBody.detail, `Password change failed with status ${response.status}`),
-      response.status
+      response.status,
+      { quiet: true }
     );
   }
   return response.json();
@@ -300,6 +314,23 @@ async function postJson(path, token, body) {
     const errorBody = await response.json().catch(() => ({}));
     throw httpError(
       formatErrorDetail(errorBody.detail, `POST ${path} failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+// NEW 17 Nov 2026 (code review #13): PATCH, for renaming a class.
+async function patchJson(path, token, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `PATCH ${path} failed with status ${response.status}`),
       response.status
     );
   }
@@ -563,4 +594,27 @@ export async function fetchBookAsset(token, bookId, assetPath) {
   );
   if (!response.ok) throw httpError(`Image failed with status ${response.status}`, response.status);
   return response.blob();
+}
+
+/*
+ * NEW 17 Nov 2026 (code review #13): account and year-end admin.
+ */
+export function resetUserPassword(token, userId) {
+  return postJson(`/school/users/${userId}/reset-password`, token, {});
+}
+
+export function setUserActive(token, userId, active) {
+  return postJson(`/school/users/${userId}/active`, token, { active });
+}
+
+export function promoteLearners(token, grade) {
+  return postJson("/school/learners/promote", token, { grade });
+}
+
+export function renameClass(token, classId, name) {
+  return patchJson(`/school/classes/${classId}`, token, { name });
+}
+
+export function deleteClass(token, classId) {
+  return deleteJson(`/school/classes/${classId}`, token);
 }

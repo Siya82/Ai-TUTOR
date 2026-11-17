@@ -3,12 +3,12 @@ POST /auth/login, GET /auth/me, POST /auth/change-password.
 See docs/ADR-017-student-login.md.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user_allow_password_change
 from app.models import Learner, School, User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -18,6 +18,7 @@ from app.schemas.auth import (
     MeResponse,
     SchoolProfile,
 )
+from app.services import login_throttle
 from app.services.auth import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -33,7 +34,20 @@ def _learner_profile(learner: Learner) -> LearnerProfile:
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> LoginResponse:
+async def login(
+    payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)
+) -> LoginResponse:
+    # NEW 17 Nov 2026 (code review #6): refuse quickly while this login (or
+    # this IP) is locked out after repeated wrong passwords.
+    ip = request.client.host if request.client else None
+    wait = login_throttle.retry_after_seconds(payload.school_id, payload.student_number, ip)
+    if wait:
+        minutes = max(1, round(wait / 60))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many wrong passwords. Try again in about {minutes} minute(s).",
+            headers={"Retry-After": str(wait)},
+        )
     stmt = select(User).where(
         User.school_id == payload.school_id, User.student_number == payload.student_number
     )
@@ -44,10 +58,12 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
     # practice, and doubly worth it here since school_id + student_number
     # together are a guessable identifier, not a secret.
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+        login_throttle.record_failure(payload.school_id, payload.student_number, ip)
         raise HTTPException(status_code=401, detail="Incorrect student number or password")
+    login_throttle.record_success(payload.school_id, payload.student_number)
 
     school = await db.get(School, user.school_id)
-    token = create_access_token(str(user.id), user.role)
+    token = create_access_token(str(user.id), user.role, user.token_version)
 
     # NEW 15 Nov 2026 (ADR-024): a teacher User has no linked Learner at
     # all -- provision_teacher() never creates one -- so this branches
@@ -78,7 +94,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
 
 @router.get("/me", response_model=MeResponse)
 async def read_me(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_allow_password_change),
     db: AsyncSession = Depends(get_db),
 ) -> MeResponse:
     """
@@ -110,12 +126,21 @@ async def read_me(
 @router.post("/change-password")
 async def change_password(
     payload: ChangePasswordRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_allow_password_change),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    """
+    UPDATED 17 Nov 2026 (code review #6): bumps token_version, so every
+    other session for this account ends, and returns a fresh token for
+    the one that changed it (the frontend swaps it in).
+    """
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
     user.password_hash = hash_password(payload.new_password)
     user.must_change_password = False
+    user.token_version = (user.token_version or 0) + 1
     await db.commit()
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "access_token": create_access_token(str(user.id), user.role, user.token_version),
+    }

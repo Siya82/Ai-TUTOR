@@ -137,17 +137,18 @@ async def list_students(
     grade(s); a teacher's allocated classes. Still joined through User, so
     a Learner with no linked User (pre-ADR-017 dev data) never appears.
     """
-    if not scope.roster_learner_ids:
+    # UPDATED 17 Nov 2026 (code review #13): school management also sees
+    # deactivated learners (flagged), so they can be reactivated.
+    visible = Learner.id.in_(scope.roster_learner_ids) if scope.roster_learner_ids else None
+    if scope.can_manage_school:
+        visible = User.is_active.is_(False) if visible is None else (visible | User.is_active.is_(False))
+    if visible is None:
         return []
     stmt = (
         select(Learner, User)
         .join(User, Learner.user_id == User.id)
-        .where(
-            User.school_id == scope.school_id,
-            User.role == "student",
-            Learner.id.in_(scope.roster_learner_ids),
-        )
-        .order_by(Learner.grade, Learner.display_name)
+        .where(User.school_id == scope.school_id, User.role == "student", visible)
+        .order_by(User.is_active.desc(), Learner.grade, Learner.display_name)
     )
     rows = (await db.execute(stmt)).all()
     class_names: dict = {}
@@ -169,6 +170,7 @@ async def list_students(
             student_number=user.student_number,
             created_at=user.created_at,
             classes=class_names.get(learner.id, []),
+            is_active=bool(user.is_active),
         )
         for learner, user in rows
     ]

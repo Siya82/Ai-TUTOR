@@ -29,12 +29,12 @@ class TutorMessageRequest(BaseModel):
     # attachment is ready to send (see ChatScreen.jsx's handleSend).
     # The model_validator below still requires SOME content: either a
     # non-blank message or at least one attachment.
-    message: str = ""
+    message: str = Field(default="", max_length=4000)  # code review #9
     # NEW 13 Nov 2026 (ADR-016): files the student attached via a prior
     # POST /attachments call, in the order they should be presented to
     # Claude. Optional and defaults to empty so every existing caller
     # (and every existing test) keeps working unchanged.
-    attachment_ids: list[UUID] = Field(default_factory=list)
+    attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
     # NEW 17 Nov 2026 (ADR-032): set when the learner asks from the e-book
     # reader. The server loads the page text itself.
     book_context: BookContext | None = None

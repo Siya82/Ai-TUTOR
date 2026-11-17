@@ -19,7 +19,7 @@ from app.models import Learner, User
 from app.services.auth import decode_access_token
 
 
-async def get_current_user(
+async def get_current_user_allow_password_change(
     authorization: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -43,6 +43,26 @@ async def get_current_user(
     user = await db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    # NEW 17 Nov 2026 (code review #6): a token issued before the latest
+    # password change/reset or deactivation no longer works.
+    if int(payload.get("ver", 0)) != (user.token_version or 0):
+        raise HTTPException(status_code=401, detail="Session ended. Please log in again.")
+    return user
+
+
+async def get_current_user(
+    user: User = Depends(get_current_user_allow_password_change),
+) -> User:
+    """
+    The dependency every endpoint uses. UPDATED 17 Nov 2026 (code review
+    #7): while an account still has its temporary password, only
+    GET /auth/me and POST /auth/change-password work (they depend on
+    get_current_user_allow_password_change directly); everything else is
+    403 until the password is changed. Previously only the browser
+    enforced this.
+    """
+    if user.must_change_password:
+        raise HTTPException(status_code=403, detail="Please change your temporary password first.")
     return user
 
 

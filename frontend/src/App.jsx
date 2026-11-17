@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import ChatScreen from "./components/ChatScreen";
 import LoginScreen from "./components/LoginScreen";
 import TeacherAdminScreen from "./components/TeacherAdminScreen";
-import { fetchMe } from "./api";
+import { fetchMe, setUnauthorizedHandler } from "./api";
 import "./styles/product-tokens.css";
 import "./styles/chat.css";
 
@@ -19,6 +19,19 @@ function App() {
   // while a stored token is still being validated against GET /auth/me
   // on first load.
   const [status, setStatus] = useState("checking");
+  // Code review #14: shown on the login screen after a session ends.
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (!sessionStorage.getItem(TOKEN_STORAGE_KEY)) return;
+      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      setAuth(null);
+      setStatus("loggedOut");
+      setNotice("Your session has ended. Please log in again.");
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   useEffect(() => {
     const storedToken = sessionStorage.getItem(TOKEN_STORAGE_KEY);
@@ -29,6 +42,9 @@ function App() {
     (async () => {
       try {
         const me = await fetchMe(storedToken);
+        // Code review #7: a session that still has a temporary password
+        // goes back through login (where the change-password step lives).
+        if (me.must_change_password) throw new Error("password change required");
         // NEW 15 Nov 2026 (ADR-024): `role` tells us whether to render
         // ChatScreen or TeacherAdminScreen below -- `me.learner` is now
         // `null` for a teacher, so nothing downstream can accidentally
@@ -44,6 +60,7 @@ function App() {
   }, []);
 
   const handleLogin = (response) => {
+    setNotice(null);
     sessionStorage.setItem(TOKEN_STORAGE_KEY, response.access_token);
     setAuth({
       token: response.access_token,
@@ -65,7 +82,7 @@ function App() {
   }
 
   if (status === "loggedOut" || !auth) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleLogin} notice={notice} />;
   }
 
   // NEW 15 Nov 2026 (ADR-024): role-aware rendering -- a teacher never

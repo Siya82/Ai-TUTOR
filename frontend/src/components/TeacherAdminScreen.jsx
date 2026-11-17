@@ -36,6 +36,8 @@ import {
   fetchTeachAssignments,
   fetchTopics,
   releaseAssignmentResults,
+  resetUserPassword,
+  setUserActive,
 } from "../api";
 
 // UPDATED 17 Nov 2026 (ADR-031): which tabs show depends on the staff
@@ -155,6 +157,8 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         {meError && <div className="admin-screen__error">{meError}</div>}
         {tab === "roster" && (
           <RosterPanel
+            token={auth.token}
+            onChanged={loadRoster}
             students={students}
             loading={rosterLoading}
             error={rosterError}
@@ -190,7 +194,33 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
   );
 }
 
-function RosterPanel({ students, loading, error, onRetry, me }) {
+function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }) {
+  // NEW 17 Nov 2026 (code review #13): reset a forgotten password (any
+  // teacher, for learners on their roster) and deactivate/reactivate a
+  // learner who left (school management only).
+  const [busyId, setBusyId] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [actionError, setActionError] = useState(null);
+
+  const run = async (learner, action) => {
+    setBusyId(learner.user_id);
+    setActionError(null);
+    setNotice(null);
+    try {
+      if (action === "reset") {
+        const result = await resetUserPassword(token, learner.user_id);
+        setNotice({ name: learner.display_name, number: learner.student_number, password: result.temp_password });
+      } else {
+        await setUserActive(token, learner.user_id, action === "reactivate");
+        onChanged();
+      }
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (loading) return <p className="admin-screen__muted">Loading students…</p>;
   if (error) {
     return (
@@ -211,29 +241,81 @@ function RosterPanel({ students, loading, error, onRetry, me }) {
       </p>
     );
   }
+  const canManage = Boolean(me?.can_manage_school);
   return (
-    <table className="admin-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Grade</th>
-          <th>Student number</th>
-          <th>Classes</th>
-          <th>Added</th>
-        </tr>
-      </thead>
-      <tbody>
-        {students.map((s) => (
-          <tr key={s.learner_id}>
-            <td>{s.display_name}</td>
-            <td>{s.grade}</td>
-            <td>{s.student_number}</td>
-            <td>{s.classes?.length ? s.classes.join(", ") : <span className="admin-screen__muted">—</span>}</td>
-            <td>{new Date(s.created_at).toLocaleDateString()}</td>
+    <>
+      {notice && (
+        <div className="admin-result">
+          <p className="admin-result__title">New one-time password for {notice.name}</p>
+          <dl className="admin-result__details">
+            <dt>Student number</dt>
+            <dd>{notice.number}</dd>
+            <dt>One-time password</dt>
+            <dd className="admin-result__password">{notice.password}</dd>
+          </dl>
+          <p className="admin-screen__muted">
+            Give this to the learner now; it won't be shown again. They'll choose their own password when they log in.
+          </p>
+        </div>
+      )}
+      {actionError && <div className="admin-screen__error">{actionError}</div>}
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Grade</th>
+            <th>Student number</th>
+            <th>Classes</th>
+            <th>Added</th>
+            <th></th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {students.map((s) => (
+            <tr key={s.learner_id} className={s.is_active === false ? "admin-table__row--inactive" : ""}>
+              <td>
+                {s.display_name}
+                {s.is_active === false && <span className="admin-screen__muted"> (deactivated)</span>}
+              </td>
+              <td>{s.grade}</td>
+              <td>{s.student_number}</td>
+              <td>{s.classes?.length ? s.classes.join(", ") : <span className="admin-screen__muted">—</span>}</td>
+              <td>{new Date(s.created_at).toLocaleDateString()}</td>
+              <td className="admin-table__actions">
+                {s.is_active !== false && (
+                  <button
+                    type="button"
+                    className="admin-screen__link-button"
+                    disabled={busyId === s.user_id}
+                    onClick={() => run(s, "reset")}
+                  >
+                    Reset password
+                  </button>
+                )}
+                {canManage && (
+                  <button
+                    type="button"
+                    className="admin-screen__link-button"
+                    disabled={busyId === s.user_id}
+                    onClick={() => {
+                      const leaving = s.is_active !== false;
+                      if (
+                        leaving &&
+                        !window.confirm(`Deactivate ${s.display_name}? They won't be able to log in. Their work is kept.`)
+                      )
+                        return;
+                      run(s, leaving ? "deactivate" : "reactivate");
+                    }}
+                  >
+                    {s.is_active === false ? "Reactivate" : "Deactivate"}
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 
@@ -532,7 +614,13 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
           <tbody>
             {assignments.map((a) => (
               <tr key={a.id}>
-                <td>{a.title}</td>
+                <td>
+                  {a.title}
+                  {/* Code review #12: oversight view shows who set it */}
+                  {!a.is_mine && a.teacher_name && (
+                    <div className="admin-screen__muted">set by {a.teacher_name}</div>
+                  )}
+                </td>
                 <td>
                   {a.mode === "test"
                     ? a.results_released
@@ -573,7 +661,9 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
                   </span>
                 )}
               </p>
-              {detail.mode === "test" && !detail.results_released && (
+              {detail.mode === "test" &&
+                !detail.results_released &&
+                assignments.find((a) => a.id === selected)?.can_release !== false && (
                 <button type="button" onClick={handleRelease} disabled={releasing}>
                   {releasing ? "Releasing…" : "Release results to students"}
                 </button>

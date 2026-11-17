@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field
 
 class LoginRequest(BaseModel):
     school_id: uuid.UUID
-    student_number: str = Field(min_length=1)
-    password: str = Field(min_length=1)
+    student_number: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=1, max_length=200)
 
 
 class LearnerProfile(BaseModel):
@@ -42,11 +42,11 @@ class LoginResponse(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str = Field(min_length=1)
+    current_password: str = Field(min_length=1, max_length=200)
     # Longer minimum than a typical temp password's own length (10) is
     # unnecessary here -- 8 matches common practice and is enforced
     # client-side too; this is the real (server-side) floor.
-    new_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8, max_length=72)  # bcrypt reads 72 bytes
 
 
 class MeResponse(BaseModel):

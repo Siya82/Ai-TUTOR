@@ -464,6 +464,7 @@ export default function ChatScreen({ auth, onLogout }) {
         book: bookContext,
       },
     ]);
+    const bookToRestore = pendingBook;
     setPendingBook(null);
     setDraft("");
     const attachmentIds = readyAttachments.map((a) => a.id);
@@ -501,6 +502,13 @@ export default function ChatScreen({ auth, onLogout }) {
         onLogout();
         return;
       }
+      // NEW 17 Nov 2026 (code review #10): put the question (and any
+      // attachments / book selection) back, so the student can just press
+      // Send again instead of retyping it.
+      setMessages((prev) => prev.slice(0, -1));
+      setDraft((current) => current || text);
+      setPendingAttachments((current) => (current.length ? current : readyAttachments));
+      setPendingBook((current) => current || bookToRestore);
       setSendError(err.message);
     } finally {
       setSending(false);
@@ -673,6 +681,7 @@ export default function ChatScreen({ auth, onLogout }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onPaste={handleDraftPaste}
+          maxLength={4000}
           placeholder={
             pendingBook
               ? `What don't you understand ${

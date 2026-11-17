@@ -46,6 +46,31 @@ class ClassCreate(BaseModel):
     grade: int = Field(ge=1, le=12)
 
 
+class ClassUpdate(BaseModel):
+    """NEW 17 Nov 2026 (code review #13): rename a class."""
+    name: str = Field(min_length=1, max_length=50)
+
+
+class PasswordResetResult(BaseModel):
+    """NEW 17 Nov 2026 (code review #13): shown once, like at provisioning."""
+    user_id: uuid.UUID
+    temp_password: str
+
+
+class ActiveUpdate(BaseModel):
+    active: bool
+
+
+class PromoteRequest(BaseModel):
+    """Move every active learner in `grade` up one grade (year end)."""
+    grade: int = Field(ge=1, le=11)
+
+
+class PromoteResult(BaseModel):
+    promoted: int
+    removed_from_classes: int
+
+
 class ClassSummary(BaseModel):
     id: uuid.UUID
     name: str
@@ -85,6 +110,7 @@ class StaffOut(BaseModel):
     user_id: uuid.UUID
     display_name: Optional[str]
     staff_number: str
+    is_active: bool = True  # code review #13
     roles: list[RoleOut]
     allocations: list[AllocationOut]
 

@@ -19,7 +19,7 @@ python-multipart==0.0.17  # required by FastAPI File()/Form() uploads (ADR-016 a
 # __about__.__version__ attribute bcrypt 5.x removed) -- this exact pin
 # was already anticipated in requirements-baseline.txt on Siya's new
 # laptop before this feature was built.
-passlib==1.7.4
+# passlib removed 17 Nov 2026 (code review #17): app/services/auth.py uses bcrypt directly.
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 

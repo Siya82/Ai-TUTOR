@@ -13,12 +13,12 @@ from pydantic import BaseModel, Field
 
 
 class StudentCreateRequest(BaseModel):
-    display_name: str = Field(min_length=1)
-    grade: int
+    display_name: str = Field(min_length=1, max_length=100)
+    grade: int = Field(ge=1, le=12)
     # Left blank to auto-generate (the same collision-checked generator
     # provision_student() already used) -- a teacher only has to supply
     # one if their school issues its own student numbers.
-    student_number: str | None = None
+    student_number: str | None = Field(default=None, max_length=50)
 
 
 class StudentCreateResult(BaseModel):
@@ -55,3 +55,4 @@ class StudentRosterItem(BaseModel):
     created_at: datetime
     # NEW 17 Nov 2026 (ADR-031): names of the classes this learner is in
     classes: list[str] = []
+    is_active: bool = True  # code review #13

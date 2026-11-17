@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_staff_scope, get_current_teacher
-from app.services.school_scope import StaffScope
+from app.services.school_scope import DEPARTMENTAL_HEAD, StaffScope
 from app.models import (
     Assignment,
     AssignmentQuestion,
@@ -59,18 +59,107 @@ async def _teacher_school(db: AsyncSession, teacher: User) -> School:
     return school
 
 
-async def _owned_assignment(db: AsyncSession, assignment_id: str, teacher: User) -> Assignment:
+async def _visible_assignment(
+    db: AsyncSession, assignment_id: uuid.UUID, scope: StaffScope
+) -> tuple[Assignment, "_Facts"]:
     """
-    Shared ownership check -- 404s (not 403) for an assignment that
-    exists but belongs to a different teacher, same "don't confirm the
-    id was valid for someone else" posture app/routers/admin.py's
-    roster scoping uses. Used by both GET .../{id} and the new release
-    endpoint below.
+    UPDATED 17 Nov 2026 (code review #12). Used to be owner-only. Now an
+    assignment is visible to the teacher who set it, to the principal and
+    deputy (whole school), and to a departmental head whose subject it
+    covers for any of its learners. Anyone else gets a 404 (not 403), so
+    an id that belongs to someone else isn't confirmed.
     """
     assignment = await db.get(Assignment, assignment_id)
-    if assignment is None or assignment.teacher_user_id != teacher.id:
+    if assignment is None or assignment.school_id != scope.school_id:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    return assignment
+    facts = (await _load_facts(db, [assignment.id]))[assignment.id]
+    if not _can_view(scope, assignment, facts):
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    return assignment, facts
+
+
+class _Facts:
+    """Per-assignment numbers gathered in a few batched queries (code review #16)."""
+
+    def __init__(self) -> None:
+        self.subject_ids: set[uuid.UUID] = set()
+        self.learner_ids: list[uuid.UUID] = []
+        self.question_count = 0
+        self.marks_total = 0
+
+
+async def _load_facts(db: AsyncSession, assignment_ids: list[uuid.UUID]) -> dict[uuid.UUID, _Facts]:
+    facts = {aid: _Facts() for aid in assignment_ids}
+    if not assignment_ids:
+        return facts
+    q_rows = (
+        await db.execute(
+            select(AssignmentQuestion.assignment_id, AssignmentQuestion.marks, Topic.subject_id)
+            .join(Question, AssignmentQuestion.question_id == Question.id)
+            .join(Topic, Question.topic_id == Topic.id)
+            .where(AssignmentQuestion.assignment_id.in_(assignment_ids))
+        )
+    ).all()
+    for aid, marks, subject_id in q_rows:
+        f = facts[aid]
+        f.subject_ids.add(subject_id)
+        f.question_count += 1
+        f.marks_total += marks
+    t_rows = (
+        await db.execute(
+            select(AssignmentTarget.assignment_id, AssignmentTarget.learner_id).where(
+                AssignmentTarget.assignment_id.in_(assignment_ids)
+            )
+        )
+    ).all()
+    for aid, learner_id in t_rows:
+        facts[aid].learner_ids.append(learner_id)
+    return facts
+
+
+def _can_view(scope: StaffScope, assignment: Assignment, facts: _Facts) -> bool:
+    if assignment.teacher_user_id == scope.user_id or scope.whole_school_academic:
+        return True
+    if DEPARTMENTAL_HEAD in scope.role_names:
+        return any(
+            scope.can_see_subject(lid, sid) for lid in facts.learner_ids for sid in facts.subject_ids
+        )
+    return False
+
+
+def _can_release(scope: StaffScope, assignment: Assignment) -> bool:
+    return assignment.teacher_user_id == scope.user_id or scope.can_manage_school
+
+
+async def _teacher_names(db: AsyncSession, user_ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
+    if not user_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(User.id, User.display_name, User.student_number).where(User.id.in_(user_ids))
+        )
+    ).all()
+    return {uid: (name or number) for uid, name, number in rows}
+
+
+def _summary(
+    assignment: Assignment, facts: _Facts, scope: StaffScope, names: dict[uuid.UUID, str]
+) -> AssignmentSummary:
+    return AssignmentSummary(
+        id=assignment.id,
+        title=assignment.title,
+        instructions=assignment.instructions,
+        due_at=assignment.due_at,
+        created_at=assignment.created_at,
+        mode=assignment.mode,
+        results_released=assignment.results_released,
+        question_count=facts.question_count,
+        target_count=len(facts.learner_ids),
+        marks_total=facts.marks_total,
+        is_mine=assignment.teacher_user_id == scope.user_id,
+        teacher_name=names.get(assignment.teacher_user_id),
+        can_release=_can_release(scope, assignment),
+    )
 
 
 @router.post("/questions", response_model=CustomQuestionResult)
@@ -187,75 +276,38 @@ async def create_new_assignment(
 
 @router.get("/assignments", response_model=list[AssignmentSummary])
 async def list_assignments(
-    teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> list[AssignmentSummary]:
     """
-    This teacher's own assignments only -- scoped by teacher_user_id,
-    not just school_id, so one teacher never sees a colleague's
-    assignment roster even within the same school. No Class/group
-    concept exists yet (ADR-028), so there's no coarser grouping to
-    scope by instead.
+    UPDATED 17 Nov 2026 (code review #12, #16): the caller's own
+    assignments plus the ones they oversee (see _visible_assignment),
+    newest first, gathered in a fixed number of queries.
     """
     assignments = (
         (
             await db.execute(
                 select(Assignment)
-                .where(Assignment.teacher_user_id == teacher.id)
+                .where(Assignment.school_id == scope.school_id)
                 .order_by(Assignment.created_at.desc())
             )
         )
         .scalars()
         .all()
     )
-    summaries: list[AssignmentSummary] = []
-    for assignment in assignments:
-        assignment_questions = (
-            (
-                await db.execute(
-                    select(AssignmentQuestion).where(
-                        AssignmentQuestion.assignment_id == assignment.id
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        target_count = len(
-            (
-                await db.execute(
-                    select(AssignmentTarget.id).where(
-                        AssignmentTarget.assignment_id == assignment.id
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        summaries.append(
-            AssignmentSummary(
-                id=assignment.id,
-                title=assignment.title,
-                instructions=assignment.instructions,
-                due_at=assignment.due_at,
-                created_at=assignment.created_at,
-                mode=assignment.mode,
-                results_released=assignment.results_released,
-                question_count=len(assignment_questions),
-                target_count=target_count,
-                marks_total=sum(aq.marks for aq in assignment_questions),
-            )
-        )
-    return summaries
+    facts = await _load_facts(db, [a.id for a in assignments])
+    visible = [a for a in assignments if _can_view(scope, a, facts[a.id])]
+    names = await _teacher_names(db, {a.teacher_user_id for a in visible})
+    return [_summary(a, facts[a.id], scope, names) for a in visible]
 
 
 @router.get("/assignments/{assignment_id}", response_model=AssignmentDetail)
 async def get_assignment(
-    assignment_id: str,
-    teacher: User = Depends(get_current_teacher),
+    assignment_id: uuid.UUID,
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentDetail:
-    assignment = await _owned_assignment(db, assignment_id, teacher)
+    assignment, _facts = await _visible_assignment(db, assignment_id, scope)
 
     assignment_questions = (
         (
@@ -328,51 +380,20 @@ async def get_assignment(
 
 @router.post("/assignments/{assignment_id}/release", response_model=AssignmentSummary)
 async def release_results(
-    assignment_id: str,
-    teacher: User = Depends(get_current_teacher),
+    assignment_id: uuid.UUID,
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentSummary:
     """
-    NEW (ADR-029): the teacher-controlled switch for a Test-mode
-    assignment -- flips results_released so every targeted student's
-    withheld is_correct/ai_feedback/marks_earned becomes visible. A no-
-    op (not an error) for a "practice" assignment or one already
-    released, same "idempotent, harmless to click twice" posture
-    release_assignment_results() documents.
+    NEW (ADR-029): the switch that shows a Test's withheld marks and
+    feedback to its students. Idempotent. UPDATED 17 Nov 2026 (code
+    review #12): the teacher who set it, or school management, may
+    release; someone who can only view it gets a 403.
     """
-    assignment = await _owned_assignment(db, assignment_id, teacher)
+    assignment, facts = await _visible_assignment(db, assignment_id, scope)
+    if not _can_release(scope, assignment):
+        raise HTTPException(status_code=403, detail="Only the teacher who set this can release its results")
     await release_assignment_results(db, assignment=assignment)
     await db.commit()
-
-    assignment_questions = (
-        (
-            await db.execute(
-                select(AssignmentQuestion).where(
-                    AssignmentQuestion.assignment_id == assignment.id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    target_count = len(
-        (
-            await db.execute(
-                select(AssignmentTarget.id).where(AssignmentTarget.assignment_id == assignment.id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    return AssignmentSummary(
-        id=assignment.id,
-        title=assignment.title,
-        instructions=assignment.instructions,
-        due_at=assignment.due_at,
-        created_at=assignment.created_at,
-        mode=assignment.mode,
-        results_released=assignment.results_released,
-        question_count=len(assignment_questions),
-        target_count=target_count,
-        marks_total=sum(aq.marks for aq in assignment_questions),
-    )
+    names = await _teacher_names(db, {assignment.teacher_user_id})
+    return _summary(assignment, facts, scope, names)

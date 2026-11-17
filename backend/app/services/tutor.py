@@ -176,7 +176,14 @@ class TutorClient:
     """Thin wrapper around the Anthropic SDK (migrated from DeepSeek per ADR-010)."""
 
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
-        self._client = AsyncAnthropic(api_key=api_key or settings.anthropic_api_key)
+        # UPDATED 17 Nov 2026 (code review #10): a 60-second timeout (the SDK
+        # default is 10 minutes) so a stuck call fails fast; the SDK still
+        # retries transient errors twice. Failures surface as
+        # anthropic.APIError and are turned into a friendly 503 by the
+        # handler in app/main.py.
+        self._client = AsyncAnthropic(
+            api_key=api_key or settings.anthropic_api_key, timeout=60.0, max_retries=2
+        )
         self._model = model or settings.anthropic_model
 
     async def ask(self, system_prompt: str, messages: list[dict]) -> str:

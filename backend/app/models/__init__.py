@@ -159,6 +159,10 @@ class User(Base):
     # time (app/services/auth.py's provision_student) -- cleared the
     # moment the student successfully calls POST /auth/change-password.
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    # NEW 17 Nov 2026 (code review #6, migration 0013). Carried in every
+    # token as "ver"; bumped on password change/reset and deactivation so
+    # tokens issued before that stop working immediately.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     # NEW 17 Nov 2026 (ADR-031). Staff need a name to be listed/allocated;
     # students keep theirs on Learner.display_name, so this stays NULL for them.

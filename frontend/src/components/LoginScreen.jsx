@@ -23,7 +23,7 @@
 import { useEffect, useState } from "react";
 import { changePassword, fetchSchools, login } from "../api";
 
-export default function LoginScreen({ onLogin }) {
+export default function LoginScreen({ onLogin, notice }) {
   const [schools, setSchools] = useState([]);
   const [schoolId, setSchoolId] = useState("");
   const [studentNumber, setStudentNumber] = useState("");
@@ -81,6 +81,10 @@ export default function LoginScreen({ onLogin }) {
       setChangeError("Choose a password at least 8 characters long.");
       return;
     }
+    if (newPassword.length > 72) {
+      setChangeError("Choose a password of at most 72 characters.");
+      return;
+    }
     if (newPassword !== newPasswordConfirm) {
       setChangeError("Those two passwords don't match.");
       return;
@@ -88,12 +92,18 @@ export default function LoginScreen({ onLogin }) {
     setChanging(true);
     setChangeError(null);
     try {
-      await changePassword({
+      const changed = await changePassword({
         token: pendingSession.access_token,
         currentPassword: password,
         newPassword,
       });
-      onLogin({ ...pendingSession, must_change_password: false });
+      // Code review #6: changing the password ends older tokens, so the
+      // backend returns a fresh one for this session.
+      onLogin({
+        ...pendingSession,
+        access_token: changed.access_token || pendingSession.access_token,
+        must_change_password: false,
+      });
     } catch (err) {
       setChangeError(err.message);
     } finally {
@@ -160,6 +170,7 @@ export default function LoginScreen({ onLogin }) {
       <div className="login-screen__card">
         {brand}
         <h1 className="login-screen__title">Log in</h1>
+        {notice && <div className="login-screen__notice">{notice}</div>}
         {loadError && <div className="login-screen__error">{loadError}</div>}
         <form className="login-screen__form" onSubmit={handleSubmit} autoComplete="on">
           <label className="login-screen__field">

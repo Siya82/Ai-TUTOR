@@ -2110,3 +2110,35 @@ body {
   color: var(--color-text-on-accent);
   white-space: nowrap;
 }
+
+/* NEW 17 Nov 2026 (code review #14): "your session has ended" on login */
+.login-screen__notice {
+  background: var(--color-accent-tint);
+  border: 1px solid var(--color-accent);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+/* NEW 17 Nov 2026 (code review #13): row actions and deactivated rows */
+.admin-table__actions {
+  white-space: nowrap;
+}
+.admin-table__actions .admin-screen__link-button + .admin-screen__link-button {
+  margin-left: 0.75rem;
+}
+.admin-table__row--inactive td {
+  opacity: 0.6;
+}
+.staff-card__actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+.assignments-view__closed {
+  margin: 0.5rem 0;
+}
+.assignment-question-card__answer {
+  white-space: pre-wrap;
+}

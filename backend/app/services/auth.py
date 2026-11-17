@@ -10,30 +10,38 @@ the database (provision_student) is kept separate and small.
 
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Learner, School, User
 
-# bcrypt pinned to 4.0.1 in requirements.txt specifically because passlib
-# 1.7.4 breaks against bcrypt 5.x's removed __about__.__version__ attribute
-# -- flagged there before this file existed, so the fix landed with the
-# matching pin rather than a mismatched one.
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# UPDATED 17 Nov 2026 (code review #17): bcrypt is used directly instead of
+# through passlib, which is unmaintained and warns on newer Pythons. The
+# stored hashes are the same standard "$2b$" format, so existing passwords
+# keep working. bcrypt only reads the first 72 bytes of a password; that is
+# made explicit here (and new passwords are capped at 72 characters).
+_BCRYPT_MAX_BYTES = 72
+
+
+def _pw_bytes(raw_password: str) -> bytes:
+    return raw_password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
 
 
 def hash_password(raw_password: str) -> str:
-    return _pwd_context.hash(raw_password)
+    return bcrypt.hashpw(_pw_bytes(raw_password), bcrypt.gensalt()).decode("ascii")
 
 
 def verify_password(raw_password: str, password_hash: str) -> bool:
-    return _pwd_context.verify(raw_password, password_hash)
+    try:
+        return bcrypt.checkpw(_pw_bytes(raw_password), password_hash.encode("ascii"))
+    except ValueError:  # malformed stored hash
+        return False
 
 
 def generate_temp_password(length: int = 10) -> str:
@@ -55,9 +63,11 @@ def generate_student_number(length: int = 6) -> str:
     return "".join(secrets.choice(string.digits) for _ in range(length))
 
 
-def create_access_token(user_id: str, role: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": user_id, "role": role, "exp": expire}
+def create_access_token(user_id: str, role: str, token_version: int = 0) -> str:
+    # "ver" lets a password change/reset or deactivation revoke older
+    # tokens at once (code review #6; checked in app/core/security.py).
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
+    payload = {"sub": user_id, "role": role, "ver": token_version, "exp": expire}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 

@@ -21,13 +21,18 @@ import {
   createClass,
   createStaff,
   deleteAllocation,
+  deleteClass,
   fetchClassDetail,
   fetchClasses,
   fetchStaff,
   fetchSubjects,
   grantStaffRole,
+  promoteLearners,
   removeClassMember,
+  renameClass,
+  resetUserPassword,
   revokeStaffRole,
+  setUserActive,
 } from "../api";
 
 const ROLE_LABELS = {
@@ -209,7 +214,7 @@ function ClassesSection({ token, classes, students, run }) {
                     ))
                   )}
                 </td>
-                <td>
+                <td className="admin-table__actions">
                   <button
                     type="button"
                     className="admin-screen__link-button"
@@ -217,12 +222,43 @@ function ClassesSection({ token, classes, students, run }) {
                   >
                     {openClassId === c.id ? "Close" : "Manage learners"}
                   </button>
+                  {/* NEW 17 Nov 2026 (code review #13): rename / delete */}
+                  <button
+                    type="button"
+                    className="admin-screen__link-button"
+                    onClick={() => {
+                      const next = window.prompt(`New name for ${c.name}`, c.name);
+                      if (next && next.trim() && next.trim() !== c.name) {
+                        run(() => renameClass(token, c.id, next.trim()));
+                      }
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-screen__link-button"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Delete class ${c.name}? Its learner list and subject allocations go; the learners and their work stay.`
+                        )
+                      ) {
+                        if (openClassId === c.id) setOpenClassId(null);
+                        run(() => deleteClass(token, c.id));
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      <YearEndPromotion token={token} run={run} />
 
       {openClassId && (
         <ClassMembersEditor
@@ -234,6 +270,54 @@ function ClassesSection({ token, classes, students, run }) {
         />
       )}
     </>
+  );
+}
+
+function YearEndPromotion({ token, run }) {
+  // NEW 17 Nov 2026 (code review #13): move a whole grade up at year end.
+  const [grade, setGrade] = useState(10);
+  const [result, setResult] = useState(null);
+
+  const handlePromote = async () => {
+    if (
+      !window.confirm(
+        `Move every active Grade ${grade} learner to Grade ${grade + 1}? They'll be taken out of their Grade ${grade} classes.`
+      )
+    )
+      return;
+    const r = await run(() => promoteLearners(token, grade));
+    if (r) setResult({ grade, ...r });
+  };
+
+  return (
+    <div className="admin-result">
+      <p className="admin-result__title">Year end: move learners up a grade</p>
+      <p className="admin-screen__muted">
+        Do this once at the end of the year, starting with Grade 11 (so Grade 10s don't end up in Grade 12). Deactivate
+        Grade 12 leavers on the Students tab.
+      </p>
+      <div className="admin-form admin-form--inline">
+        <label className="admin-form__field">
+          <span>Grade</span>
+          <select value={grade} onChange={(e) => setGrade(Number(e.target.value))}>
+            {GRADES.filter((g) => g < 12).map((g) => (
+              <option key={g} value={g}>
+                {g} → {g + 1}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" onClick={handlePromote}>
+          Move up
+        </button>
+      </div>
+      {result && (
+        <p className="admin-screen__muted">
+          Moved {result.promoted} learner(s) from Grade {result.grade} to Grade {result.grade + 1}; removed{" "}
+          {result.removed_from_classes} class place(s).
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -425,8 +509,40 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
           <div className="progress-table__name">
             {member.display_name || "(no name)"} {isMe && <span className="admin-screen__muted">(you)</span>}
           </div>
-          <div className="admin-screen__muted">Staff number {member.staff_number}</div>
+          <div className="admin-screen__muted">
+            Staff number {member.staff_number}
+            {member.is_active === false && " · deactivated"}
+          </div>
         </div>
+        {/* NEW 17 Nov 2026 (code review #13): forgotten password / left the school */}
+        {!isMe && (
+          <div className="staff-card__actions">
+            {member.is_active !== false && (
+              <button
+                type="button"
+                className="admin-screen__link-button"
+                onClick={async () => {
+                  const r = await run(() => resetUserPassword(token, member.user_id));
+                  if (r) setNotice(`New one-time password for ${member.display_name || member.staff_number}: ${r.temp_password}`);
+                }}
+              >
+                Reset password
+              </button>
+            )}
+            <button
+              type="button"
+              className="admin-screen__link-button"
+              onClick={() => {
+                const leaving = member.is_active !== false;
+                if (leaving && !window.confirm(`Deactivate ${member.display_name || member.staff_number}? They won't be able to log in.`))
+                  return;
+                run(() => setUserActive(token, member.user_id, !leaving));
+              }}
+            >
+              {member.is_active === false ? "Reactivate" : "Deactivate"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="staff-card__row">

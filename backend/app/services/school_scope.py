@@ -274,7 +274,13 @@ async def load_scope(db: AsyncSession, user: User) -> StaffScope:
             await db.execute(
                 select(Learner.id, Learner.grade)
                 .join(User, Learner.user_id == User.id)
-                .where(User.school_id == user.school_id, User.role == "student")
+                .where(
+                    User.school_id == user.school_id,
+                    User.role == "student",
+                    # code review #13: a deactivated learner drops out of
+                    # rosters, progress and assignment targets
+                    User.is_active.is_(True),
+                )
             )
         ).all()
     }

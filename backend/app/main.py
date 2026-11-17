@@ -6,8 +6,13 @@ Per later project memory, auth routers and possibly a quiz-engine router
 were added after this snapshot — not reflected below. See REBUILD_SPEC.md.
 """
 
-from fastapi import FastAPI
+import logging
+import time
+
+import anthropic
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
@@ -32,6 +37,45 @@ app = FastAPI(
     description="Grade 10 Mathematics AI tutor pilot",
     version="0.1.0",
 )
+
+# NEW 17 Nov 2026 (code review #10): the backend had no logging at all, so
+# a problem during a live test left no trace. One line per request (method,
+# path, status, time -- never bodies, which hold learners' messages) plus
+# full tracebacks for errors.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+log = logging.getLogger("thutora")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        log.exception("Unhandled error on %s %s", request.method, request.url.path)
+        raise
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    level = logging.WARNING if response.status_code >= 500 else logging.INFO
+    log.log(level, "%s %s -> %s (%.0f ms)", request.method, request.url.path, response.status_code, elapsed_ms)
+    return response
+
+
+@app.exception_handler(anthropic.APIError)
+async def claude_unavailable(request: Request, exc: anthropic.APIError) -> JSONResponse:
+    """
+    Claude timed out, was overloaded, or rejected the request. The learner
+    gets a plain message and can retry (the chat puts their question back);
+    the details go to the log.
+    """
+    log.error("Claude API error on %s: %s: %s", request.url.path, type(exc).__name__, exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "THUTOra couldn't reach its AI tutor just now. Please try again in a moment."},
+    )
+
 
 app.add_middleware(
     CORSMiddleware,

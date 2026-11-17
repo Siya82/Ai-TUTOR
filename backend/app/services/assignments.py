@@ -175,8 +175,19 @@ async def create_assignment(
     if due_at is not None and due_at.tzinfo is not None:
         due_at = due_at.astimezone(timezone.utc).replace(tzinfo=None)
 
+    # UPDATED 17 Nov 2026 (code review #8): only the shared CAPS bank or this
+    # teacher's own questions. Another teacher's custom question (and its
+    # model answer) is private to them, same rule as the bank browse list.
     existing_q_ids = set(
-        (await db.execute(select(Question.id).where(Question.id.in_(question_ids))))
+        (
+            await db.execute(
+                select(Question.id).where(
+                    Question.id.in_(question_ids),
+                    Question.created_by_user_id.is_(None)
+                    | (Question.created_by_user_id == teacher.id),
+                )
+            )
+        )
         .scalars()
         .all()
     )

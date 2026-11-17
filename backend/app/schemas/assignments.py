@@ -21,8 +21,8 @@ from pydantic import BaseModel, Field
 
 class CustomQuestionCreateRequest(BaseModel):
     topic_id: uuid.UUID
-    text: str = Field(min_length=1)
-    model_answer: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=4000)  # code review #9
+    model_answer: str = Field(min_length=1, max_length=4000)
 
 
 class CustomQuestionResult(BaseModel):
@@ -53,15 +53,15 @@ class AssignmentQuestionInput(BaseModel):
 
 
 class AssignmentCreateRequest(BaseModel):
-    title: str = Field(min_length=1)
-    instructions: str | None = None
+    title: str = Field(min_length=1, max_length=200)
+    instructions: str | None = Field(default=None, max_length=2000)
     due_at: datetime | None = None
     # NEW (ADR-029). "practice" (default) is this feature's original,
     # only behaviour: AI feedback shows the moment a student answers.
     # "test" withholds it until the teacher releases results -- see
     # Assignment.mode's docstring in app/models/__init__.py.
     mode: Literal["practice", "test"] = "practice"
-    questions: list[AssignmentQuestionInput] = Field(min_length=1)
+    questions: list[AssignmentQuestionInput] = Field(min_length=1, max_length=50)
     # UPDATED 17 Nov 2026 (ADR-031): pick individual learners, whole
     # classes, or both -- at least one learner must result (checked in
     # create_assignment(), after classes are expanded).
@@ -82,6 +82,11 @@ class AssignmentSummary(BaseModel):
     question_count: int
     target_count: int
     marks_total: int
+    # NEW 17 Nov 2026 (code review #12): principals, deputies and HoDs also
+    # see assignments other teachers set.
+    is_mine: bool = True
+    teacher_name: str | None = None
+    can_release: bool = True
 
 
 class LearnerCompletionItem(BaseModel):
@@ -184,7 +189,7 @@ class LearnerAssignmentDetail(BaseModel):
 
 
 class AnswerSubmitRequest(BaseModel):
-    learner_response: str = Field(min_length=1)
+    learner_response: str = Field(min_length=1, max_length=4000)  # code review #9
 
 
 class AnswerSubmitResult(BaseModel):
