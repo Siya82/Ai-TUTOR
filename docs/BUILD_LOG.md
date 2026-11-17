@@ -3088,3 +3088,15 @@ logging; one app-wide "session ended" handler; bcrypt without passlib; lint
 clean; GitHub Actions CI and first frontend tests (vitest). Checked: 232
 backend tests, 6 frontend tests, eslint, build, migration up/down/up, a
 25-check HTTP run against the live API, and screenshots.
+
+## 17 Nov 2026 — Assign to a whole class from a drop-down
+
+The assignment form's "Assign to" now opens on **A whole class**: a drop-down
+of the classes the teacher is allocated to (directly or through a whole-grade
+allocation), labelled with grade, the subjects they teach it and learner
+count; once questions are added, only classes they teach those subjects to
+are offered. Several classes can be added (chips). "Individual learners" is
+the other option. Principals/deputies/school admins see every class. No
+backend change: `class_ids` already existed and the server still re-checks
+scope (a Grade 12 Maths question to 10A is refused). Checked: lint, build,
+drop-down contents for T00001 and P00001, create-by-class over HTTP.

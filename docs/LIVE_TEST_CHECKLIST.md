@@ -20,6 +20,7 @@ Run `alembic upgrade head` (migration 0013) and `npm install` in `frontend/` fir
 - [ ] Attach a large phone photo (over 5 MB) in the chat → it uploads and the tutor reads it
 - [ ] Principal → Assignments shows a teacher's assignment with "set by …"
 - [ ] School → Classes: Rename and Delete; Year end box (try on test data only)
+- [ ] As `T00001`, Assignments → Assign to → **A whole class**: the Class drop-down lists only your classes (12A for Pure Maths Gr 12); add a question first and only classes you teach that subject to remain
 
 ## Priority 0b — E-book library (ADR-032)
 

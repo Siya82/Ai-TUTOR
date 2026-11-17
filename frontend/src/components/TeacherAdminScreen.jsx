@@ -859,9 +859,38 @@ function CreateAssignmentForm({ token, onLogout, students, me, onCreated }) {
   const [createdSummary, setCreatedSummary] = useState(null);
 
   const hasTargets = selectedLearnerIds.length > 0 || selectedClassIds.length > 0;
-  const toggleClass = (id) =>
-    setSelectedClassIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  const classesForGrade = grade ? classes.filter((c) => String(c.grade) === String(grade)) : classes;
+
+  // UPDATED 17 Nov 2026 (Siya: "the drop down should show the classes the
+  // teacher is assigned to"). A class is offered when the teacher teaches
+  // it -- a class allocation, or a whole-grade allocation covering it --
+  // and, once questions are added, only for the subject(s) of those
+  // questions. Principals/deputies/school admins see every class. The
+  // server re-checks all of this when the assignment is created.
+  const topicSubjectId = (tid) => topics.find((t) => t.id === tid)?.subject_id || null;
+  const draftSubjectIds = new Set(draftQuestions.map((q) => q.subjectId).filter(Boolean));
+  const seesAllClasses = Boolean(me?.can_manage_school || me?.whole_school_academic);
+  const subjectGrade = (sid) => subjects.find((sub) => sub.id === sid)?.grade;
+  const myClassOptions = classes
+    .map((c) => {
+      const mine = c.allocations.filter((a) => a.teacher_user_id === me?.user_id);
+      const teaches = [...new Set(mine.map((a) => a.subject_name))];
+      return { ...c, mine, teaches };
+    })
+    .filter((c) => seesAllClasses || c.mine.length > 0)
+    .filter((c) => {
+      if (draftSubjectIds.size === 0) return true;
+      if (seesAllClasses && c.mine.length === 0) {
+        return [...draftSubjectIds].every((sid) => subjectGrade(sid) === c.grade);
+      }
+      return [...draftSubjectIds].every((sid) => c.mine.some((a) => a.subject_id === sid));
+    });
+  const classOptionsToAdd = myClassOptions.filter((c) => !selectedClassIds.includes(c.id));
+  const selectedClasses = classes.filter((c) => selectedClassIds.includes(c.id));
+  const [targetMode, setTargetMode] = useState("class"); // "class" | "learners"
+  const addClass = (id) => {
+    if (id) setSelectedClassIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
+  const removeClass = (id) => setSelectedClassIds((prev) => prev.filter((x) => x !== id));
 
   const toggleLearner = (id) => {
     setSelectedLearnerIds((prev) =>
@@ -881,7 +910,10 @@ function CreateAssignmentForm({ token, onLogout, students, me, onCreated }) {
         text: questionText.trim(),
         modelAnswer: modelAnswer.trim(),
       });
-      setDraftQuestions((prev) => [...prev, { id: created.id, text: created.text, marks: 1 }]);
+      setDraftQuestions((prev) => [
+        ...prev,
+        { id: created.id, text: created.text, marks: 1, subjectId: topicSubjectId(created.topic_id) },
+      ]);
       setQuestionText("");
       setModelAnswer("");
     } catch (err) {
@@ -901,7 +933,10 @@ function CreateAssignmentForm({ token, onLogout, students, me, onCreated }) {
   // question already exists.
   const addBankQuestion = (q) => {
     if (draftQuestionIds.has(q.id)) return;
-    setDraftQuestions((prev) => [...prev, { id: q.id, text: q.text, marks: 1 }]);
+    setDraftQuestions((prev) => [
+      ...prev,
+      { id: q.id, text: q.text, marks: 1, subjectId: topicSubjectId(q.topic_id) },
+    ]);
   };
 
   const removeDraftQuestion = (id) => {
@@ -1102,40 +1137,100 @@ function CreateAssignmentForm({ token, onLogout, students, me, onCreated }) {
       </fieldset>
 
       <fieldset className="admin-form__fieldset">
-        <legend>Assign to a whole class</legend>
-        {classesForGrade.length === 0 ? (
-          <p className="admin-screen__muted">
-            {grade ? `No Grade ${grade} classes available to you.` : "No classes available to you yet."}
-          </p>
-        ) : (
-          classesForGrade.map((c) => (
-            <label key={c.id} className="admin-form__checkbox-row">
-              <input
-                type="checkbox"
-                checked={selectedClassIds.includes(c.id)}
-                onChange={() => toggleClass(c.id)}
-              />
-              {c.name} (Grade {c.grade}, {c.member_count} learner{c.member_count === 1 ? "" : "s"})
-            </label>
-          ))
-        )}
-      </fieldset>
+        <legend>Assign to</legend>
+        <div className="progress-filter" role="radiogroup" aria-label="Who gets this assignment">
+          {[
+            ["class", "A whole class"],
+            ["learners", "Individual learners"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={targetMode === id}
+              className={`progress-filter__chip${targetMode === id ? " progress-filter__chip--active" : ""}`}
+              onClick={() => setTargetMode(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-      <fieldset className="admin-form__fieldset">
-        <legend>…or to individual learners</legend>
-        {students.length === 0 && (
-          <p className="admin-screen__muted">No learners available to you yet.</p>
+        {targetMode === "class" && (
+          <>
+            {myClassOptions.length === 0 && selectedClasses.length === 0 ? (
+              <p className="admin-screen__muted">
+                {classes.length === 0
+                  ? "You aren't allocated to any classes yet. Ask your principal or school admin to allocate you a class, or pick individual learners instead."
+                  : "None of your classes are taught the subject of the questions you've added. Pick individual learners instead, or change the questions."}
+              </p>
+            ) : (
+              <label className="admin-form__field">
+                <span>Class</span>
+                <select value="" onChange={(e) => addClass(e.target.value)}>
+                  <option value="">
+                    {classOptionsToAdd.length ? "Choose one of your classes…" : "All your classes are added"}
+                  </option>
+                  {classOptionsToAdd.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} · Grade {c.grade}
+                      {c.teaches.length ? ` · ${c.teaches.join(", ")}` : ""} · {c.member_count} learner
+                      {c.member_count === 1 ? "" : "s"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {draftSubjectIds.size > 0 && myClassOptions.length > 0 && (
+              <p className="admin-screen__muted">Showing only classes you teach this subject to.</p>
+            )}
+            {selectedClasses.length > 0 && (
+              <div className="staff-card__chips">
+                {selectedClasses.map((c) => (
+                  <span key={c.id} className="chip">
+                    {c.name} ({c.member_count} learner{c.member_count === 1 ? "" : "s"})
+                    <button
+                      type="button"
+                      className="chip__remove"
+                      aria-label={`Remove ${c.name}`}
+                      onClick={() => removeClass(c.id)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
         )}
-        {students.map((s) => (
-          <label key={s.learner_id} className="admin-form__checkbox-row">
-            <input
-              type="checkbox"
-              checked={selectedLearnerIds.includes(s.learner_id)}
-              onChange={() => toggleLearner(s.learner_id)}
-            />
-            {s.display_name} (Grade {s.grade})
-          </label>
-        ))}
+
+        {targetMode === "learners" && (
+          <>
+            {students.length === 0 && <p className="admin-screen__muted">No learners available to you yet.</p>}
+            {students
+              .filter((st) => st.is_active !== false)
+              .map((st) => (
+                <label key={st.learner_id} className="admin-form__checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={selectedLearnerIds.includes(st.learner_id)}
+                    onChange={() => toggleLearner(st.learner_id)}
+                  />
+                  {st.display_name} (Grade {st.grade})
+                </label>
+              ))}
+          </>
+        )}
+
+        {hasTargets && (
+          <p className="admin-screen__muted">
+            Going to {selectedClassIds.length > 0 && `${selectedClassIds.length} class${selectedClassIds.length === 1 ? "" : "es"}`}
+            {selectedClassIds.length > 0 && selectedLearnerIds.length > 0 && " and "}
+            {selectedLearnerIds.length > 0 &&
+              `${selectedLearnerIds.length} individual learner${selectedLearnerIds.length === 1 ? "" : "s"}`}
+            . Learners who join a class later won't get it automatically.
+          </p>
+        )}
       </fieldset>
 
       {submitError && <div className="admin-screen__error">{submitError}</div>}
