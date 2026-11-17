@@ -17,13 +17,29 @@ now that the endpoint actually has authentication to scope by.
 
 from typing import List, Dict, Optional
 from uuid import UUID
-from sqlalchemy import select, func, Float
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     Learner, Attempt, Question, Topic, Subject, User
 )
 from app.services.risk_assessment import assess_risk, RiskLevel
+from app.services.class_progress import (
+    AttemptRow,
+    LearnerRow,
+    TopicRow,
+    assess_learner_topics,
+    summarize_class_progress,
+)
+
+
+# FIX 17 Nov 2026 (ADR-030): was `Attempt.is_correct.cast(Float)`, which
+# PostgreSQL rejects ("cannot cast type boolean to double precision" --
+# Postgres only defines boolean -> integer). Never hit live before, because
+# no Attempt row existed anywhere until ADR-028's assignments wrote the
+# first ones. A CASE works on every backend; AVG of it returns a Decimal,
+# converted to float where it's rounded below.
+_CORRECT_AS_NUMBER = case((Attempt.is_correct.is_(True), 1), else_=0)
 
 
 async def get_learner_mastery(
@@ -43,16 +59,19 @@ async def get_learner_mastery(
         select(
             Topic.id.label("topic_id"),
             Topic.name.label("topic_name"),
+            Subject.name.label("subject_name"),
+            Subject.grade.label("grade"),
             func.count(Attempt.id).label("attempt_count"),
-            func.avg(Attempt.is_correct.cast(Float)).label("accuracy"),
+            func.avg(_CORRECT_AS_NUMBER).label("accuracy"),
             func.max(Attempt.created_at).label("last_attempt")
         )
         .join(Question, Attempt.question_id == Question.id)
         .join(Topic, Question.topic_id == Topic.id)
+        .join(Subject, Topic.subject_id == Subject.id)
         .where(Attempt.learner_id == learner_id)
         .where(Attempt.is_correct.isnot(None))
-        .group_by(Topic.id, Topic.name)
-        .order_by(Topic.name)
+        .group_by(Topic.id, Topic.name, Subject.name, Subject.grade, Topic.order_index)
+        .order_by(Subject.grade, Subject.name, Topic.order_index, Topic.name)
     )
     if topic_id:
         stmt = stmt.where(Topic.id == topic_id)
@@ -80,8 +99,8 @@ async def get_learner_mastery(
     for attempt, qtext, tname in mis_result:
         misconceptions.append({
             "topic": tname,
-            "question": qtext[:100] + "...",
-            "feedback": attempt.ai_feedback[:200] + "..."
+            "question": qtext if len(qtext) <= 100 else qtext[:100] + "...",
+            "feedback": attempt.ai_feedback if len(attempt.ai_feedback) <= 200 else attempt.ai_feedback[:200] + "..."
         })
 
     # Build response
@@ -90,8 +109,10 @@ async def get_learner_mastery(
         topics_mastery.append({
             "topic_id": str(row.topic_id),
             "topic_name": row.topic_name,
+            "subject_name": row.subject_name,
+            "grade": row.grade,
             "attempt_count": row.attempt_count,
-            "accuracy": round(row.accuracy, 2) if row.accuracy is not None else None,
+            "accuracy": round(float(row.accuracy), 2) if row.accuracy is not None else None,
             "last_attempt": row.last_attempt.isoformat() if row.last_attempt else None
         })
 
@@ -162,29 +183,21 @@ async def get_dashboard_summary(
 
         mastery = await get_learner_mastery(db, learner_id, topic_id)
 
-        # Get all topics for this learner's grade to compute risk for each
-        topics_stmt = select(Topic).where(Topic.subject_id.in_(
-            select(Subject.id).where(Subject.grade == learner.grade)
-        ))
-        topics_result = await db.execute(topics_stmt)
-        topics = topics_result.scalars().all()
-
-        risks = []
-        for t in topics:
-            # Get prerequisite attempts (if any)
-            prereq_attempts = None
-            if t.prerequisite_id:
-                prereq_stmt = (
-                    select(Attempt)
-                    .join(Question, Attempt.question_id == Question.id)
-                    .where(Attempt.learner_id == learner_id)
-                    .where(Question.topic_id == t.prerequisite_id)
-                    .where(Attempt.is_correct.isnot(None))
-                )
-                prereq_result = await db.execute(prereq_stmt)
-                prereq_attempts = prereq_result.scalars().all()
-            risk = await get_learner_risk_assessment(db, learner, t, prereq_attempts)
-            risks.append(risk)
+        # FIX 17 Nov 2026 (ADR-030): previously looped over EVERY topic in
+        # the learner's grade with 1-2 queries per topic (N+1), and
+        # assessed topics the learner had never touched (always "low",
+        # pure noise). Now: one attempts query + one topics query, risk
+        # computed in memory over the candidate set -- see
+        # app/services/class_progress.py's module docstring.
+        topics = await _load_topic_rows(db)
+        attempts = await _load_attempt_rows(db, [learner.id])
+        risks = assess_learner_topics(
+            LearnerRow(id=learner.id, name=learner.display_name, grade=learner.grade),
+            attempts,
+            topics,
+        )
+        if topic_id:
+            risks = [r for r in risks if r["topic_id"] == str(topic_id)]
 
         return {
             "learner": {
@@ -203,7 +216,7 @@ async def get_dashboard_summary(
             select(
                 Attempt.learner_id.label("learner_id"),
                 func.count(Attempt.id).label("total_attempts"),
-                func.avg(Attempt.is_correct.cast(Float)).label("overall_accuracy"),
+                func.avg(_CORRECT_AS_NUMBER).label("overall_accuracy"),
                 func.max(Attempt.created_at).label("last_activity")
             )
             .where(Attempt.is_correct.isnot(None))
@@ -237,7 +250,7 @@ async def get_dashboard_summary(
                 "name": learner.display_name,
                 "grade": learner.grade,
                 "total_attempts": total_attempts or 0,
-                "overall_accuracy": round(accuracy, 2) if accuracy is not None else None,
+                "overall_accuracy": round(float(accuracy), 2) if accuracy is not None else None,
                 "last_activity": last_activity.isoformat() if last_activity else None
             })
 
@@ -245,3 +258,86 @@ async def get_dashboard_summary(
             "learners": learner_list,
             "total_learners": len(learner_list)
         }
+
+
+# ---------------------------------------------------------------------------
+# NEW 17 Nov 2026 (ADR-030, class progress dashboard)
+# ---------------------------------------------------------------------------
+
+async def _load_topic_rows(db: AsyncSession) -> Dict[UUID, TopicRow]:
+    """Every topic with its subject name/grade -- ~115 rows today, one query."""
+    rows = (
+        await db.execute(
+            select(Topic, Subject.name, Subject.grade).join(Subject, Topic.subject_id == Subject.id)
+        )
+    ).all()
+    return {
+        t.id: TopicRow(
+            id=t.id,
+            name=t.name,
+            prerequisite_id=t.prerequisite_id,
+            subject_name=subject_name,
+            grade=grade,
+            order_index=t.order_index or 0,
+        )
+        for t, subject_name, grade in rows
+    }
+
+
+async def _load_attempt_rows(db: AsyncSession, learner_ids: List[UUID]) -> List[AttemptRow]:
+    """All scored attempts for these learners, flattened -- one query."""
+    if not learner_ids:
+        return []
+    rows = (
+        await db.execute(
+            select(Attempt.learner_id, Question.topic_id, Attempt.is_correct, Attempt.created_at)
+            .join(Question, Attempt.question_id == Question.id)
+            .where(Attempt.learner_id.in_(learner_ids))
+            .where(Attempt.is_correct.isnot(None))
+        )
+    ).all()
+    return [
+        AttemptRow(learner_id=lid, topic_id=tid, is_correct=ok, created_at=at)
+        for lid, tid, ok, at in rows
+    ]
+
+
+async def get_class_progress(
+    db: AsyncSession,
+    school_id: UUID,
+    grade: Optional[int] = None,
+) -> Dict:
+    """
+    The TEACH Progress tab payload for one school (optionally one grade).
+    Three queries total regardless of class size: learners, their
+    attempts, topics. Aggregation is pure -- see class_progress.py.
+    Only learners linked to a User in this school are included (same
+    scoping rule as the overview, ADR-024).
+    """
+    stmt = (
+        select(Learner)
+        .join(User, Learner.user_id == User.id)
+        .where(User.school_id == school_id)
+        .where(User.role == "student")
+    )
+    if grade is not None:
+        stmt = stmt.where(Learner.grade == grade)
+    learners = (await db.execute(stmt.order_by(Learner.display_name))).scalars().all()
+
+    learner_rows = [LearnerRow(id=l.id, name=l.display_name, grade=l.grade) for l in learners]
+    attempts = await _load_attempt_rows(db, [l.id for l in learners])
+    topics = await _load_topic_rows(db)
+    data = summarize_class_progress(learner_rows, attempts, topics)
+
+    # Grades present in this school, for the UI's grade filter -- computed
+    # without the grade filter so switching grades never empties the list.
+    grade_stmt = (
+        select(Learner.grade)
+        .join(User, Learner.user_id == User.id)
+        .where(User.school_id == school_id)
+        .where(User.role == "student")
+        .distinct()
+    )
+    data["available_grades"] = sorted(g for (g,) in (await db.execute(grade_stmt)).all())
+    data["grade"] = grade
+    return data

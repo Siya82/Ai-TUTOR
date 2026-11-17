@@ -2825,3 +2825,38 @@ summaries (not transcribed verbatim, since the original files were never
 read in full) are captured separately in REBUILD_SPEC.md rather than
 invented here. Add new BUILD_LOG entries above this line as work resumes
 on the rebuilt project. -->
+
+## 17 Nov 2026 — TEACH class progress dashboard (ADR-030)
+
+Siya chose the class progress dashboard as the next TEACH piece (via
+`AskUserQuestion`, over classes/groups, the resources slot, or live-testing
+ADR-029 first).
+
+**Backend:** new pure module `app/services/class_progress.py`
+(`summarize_class_progress()`, `assess_learner_topics()`), new
+`get_class_progress()` loader in `app/services/dashboard.py`, new
+`GET /api/v1/dashboard/progress?grade=` route, new `ClassProgress*` schemas.
+`TopicMastery`/`RiskAssessmentResponse` gained optional `subject_name`/`grade`.
+The single-learner detail path no longer runs 1-2 queries per topic; risk is
+computed in memory over candidate topics (attempted, or prerequisite
+attempted). **Fixed:** `is_correct.cast(Float)` in the mastery and overview
+queries, which PostgreSQL rejects. This was latent until ADR-028 wrote the
+first `Attempt` rows. Misconception text now gets "..." only when it's
+actually truncated.
+
+**Frontend:** new `components/ProgressPanel.jsx` (class view + learner
+drill-down), a fifth "Progress" tab in `TeacherAdminScreen.jsx` (wider body
+on that tab), `fetchClassProgress()`/`fetchLearnerProgress()` in `api.js`,
+styles appended to `chat.css` (adds `--progress-critical` for the "High"
+badge, always paired with an icon and label).
+
+**Verified:** in the sandbox against real PostgreSQL 16 + pgvector
+(migrations 0001-0007, full seed, synthetic attempts, real HTTP calls through
+the FastAPI app with a teacher JWT; a student JWT gets 403). `pytest`: 175
+passed on Python 3.12. `vite build` and `eslint` clean on new code. Both views
+screenshotted in headless Chrome. New tests: `tests/test_class_progress.py` (6).
+
+**Still needed from Siya:** pull, restart backend (no migration in this
+change), log in as `T00001`, open Progress. It will look mostly empty until
+learners have answered assignments. Priority 1 of `LIVE_TEST_CHECKLIST.md`
+fills it.

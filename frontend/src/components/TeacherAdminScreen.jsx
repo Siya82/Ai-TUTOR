@@ -12,14 +12,13 @@
  * posture as provision_student()/provision_teacher() -- right there
  * rather than needing a second tool to read them out of a database.
  *
- * Deliberately NOT built here (see docs/ADR-024...): the teacher
- * dashboard's own learner mastery/risk views (GET /api/v1/dashboard/*)
- * -- this screen only covers the "add/see my students" half of the
- * gap this session was asked to close; wiring the existing dashboard
- * data into this UI is a natural next step, not done in this pass.
+ * UPDATED 17 Nov 2026 (ADR-030): the dashboard's mastery/risk views
+ * (GET /api/v1/dashboard/*), originally left unwired here, now live in
+ * the "Progress" tab -- see ProgressPanel.jsx.
  */
 
 import { useEffect, useRef, useState } from "react";
+import ProgressPanel from "./ProgressPanel";
 import {
   bulkCreateStudents,
   createAssignment,
@@ -39,6 +38,7 @@ const TABS = [
   { id: "add", label: "Add student" },
   { id: "bulk", label: "Bulk upload" },
   { id: "assignments", label: "Assignments" },
+  { id: "progress", label: "Progress" }, // NEW 17 Nov 2026 (ADR-030)
 ];
 
 export default function TeacherAdminScreen({ auth, onLogout }) {
@@ -99,7 +99,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         ))}
       </nav>
 
-      <main className="admin-screen__body">
+      <main className={`admin-screen__body${tab === "progress" ? " admin-screen__body--wide" : ""}`}>
         {tab === "roster" && (
           <RosterPanel
             students={students}
@@ -114,6 +114,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         {tab === "bulk" && (
           <BulkUploadPanel token={auth.token} onLogout={onLogout} onCreated={loadRoster} />
         )}
+        {tab === "progress" && <ProgressPanel token={auth.token} onLogout={onLogout} />}
         {tab === "assignments" && (
           <AssignmentsPanel token={auth.token} onLogout={onLogout} students={students} />
         )}

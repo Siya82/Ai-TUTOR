@@ -31,13 +31,15 @@ from app.models import Learner, Topic, Attempt, Question, User
 from app.services.dashboard import (
     get_dashboard_summary,
     get_learner_mastery,
-    get_learner_risk_assessment
+    get_learner_risk_assessment,
+    get_class_progress,
 )
 from app.schemas.dashboard import (
     DashboardOverviewResponse,
     LearnerDetailResponse,
     LearnerMasteryResponse,
-    RiskAssessmentResponse
+    RiskAssessmentResponse,
+    ClassProgressResponse,
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -71,6 +73,19 @@ async def dashboard_overview(
     this endpoint is no longer unauthenticated."""
     data = await get_dashboard_summary(db, school_id=teacher.school_id)
     return DashboardOverviewResponse(**data)
+
+
+@router.get("/progress")
+async def class_progress(
+    grade: Optional[int] = Query(None, ge=1, le=12),
+    teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
+) -> ClassProgressResponse:
+    """NEW 17 Nov 2026 (ADR-030): the TEACH Progress tab -- class summary,
+    per-learner risk/accuracy, and per-topic class accuracy, scoped to
+    the teacher's own school and optionally one grade."""
+    data = await get_class_progress(db, school_id=teacher.school_id, grade=grade)
+    return ClassProgressResponse(**data)
 
 
 @router.get("/learners/{learner_id}")

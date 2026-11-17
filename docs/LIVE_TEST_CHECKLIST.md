@@ -17,6 +17,15 @@ This is the highest-stakes item: it's the first code path in the whole app that 
 - [ ] Check the dashboard / roster mastery view for that student afterward — first time it should ever show real, non-empty attempt data
 - [ ] Note anything that looks off in the AI-marking *judgment* itself (the defensive JSON parsing is unit-tested; marking quality against a real answer isn't)
 
+## Priority 1b — Progress tab (ADR-030)
+
+Do this right after Priority 1, so there are real answers to show.
+
+- [ ] Log in as the dev teacher, open **Progress**: the dev student should show answers, accuracy and a risk badge (not "No data yet")
+- [ ] Switch the grade chips (All / 10 / 11 / 12); the tiles and tables should change, and no grade chip should vanish
+- [ ] Click the student: the learner view should show mastery by topic and, for any wrong answer, a "Recent mistakes" entry with the AI feedback
+- [ ] Old `/api/v1/dashboard/` overview no longer 500s once answers exist (the boolean-cast bug fixed in ADR-030)
+
 ## Priority 2 — ADR-024 teacher dashboard walkthrough
 
 Interrupted last time by the stale-password bug, which is now fixed.
@@ -56,7 +65,7 @@ Interrupted last time by the stale-password bug, which is now fixed.
 
 - No endpoint yet to browse/reuse the seeded CAPS question bank inside an assignment — custom-authored questions only
 - No class/group targeting or due-date enforcement on assignments yet
-- No formal "tests" type or dedicated TEACH progress dashboard yet
+- No formal "tests" type yet (ADR-029 adds a Test *mode* per assignment); the TEACH progress dashboard now exists (ADR-030)
 - `backend/debug_login_check.py` is an untracked scratch file from the login debugging session — safe to delete, was never committed
 
 **Parked, not a test item:** the teacher/learner "resources" slot discussed today (topic-scoped, textbook-agnostic curated links/documents). Decide the schema when it's next prioritized — no code written yet.

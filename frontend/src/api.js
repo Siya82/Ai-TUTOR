@@ -365,6 +365,23 @@ export function releaseAssignmentResults(token, assignmentId) {
   return postJson(`/teach/assignments/${assignmentId}/release`, token, {});
 }
 
+/*
+ * NEW 17 Nov 2026 (ADR-030, TEACH class progress dashboard). Teacher-only
+ * reads of the /api/v1/dashboard/* router (ADR-024 gated it; this is the
+ * first UI to actually call it). Used by components/ProgressPanel.jsx.
+ */
+
+/** Class summary + per-learner risk/accuracy + per-topic class accuracy. `grade` optional. */
+export function fetchClassProgress(token, grade) {
+  const query = grade ? `?grade=${grade}` : "";
+  return getJson(`/api/v1/dashboard/progress${query}`, token);
+}
+
+/** One learner's drill-down: per-topic mastery, recent misconceptions, risk assessments. */
+export function fetchLearnerProgress(token, learnerId) {
+  return getJson(`/api/v1/dashboard/learners/${learnerId}`, token);
+}
+
 /**
  * NEW (ADR-029). The reusable question bank for one topic -- every
  * seeded CAPS question plus this teacher's own previously-authored
