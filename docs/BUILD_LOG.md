@@ -3029,3 +3029,20 @@ mismatch). The teacher then saw learners in Grades 10–12 only for those
 subjects, with classes 10A and 12A visible. 2 new `build_scope` tests;
 `pytest`: 220 passed. In the browser: picked Maths + Physical Sciences ×
 Grades 10 + 11 → "Allocate 4" → four whole-grade chips.
+
+## 17 Nov 2026 — GCP deployment plan (ADR-033, plan only)
+
+Researched current GCP options (Johannesburg region support, pgvector on
+Cloud SQL, Cloud Run free tier and Tier 2 pricing, the free-trial terms, the
+startup programme, custom-domain limits in `africa-south1`) and wrote
+ADR-033. Main points: everything holding learner data in `africa-south1`;
+separate staging and production projects; Cloud Run + Cloud SQL + Cloud
+Storage + Firebase Hosting + Secret Manager; deploy from GitHub Actions with
+Workload Identity Federation; migrations as a Cloud Run job.
+
+Two code issues found while planning, to fix in Phase 1 before any deploy:
+attachments are saved to local disk, which Cloud Run doesn't keep; and the
+frontend's API URL is hard-coded to `http://localhost:8000`. POPIA: prompts
+to Claude carry no learner names, student numbers or school names (checked),
+but s72 cross-border processing and the operator agreement still need
+handling before a real school. No infrastructure created.
