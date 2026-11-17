@@ -296,7 +296,13 @@ function YearEndPromotion({ token, run }) {
         Do this once at the end of the year, starting with Grade 11 (so Grade 10s don't end up in Grade 12). Deactivate
         Grade 12 leavers on the Students tab.
       </p>
-      <div className="admin-form admin-form--inline">
+      <form
+        className="admin-form admin-form--inline"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handlePromote();
+        }}
+      >
         <label className="admin-form__field">
           <span>Grade</span>
           <select value={grade} onChange={(e) => setGrade(Number(e.target.value))}>
@@ -307,10 +313,8 @@ function YearEndPromotion({ token, run }) {
             ))}
           </select>
         </label>
-        <button type="button" onClick={handlePromote}>
-          Move up
-        </button>
-      </div>
+        <button type="submit">Move up</button>
+      </form>
       {result && (
         <p className="admin-screen__muted">
           Moved {result.promoted} learner(s) from Grade {result.grade} to Grade {result.grade + 1}; removed{" "}

@@ -9,6 +9,18 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## Code review fixes (17 Nov 2026)
+
+Run `alembic upgrade head` (migration 0013) and `npm install` in `frontend/` first.
+
+- [ ] Five wrong passwords for one login → "Too many wrong passwords", other learners unaffected
+- [ ] Students tab → Reset password shows a one-time password; the learner must change it at login
+- [ ] Deactivate a learner → they can't log in and drop out of Progress; Reactivate brings them back
+- [ ] A Test: after Release results, the student sees "answers can no longer be changed"
+- [ ] Attach a large phone photo (over 5 MB) in the chat → it uploads and the tutor reads it
+- [ ] Principal → Assignments shows a teacher's assignment with "set by …"
+- [ ] School → Classes: Rename and Delete; Year end box (try on test data only)
+
 ## Priority 0b — E-book library (ADR-032)
 
 Setup: `alembic upgrade head` (0009–0011), `npm install` in `frontend/`, download at

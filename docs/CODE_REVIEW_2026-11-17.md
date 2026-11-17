@@ -1,8 +1,14 @@
 # THUTOra code review — 17 Nov 2026
 
 A full pass over the backend (routers, services, models, scripts) and the
-frontend, plus the automated checks. Nothing here has been fixed yet; this is
-the list to work from. GCP deployment (ADR-033) is on hold.
+frontend, plus the automated checks. GCP deployment (ADR-033) is on hold.
+
+> **Status (same day): items 1–19 are fixed** (commits 84c6203, 493f49b,
+> aefcc9a and the follow-up). Two things remain, both outside the code:
+> the POPIA work below, and `python-jose`, which stays because PyJWT can't
+> be installed on the dev laptop while pip is blocked. The picomatch ReDoS
+> advisory in `npm audit` is in the Vite build tooling only (never shipped
+> to the browser) and has no patched version yet.
 
 **Automated checks:** 220 backend tests pass; `vite build` clean; eslint has 7
 errors (all "setState inside an effect") and 1 unused variable; pyflakes finds

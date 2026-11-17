@@ -3074,3 +3074,17 @@ eslint (only TeacherAdminScreen's 3 pre-existing errors), screenshots of login,
 student chat, library, teacher Progress and School.
 Same day: back to the dark navy background at Siya's request; product colours
 kept as lighter shades that read on navy (see ADR-034 update).
+
+## 17 Nov 2026 — All 19 code review issues fixed
+
+See `docs/CODE_REVIEW_2026-11-17.md`. Highlights: removed the open
+`/learners/` route; tests close after release/due date; photos shrunk in the
+browser; chat history capped at 20 turns; seed refuses dev accounts outside
+development; login lockout and token revocation (migration 0013, which also
+indexes every foreign key); temporary passwords enforced server-side;
+principal/HoD assignment oversight; reset password, deactivate, year-end
+promotion, rename/delete class; Claude errors → friendly 503 plus request
+logging; one app-wide "session ended" handler; bcrypt without passlib; lint
+clean; GitHub Actions CI and first frontend tests (vitest). Checked: 232
+backend tests, 6 frontend tests, eslint, build, migration up/down/up, a
+25-check HTTP run against the live API, and screenshots.
