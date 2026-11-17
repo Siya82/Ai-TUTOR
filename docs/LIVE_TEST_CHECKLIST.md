@@ -11,11 +11,11 @@ least `everything-maths-grade-10.epub` (Siyavula's **unbranded CC BY ePub**; the
 CC BY-ND and will be refused) into `backend/content_sources/books/`, then
 `python -m scripts.ingest_books`.
 
-- [ ] Student → Library shows the book under its grade; a Grade 10 student doesn't see Grade 11/12 books
-- [ ] Open it: the section renders with its pictures and maths; ‹ › and the section picker work
-- [ ] Highlight a sentence → "Ask about what I highlighted" → chat opens with the book chip → Send → the answer talks about that section
+- [x] Student → Library shows the books; open one; Ask works (confirmed by Siya, 17 Nov 2026)
+- [ ] A Grade 10 student doesn't see Grade 11/12 books
+- [ ] Highlight a few equations → "Ask about what I highlighted" → the answer talks about those exact equations
 - [ ] "Open page" on the chip returns to the same page
-- [ ] Optional: fill a few topic page ranges in `ingest_books.py`, set `OPENAI_API_KEY`, re-run, and check answers from the normal chat cite "p. N"
+- [ ] Optional: set `OPENAI_API_KEY`, re-run `python -m scripts.ingest_books`, and check answers from the normal chat point to a book section
 
 ## Priority 0 — School roles and scoping (ADR-031)
 
@@ -41,6 +41,13 @@ This is the highest-stakes item: it's the first code path in the whole app that 
 - [ ] Submit a deliberately wrong answer on a second question — confirm it's marked incorrect, not silently passed
 - [ ] Check the dashboard / roster mastery view for that student afterward — first time it should ever show real, non-empty attempt data
 - [ ] Note anything that looks off in the AI-marking *judgment* itself (the defensive JSON parsing is unit-tested; marking quality against a real answer isn't)
+
+## Priority 1a — Test mode and releasing results (ADR-029)
+
+- [ ] As `T00001`, create an assignment in **Test** mode with per-question marks (e.g. 2 and 3), mixing a question from the bank with a custom one
+- [ ] As `100001`, answer it: no right/wrong feedback or model answer is shown
+- [ ] As `T00001`, click **Release results**; as `100001`, marks and feedback now appear
+- [ ] Re-submit one answer before release: the score counts only the latest answer, not both
 
 ## Priority 1b — Progress tab (ADR-030)
 
