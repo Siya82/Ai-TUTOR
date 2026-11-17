@@ -1,20 +1,19 @@
 /*
   THUTOra design tokens.
 
-  UPDATED 17 Nov 2026 (ADR-034): light theme with one accent colour per
-  product, following Siya's approved mockup ("THUTOra product colours"
-  canvas). Navy text on white cards; each product's colour is used for
-  icon strokes on a soft tint, product badges, the active-tab underline
-  and primary buttons, not for large areas.
+  UPDATED 17 Nov 2026 (ADR-034): one accent colour per product on the
+  original dark navy background (Siya kept the dark background after
+  trying the light one). Each product's colour is used for icon strokes
+  on a soft tint, product badges, the active-tab underline and primary
+  buttons, not for large areas.
 
-    LEARN    green   #15803D  (students)
-    TEACH    purple  #6D28D9  (teachers, school admin)
-    INSIGHTS blue    #1D4ED8  (analytics: the Progress tab today)
-    CONNECT  orange  #C2410C  (parents, future)
+    LEARN    green   #22C55E  (students)
+    TEACH    purple  #A78BFA  (teachers, school admin)
+    INSIGHTS blue    #60A5FA  (analytics: the Progress tab today)
+    CONNECT  orange  #FB923C  (parents, future)
 
-  Shades are a little darker than the mockup so white text on them and
-  their strokes on white pass WCAG AA contrast. The previous dark navy
-  theme (ADR-012) is replaced; navy stays as the text colour.
+  These are the lighter shades of the mockup's colours, so strokes and
+  text read on navy; fills carry dark text (--color-text-on-accent).
 
   Components reference the --color-* aliases. A product's area sets
   data-product="learn|teach|insights|connect" on its root element, which
@@ -24,29 +23,31 @@
 :root {
   /* Raw brand tokens */
   --thutora-navy: #0D1B2A;
-  --thutora-white: #FFFFFF;
+  --thutora-offwhite: #F4F6FA;
 
-  --product-learn: #15803D;
-  --product-learn-hover: #166534;
-  --product-learn-tint: #E7F6EC;
-  --product-teach: #6D28D9;
-  --product-teach-hover: #5B21B6;
-  --product-teach-tint: #F1EBFD;
-  --product-insights: #1D4ED8;
-  --product-insights-hover: #1E40AF;
-  --product-insights-tint: #E8EEFD;
-  --product-connect: #C2410C;
-  --product-connect-hover: #9A3412;
-  --product-connect-tint: #FDEEE6;
+  /* Product colours, tuned for the dark navy background: bright enough
+     to read as icon strokes and text on navy, with dark text on fills. */
+  --product-learn: #22C55E;
+  --product-learn-hover: #4ADE80;
+  --product-learn-tint: rgba(34, 197, 94, 0.16);
+  --product-teach: #A78BFA;
+  --product-teach-hover: #C4B5FD;
+  --product-teach-tint: rgba(167, 139, 250, 0.18);
+  --product-insights: #60A5FA;
+  --product-insights-hover: #93C5FD;
+  --product-insights-tint: rgba(96, 165, 250, 0.18);
+  --product-connect: #FB923C;
+  --product-connect-hover: #FDBA74;
+  --product-connect-tint: rgba(251, 146, 60, 0.18);
 
-  /* Semantic aliases */
-  --color-background: #F6F8FB;
-  --color-surface: var(--thutora-white);
-  --color-surface-2: #F1F4F8;
-  --color-border: #E3E8EF;
-  --color-text: var(--thutora-navy);
-  --color-text-muted: #5B6B7F;
-  --color-text-on-accent: #FFFFFF;
+  /* Semantic aliases: the original dark navy surfaces (ADR-012) */
+  --color-background: var(--thutora-navy);
+  --color-surface: #11223A;
+  --color-surface-2: #16304F;
+  --color-border: #1E3350;
+  --color-text: var(--thutora-offwhite);
+  --color-text-muted: #9FB0C3;
+  --color-text-on-accent: #04140F;
 
   /* Default accent = LEARN (also used on the login screen) */
   --color-accent: var(--product-learn);
@@ -54,21 +55,19 @@
   --color-accent-tint: var(--product-learn-tint);
   --color-accent-secondary: var(--product-teach);
 
-  /* Status colours: text-safe shades on white. Always shipped with a
-     word label, never colour alone. */
-  --color-success: #15803D;
-  --color-success-tint: #E7F6EC;
-  --color-warning: #B45309;
-  --color-warning-tint: #FEF3E2;
-  --color-danger: #B91C1C;
-  --color-danger-tint: #FDECEC;
+  /* Status colours, always shipped with a word label */
+  --color-success: #4ADE80;
+  --color-success-tint: rgba(74, 222, 128, 0.15);
+  --color-warning: #FF9F1C;
+  --color-warning-tint: rgba(255, 159, 28, 0.15);
+  --color-danger: #F87171;
+  --color-danger-tint: rgba(248, 113, 113, 0.15);
 
-  /* Former glows: now soft neutral shadows that read on a light page */
-  --shadow-glow-sm: 0 1px 2px rgba(13, 27, 42, 0.08);
-  --shadow-glow-md: 0 2px 8px rgba(13, 27, 42, 0.10);
-  --shadow-glow-lg: 0 6px 20px rgba(13, 27, 42, 0.12);
+  --shadow-glow-sm: 0 0 8px rgba(0, 0, 0, 0.25);
+  --shadow-glow-md: 0 0 16px rgba(0, 0, 0, 0.30);
+  --shadow-glow-lg: 0 0 28px rgba(0, 0, 0, 0.35);
 
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 /* Custom properties resolve where they're declared, so each product area

@@ -3072,3 +3072,5 @@ colours in `chat.css` (status tints, reader page edges, ePub worked-example
 box, user chat bubble now a tint with navy text). Checked: `vite build`,
 eslint (only TeacherAdminScreen's 3 pre-existing errors), screenshots of login,
 student chat, library, teacher Progress and School.
+Same day: back to the dark navy background at Siya's request; product colours
+kept as lighter shades that read on navy (see ADR-034 update).

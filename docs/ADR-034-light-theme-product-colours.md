@@ -32,3 +32,11 @@ backgrounds with matching strokes, navy text, mostly white cards.
 ## Consequences
 - Supersedes ADR-012's dark palette. `tokens.css` is still the single source.
 - Future CONNECT/INSIGHTS screens only need the `data-product` attribute.
+
+## Update (17 Nov 2026, same day): dark background kept
+After trying the light theme in the app, Siya asked for the original dark navy
+background back. Product colours stay, using lighter shades that read on navy
+with dark text on fills: LEARN `#22C55E`, TEACH `#A78BFA`, INSIGHTS `#60A5FA`,
+CONNECT `#FB923C`; tints are translucent. Surfaces return to ADR-012's navy
+values. Status: success `#4ADE80`, warning `#FF9F1C`, danger `#F87171`.
+Everything else in this ADR (data-product, icon chips, badges) is unchanged.
