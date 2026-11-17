@@ -160,6 +160,9 @@ class User(Base):
     # moment the student successfully calls POST /auth/change-password.
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # NEW 17 Nov 2026 (ADR-031). Staff need a name to be listed/allocated;
+    # students keep theirs on Learner.display_name, so this stays NULL for them.
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     school: Mapped["School"] = relationship(back_populates="users")
     learner: Mapped["Learner"] = relationship(back_populates="user", uselist=False)
@@ -456,4 +459,70 @@ class Attachment(Base):
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
     extracted_text: Mapped[str | None] = mapped_column(Text)  # PDF/docx only; null for images
     extraction_warning: Mapped[str | None] = mapped_column(Text)  # e.g. a scanned PDF with no text layer
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# NEW 17 Nov 2026 (ADR-031, school roles and scoping). What a staff account
+# may see/do is no longer "everything in my school": it is resolved from
+# these tables by app/services/school_scope.py on every request.
+# ---------------------------------------------------------------------------
+
+
+class SchoolClass(Base):
+    """A class/group of learners in one grade, e.g. "10A". Named SchoolClass
+    because `class` is a Python keyword."""
+
+    __tablename__ = "school_classes"
+    __table_args__ = (UniqueConstraint("school_id", "name", name="uq_school_class_name"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    grade: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ClassMember(Base):
+    """A learner's membership of a class. A learner may be in several classes."""
+
+    __tablename__ = "class_members"
+    __table_args__ = (UniqueConstraint("class_id", "learner_id", name="uq_class_member"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    class_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("school_classes.id"), nullable=False)
+    learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"), nullable=False)
+
+
+class TeachingAllocation(Base):
+    """A teacher teaches one subject (Subject rows carry the grade) to one
+    class. The allocation is what scopes a plain teacher's access."""
+
+    __tablename__ = "teaching_allocations"
+    __table_args__ = (
+        UniqueConstraint("teacher_user_id", "subject_id", "class_id", name="uq_teaching_allocation"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False)
+    teacher_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("subjects.id"), nullable=False)
+    class_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("school_classes.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class StaffRole(Base):
+    """A school-level role grant: principal, deputy_principal,
+    departmental_head or school_admin. A departmental head's department is
+    expressed as one row per subject name (optionally limited to one grade)."""
+
+    __tablename__ = "staff_roles"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(30), nullable=False)
+    subject_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    granted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

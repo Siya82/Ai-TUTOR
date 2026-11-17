@@ -13,8 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_teacher
-from app.models import Learner, School, User
+from app.core.security import get_current_staff_scope, get_current_teacher
+from app.models import ClassMember, Learner, School, SchoolClass, User
+from app.services.school_scope import StaffScope
 from app.schemas.admin import (
     BulkStudentRowError,
     BulkStudentUploadResponse,
@@ -26,6 +27,17 @@ from app.services.admin import bulk_provision_students, parse_student_csv
 from app.services.auth import provision_student
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _require_manage_school(scope: StaffScope) -> None:
+    """NEW 17 Nov 2026 (ADR-031): adding learners is a school-management
+    action (principal, deputy principal, school admin), not something every
+    teacher can do any more."""
+    if not scope.can_manage_school:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the principal, deputy principal or school admin can add students",
+        )
 
 
 async def _teacher_school(db: AsyncSession, teacher: User) -> School:
@@ -41,9 +53,11 @@ async def _teacher_school(db: AsyncSession, teacher: User) -> School:
 async def create_student(
     payload: StudentCreateRequest,
     teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> StudentCreateResult:
     """Provisions one student in the authenticated teacher's own school."""
+    _require_manage_school(scope)
     school = await _teacher_school(db, teacher)
     try:
         user, learner, temp_password = await provision_student(
@@ -74,6 +88,7 @@ async def create_student(
 async def bulk_create_students(
     file: UploadFile,
     teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> BulkStudentUploadResponse:
     """
@@ -82,6 +97,7 @@ async def bulk_create_students(
     fail to parse, or fail to provision, are reported individually in
     `errors` rather than aborting rows that succeeded.
     """
+    _require_manage_school(scope)
     school = await _teacher_school(db, teacher)
     raw = await file.read()
     try:
@@ -112,23 +128,38 @@ async def bulk_create_students(
 
 @router.get("/students", response_model=list[StudentRosterItem])
 async def list_students(
-    teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> list[StudentRosterItem]:
     """
-    This teacher's own school's students only -- joins through User
-    rather than listing every Learner, so a Learner seeded without a
-    linked User (old dev data from before ADR-017) correctly doesn't
-    appear here, matching the scoping app/routers/dashboard.py now
-    applies for the same reason.
+    The learners the caller may see (ADR-031): the whole school for a
+    principal, deputy principal or school admin; a departmental head's
+    grade(s); a teacher's allocated classes. Still joined through User, so
+    a Learner with no linked User (pre-ADR-017 dev data) never appears.
     """
+    if not scope.roster_learner_ids:
+        return []
     stmt = (
         select(Learner, User)
         .join(User, Learner.user_id == User.id)
-        .where(User.school_id == teacher.school_id, User.role == "student")
-        .order_by(Learner.display_name)
+        .where(
+            User.school_id == scope.school_id,
+            User.role == "student",
+            Learner.id.in_(scope.roster_learner_ids),
+        )
+        .order_by(Learner.grade, Learner.display_name)
     )
-    result = await db.execute(stmt)
+    rows = (await db.execute(stmt)).all()
+    class_names: dict = {}
+    for lid, cname in (
+        await db.execute(
+            select(ClassMember.learner_id, SchoolClass.name)
+            .join(SchoolClass, ClassMember.class_id == SchoolClass.id)
+            .where(ClassMember.learner_id.in_([l.id for l, _ in rows]))
+            .order_by(SchoolClass.name)
+        )
+    ).all():
+        class_names.setdefault(lid, []).append(cname)
     return [
         StudentRosterItem(
             learner_id=learner.id,
@@ -137,6 +168,7 @@ async def list_students(
             grade=learner.grade,
             student_number=user.student_number,
             created_at=user.created_at,
+            classes=class_names.get(learner.id, []),
         )
-        for learner, user in result.all()
+        for learner, user in rows
     ]

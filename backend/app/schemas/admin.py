@@ -53,3 +53,5 @@ class StudentRosterItem(BaseModel):
     grade: int
     student_number: str
     created_at: datetime
+    # NEW 17 Nov 2026 (ADR-031): names of the classes this learner is in
+    classes: list[str] = []

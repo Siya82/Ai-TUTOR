@@ -109,3 +109,20 @@ async def get_current_teacher(user: User = Depends(get_current_user)) -> User:
     if user.role != "teacher":
         raise HTTPException(status_code=403, detail="Teacher access required")
     return user
+
+
+async def get_current_staff_scope(
+    user: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    NEW 17 Nov 2026 (ADR-031). A staff user's resolved scope -- which
+    learners they may see (roster) and which subjects of each learner's
+    data they may see and assign (academic). Every TEACH endpoint that
+    returns or acts on learner data depends on this rather than on
+    school_id alone. Imported lazily to keep app.core free of a
+    services-level import cycle.
+    """
+    from app.services.school_scope import load_scope
+
+    return await load_scope(db, user)

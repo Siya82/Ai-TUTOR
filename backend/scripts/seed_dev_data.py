@@ -41,7 +41,19 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.database import async_session_factory
-from app.models import ContentChunk, Learner, Question, School, Subject, Topic, User
+from app.models import (
+    ClassMember,
+    ContentChunk,
+    Learner,
+    Question,
+    School,
+    SchoolClass,
+    StaffRole,
+    Subject,
+    TeachingAllocation,
+    Topic,
+    User,
+)
 from app.services.auth import hash_password, provision_student, provision_teacher
 
 # FIX 15 Nov 2026 (ADR-026 follow-up): was 10. Siya's own dev/test
@@ -79,6 +91,14 @@ DEV_STUDENT_PASSWORD = "DevPass123!"
 # choice, and changing it would mean loosening a schema constraint that
 # exists to catch a real school accidentally issuing one number twice.
 DEV_TEACHER_PASSWORD = DEV_STUDENT_PASSWORD
+# NEW 17 Nov 2026 (ADR-031, school roles and scoping). A staff account now
+# sees nothing without an allocation or role, so the dev school gets:
+#   - T00001 "Dev Teacher": teaches Pure Mathematics (Grade 12) to class 12A,
+#     which contains the dev learner (100001, Grade 12)
+#   - P00001 "Dev Principal": principal role, whole school
+DEV_PRINCIPAL_NUMBER = "P00001"
+DEV_CLASS_NAME = "12A"
+DEV_ALLOCATION_SUBJECT = ("Pure Mathematics", 12)
 
 PLACEHOLDER_EMBEDDING = [0.0] * 1536
 
@@ -1601,6 +1621,75 @@ async def get_or_create_demo_teacher_account(session, school: School) -> User:
     return user
 
 
+async def ensure_dev_school_structure(session, school: School, teacher: User, learner: Learner) -> User:
+    """
+    NEW 17 Nov 2026 (ADR-031). Idempotent, and refreshes existing rows on
+    re-seed (the lesson from the four get_or_create bugs on 15 Nov):
+    names, the principal's password and role, class 12A, its membership,
+    and T00001's allocation are all (re)asserted every run.
+    """
+    teacher.display_name = "Dev Teacher"
+
+    principal = (
+        await session.execute(
+            select(User).where(User.school_id == school.id, User.student_number == DEV_PRINCIPAL_NUMBER)
+        )
+    ).scalar_one_or_none()
+    if principal is None:
+        principal, _ = await provision_teacher(
+            session, school=school, staff_number=DEV_PRINCIPAL_NUMBER, raw_password=DEV_TEACHER_PASSWORD
+        )
+    else:
+        principal.password_hash = hash_password(DEV_TEACHER_PASSWORD)
+    principal.display_name = "Dev Principal"
+    has_role = (
+        await session.execute(
+            select(StaffRole.id).where(StaffRole.user_id == principal.id, StaffRole.role == "principal")
+        )
+    ).first()
+    if not has_role:
+        session.add(StaffRole(user_id=principal.id, school_id=school.id, role="principal"))
+
+    cls = (
+        await session.execute(
+            select(SchoolClass).where(SchoolClass.school_id == school.id, SchoolClass.name == DEV_CLASS_NAME)
+        )
+    ).scalar_one_or_none()
+    if cls is None:
+        cls = SchoolClass(school_id=school.id, name=DEV_CLASS_NAME, grade=learner.grade)
+        session.add(cls)
+        await session.flush()
+    cls.grade = learner.grade
+    in_class = (
+        await session.execute(
+            select(ClassMember.id).where(ClassMember.class_id == cls.id, ClassMember.learner_id == learner.id)
+        )
+    ).first()
+    if not in_class:
+        session.add(ClassMember(class_id=cls.id, learner_id=learner.id))
+
+    subj_name, subj_grade = DEV_ALLOCATION_SUBJECT
+    subject = (
+        await session.execute(select(Subject).where(Subject.name == subj_name, Subject.grade == subj_grade))
+    ).scalar_one()
+    has_alloc = (
+        await session.execute(
+            select(TeachingAllocation.id).where(
+                TeachingAllocation.teacher_user_id == teacher.id,
+                TeachingAllocation.subject_id == subject.id,
+                TeachingAllocation.class_id == cls.id,
+            )
+        )
+    ).first()
+    if not has_alloc:
+        session.add(
+            TeachingAllocation(
+                school_id=school.id, teacher_user_id=teacher.id, subject_id=subject.id, class_id=cls.id
+            )
+        )
+    return principal
+
+
 def _validate_subject_data(subject_spec: dict, known_subjects: set[tuple[str, int]]) -> None:
     """Fails fast on a typo'd prerequisite name/reference or a question-dict
     key that doesn't match a real topic name, instead of half-seeding the
@@ -1697,6 +1786,7 @@ async def main() -> None:
         demo_school = await get_or_create_demo_school(session)
         demo_user = await get_or_create_demo_student_account(session, demo_school, learner)
         demo_teacher = await get_or_create_demo_teacher_account(session, demo_school)
+        demo_principal = await ensure_dev_school_structure(session, demo_school, demo_teacher, learner)
 
         await session.commit()
 
@@ -1725,6 +1815,11 @@ async def main() -> None:
         print("Or log in as the teacher account (ADR-024 -- dashboard + bulk student provisioning):")
         print(f"  School:         {demo_school.name}  (id {demo_school.id})")
         print(f"  Staff number:   {demo_teacher.student_number}")
+        print(f"  Password:       {DEV_TEACHER_PASSWORD}")
+        print(f"  Teaches {DEV_ALLOCATION_SUBJECT[0]} (Grade {DEV_ALLOCATION_SUBJECT[1]}) to class {DEV_CLASS_NAME} (ADR-031)")
+        print()
+        print("Or log in as the principal (ADR-031 -- whole school, manages classes/staff):")
+        print(f"  Staff number:   {demo_principal.student_number}")
         print(f"  Password:       {DEV_TEACHER_PASSWORD}")
         print()
         print("Use these ids for a direct API smoke test (after logging in for a token), e.g.:")

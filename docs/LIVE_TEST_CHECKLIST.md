@@ -4,6 +4,18 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 
 **One-time catch-up before anything below:** `git pull`, `pip install -r requirements.txt` (or run `start-thutora.ps1`), `alembic upgrade head` (picks up migrations 0004–0006), then `python -m scripts.seed_dev_data` to re-seed and backfill.
 
+## Priority 0 — School roles and scoping (ADR-031)
+
+Run `alembic upgrade head` (migration 0008) and re-seed first.
+
+- [ ] Log in as the principal (`P00001` / `DevPass123!`): tabs include **School**; header says "Dev Principal · Principal"
+- [ ] School → Staff: create a login for a new teacher; note the one-time password
+- [ ] School → Classes: create a Grade 10 class, add two Grade 10 learners (a Grade 11 learner should be refused)
+- [ ] School → Staff: allocate the new teacher a subject for that class; give someone a departmental head role
+- [ ] Log in as the new teacher: only Students / Assignments / Progress tabs; Students shows only their class; Assignments only offers their subject and class
+- [ ] Log in as `T00001`: sees only class 12A and the dev learner
+- [ ] Optional: `python -m scripts.provision_school --school "Test School" --principal "Test Principal"` prints a school id, staff number and one-time password
+
 ## Priority 1 — Assignments end-to-end (ADR-028)
 
 This is the highest-stakes item: it's the first code path in the whole app that actually writes an `Attempt` row, so it's also the first real test of whatever the mastery/pace/risk logic does with genuine data.

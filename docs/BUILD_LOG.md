@@ -2860,3 +2860,51 @@ screenshotted in headless Chrome. New tests: `tests/test_class_progress.py` (6).
 change), log in as `T00001`, open Progress. It will look mostly empty until
 learners have answered assignments. Priority 1 of `LIVE_TEST_CHECKLIST.md`
 fills it.
+
+## 17 Nov 2026 — School roles and scoping (ADR-031)
+
+Siya asked whether a teacher can be tied to a school and to their own
+students only, then laid out the full hierarchy (teacher → HoD → principal →
+circuit → district → DoE/MEC). It was reviewed against the SA system first
+(corrections recorded in ADR-031: allocations are subject + grade + class and
+set by the school; school "HOD" is a departmental head; deputy principal,
+subject advisors, parents and a school admin clerk were missing; circuit and
+district are oversight/read-only; the top of each tree starts from a signed
+agreement). Siya approved writing the ADR and building the school tier.
+
+**Backend:** migration `0008` (`users.display_name`, `school_classes`,
+`class_members`, `teaching_allocations`, `staff_roles`). New
+`app/services/school_scope.py` (pure `build_scope()` + `load_scope()`), new
+`get_current_staff_scope` dependency, new `/school/*` router (me, classes,
+members, staff, roles, allocations) and schemas. Scoped by it: `/admin/students`
+(roster; adding students now needs principal/deputy/school admin),
+every `/api/v1/dashboard/*` endpoint (learner and subject filtering, plus a
+`class_id` filter on Progress), and `create_assignment()` (every target learner
+checked against every question's subject; new `class_ids` targeting). Seed:
+`T00001` gets a name and an allocation (Pure Mathematics Gr 12 → class 12A with
+the dev learner); new dev principal `P00001`. New onboarding script
+`scripts/provision_school.py` creates a school plus its first principal.
+
+**Frontend:** tabs now depend on `GET /school/me`; new `SchoolPanel.jsx`
+(Classes: create, add/remove learners of the same grade; Staff: create logins,
+give/revoke roles below your own, allocate subject + class). Assignments can
+target whole classes and only offer the teacher's own subjects. Progress has a
+class filter. The Students tab shows each learner's classes. The header shows
+the staff member's name and role.
+
+**Verified** against real PostgreSQL + pgvector in the sandbox: migration
+0008 applied, seed run twice (idempotent), onboarding script run. HTTP checks
+through the real app covered principal grants deputy, principal can't grant
+principal, deputy can't grant deputy, duplicate class rejected, wrong-grade
+member rejected, wrong-grade allocation rejected, a teacher sees only their
+class (roster, progress, detail outside class = 404), a teacher can't add
+students or list staff (403), a teacher can't assign another subject or a
+learner outside their class (400), whole-class targeting works, a principal
+sees all and can filter by class, nobody can revoke their own role, and a
+student gets 403 on `/school/me`. `pytest`: 186 passed (11 new in
+`tests/test_school_scope.py`). `vite build` clean; eslint shows only the 3
+pre-existing `set-state-in-effect` errors in `TeacherAdminScreen.jsx`.
+Screens checked in headless Chrome as principal and teacher.
+
+**Behaviour change to know about:** a staff login with no allocation and no
+role sees no learners. Re-seed after migrating.

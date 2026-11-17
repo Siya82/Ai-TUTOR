@@ -17,7 +17,16 @@ endpoint additionally confirms that learner belongs to a User in the
 teacher's OWN school via _assert_same_school -- a teacher at School A
 getting a 404 for a real learner_id that belongs to School B is the
 intended, privacy-preserving behaviour, not a bug.
+
+UPDATED 17 Nov 2026 (ADR-031, school roles and scoping): school_id
+scoping is no longer enough -- every endpoint now resolves the caller's
+StaffScope (app/services/school_scope.py). A learner the caller can't
+see academically is an honest 404 (same posture as the cross-school 404
+before), and every response only includes subjects the caller may see
+for that learner.
 """
+
+
 
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,14 +35,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.security import get_current_teacher
-from app.models import Learner, Topic, Attempt, Question, User
+from app.core.security import get_current_staff_scope
+from app.models import Learner, Topic, Attempt, Question
 from app.services.dashboard import (
     get_dashboard_summary,
     get_learner_mastery,
     get_learner_risk_assessment,
     get_class_progress,
 )
+from app.services.school_scope import ALL_SUBJECTS, StaffScope
 from app.schemas.dashboard import (
     DashboardOverviewResponse,
     LearnerDetailResponse,
@@ -45,46 +55,47 @@ from app.schemas.dashboard import (
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
-async def _assert_same_school(db: AsyncSession, learner: Learner, teacher: User) -> None:
+async def _visible_learner(db: AsyncSession, learner_id: UUID, scope: StaffScope) -> tuple[Learner, Optional[set]]:
     """
-    NEW 15 Nov 2026 (ADR-024). Confirms `learner` belongs to a User in
-    the authenticated teacher's own school before any data about them
-    is returned. A Learner with no linked User at all (old dev data
-    seeded before ADR-017's student-login work existed) has no school
-    to scope it to, so it's treated the same as "not this teacher's" --
-    a 404, not a crash and not a silent bypass.
+    Returns (learner, subject_ids) where subject_ids is None for "all
+    subjects". 404 -- not 403 -- when the caller can't see this learner,
+    so the endpoint never confirms a learner exists outside their scope.
     """
-    if learner.user_id is None:
+    if learner_id not in scope.academic_learner_ids():
         raise HTTPException(status_code=404, detail="Learner not found")
-    learner_user = await db.get(User, learner.user_id)
-    if learner_user is None or learner_user.school_id != teacher.school_id:
+    learner = await db.get(Learner, learner_id)
+    if not learner:
         raise HTTPException(status_code=404, detail="Learner not found")
+    subjects = scope.subjects_for(learner_id)
+    return learner, (None if subjects is ALL_SUBJECTS else set(subjects))
 
 
 @router.get("/")
 async def dashboard_overview(
-    teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db)
 ) -> DashboardOverviewResponse:
-    """Overview of every learner IN THE TEACHER'S OWN SCHOOL: names, grades, total attempts, accuracy.
+    """Overview of every learner the caller may see academically.
 
-    FIX 15 Nov 2026 (ADR-024): previously listed every Learner in the
-    database regardless of school -- now scoped via school_id, since
-    this endpoint is no longer unauthenticated."""
-    data = await get_dashboard_summary(db, school_id=teacher.school_id)
+    Note: totals here count all of a learner's attempts; the Progress
+    endpoint below is the subject-scoped view and what the UI uses."""
+    data = await get_dashboard_summary(
+        db, school_id=scope.school_id, learner_ids=scope.academic_learner_ids()
+    )
     return DashboardOverviewResponse(**data)
 
 
 @router.get("/progress")
 async def class_progress(
     grade: Optional[int] = Query(None, ge=1, le=12),
-    teacher: User = Depends(get_current_teacher),
+    class_id: Optional[UUID] = Query(None),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db)
 ) -> ClassProgressResponse:
-    """NEW 17 Nov 2026 (ADR-030): the TEACH Progress tab -- class summary,
-    per-learner risk/accuracy, and per-topic class accuracy, scoped to
-    the teacher's own school and optionally one grade."""
-    data = await get_class_progress(db, school_id=teacher.school_id, grade=grade)
+    """NEW 17 Nov 2026 (ADR-030), scoped per ADR-031: class summary,
+    per-learner risk/accuracy, and per-topic class accuracy for the
+    learners and subjects the caller may see, optionally one grade or class."""
+    data = await get_class_progress(db, scope, grade=grade, class_id=class_id)
     return ClassProgressResponse(**data)
 
 
@@ -92,15 +103,13 @@ async def class_progress(
 async def learner_detail(
     learner_id: UUID,
     topic_id: Optional[UUID] = Query(None),
-    teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db)
 ) -> LearnerDetailResponse:
-    """Detailed view for a specific learner, including mastery and risk."""
-    learner = await db.get(Learner, learner_id)
-    if not learner:
-        raise HTTPException(status_code=404, detail="Learner not found")
-    await _assert_same_school(db, learner, teacher)
-    data = await get_dashboard_summary(db, learner_id, topic_id)
+    """Detailed view for one learner: mastery, misconceptions and risk,
+    limited to the subjects the caller may see for them."""
+    learner, subject_ids = await _visible_learner(db, learner_id, scope)
+    data = await get_dashboard_summary(db, learner.id, topic_id, subject_ids=subject_ids)
     if "error" in data:
         raise HTTPException(status_code=404, detail=data["error"])
     return LearnerDetailResponse(**data)
@@ -110,16 +119,12 @@ async def learner_detail(
 async def learner_mastery(
     learner_id: UUID,
     topic_id: Optional[UUID] = Query(None),
-    teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db)
 ) -> LearnerMasteryResponse:
     """Mastery summary for a learner: accuracy per topic, misconceptions."""
-    # Verify learner exists AND belongs to this teacher's school
-    learner = await db.get(Learner, learner_id)
-    if not learner:
-        raise HTTPException(status_code=404, detail="Learner not found")
-    await _assert_same_school(db, learner, teacher)
-    data = await get_learner_mastery(db, learner_id, topic_id)
+    learner, subject_ids = await _visible_learner(db, learner_id, scope)
+    data = await get_learner_mastery(db, learner.id, topic_id, subject_ids)
     return LearnerMasteryResponse(**data)
 
 
@@ -127,19 +132,15 @@ async def learner_mastery(
 async def learner_risk(
     learner_id: UUID,
     topic_id: UUID,
-    teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db)
 ) -> RiskAssessmentResponse:
     """Risk assessment for a specific learner on a specific topic."""
-    learner = await db.get(Learner, learner_id)
-    if not learner:
-        raise HTTPException(status_code=404, detail="Learner not found")
-    await _assert_same_school(db, learner, teacher)
+    learner, subject_ids = await _visible_learner(db, learner_id, scope)
     topic = await db.get(Topic, topic_id)
-    if not topic:
+    if not topic or (subject_ids is not None and topic.subject_id not in subject_ids):
         raise HTTPException(status_code=404, detail="Topic not found")
 
-    # Fetch prerequisite attempts if any
     prereq_attempts = None
     if topic.prerequisite_id:
         stmt = (

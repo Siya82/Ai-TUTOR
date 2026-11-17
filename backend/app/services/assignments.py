@@ -20,9 +20,12 @@ from app.models import (
     AssignmentQuestion,
     AssignmentTarget,
     Attempt,
+    ClassMember,
     Learner,
     Question,
     School,
+    SchoolClass,
+    Topic,
     User,
 )
 from app.services.answer_marking import MarkingResult, mark_answer
@@ -73,6 +76,8 @@ async def create_assignment(
     mode: str = "practice",
     questions: list[tuple[uuid.UUID, int]],
     learner_ids: list[uuid.UUID],
+    class_ids: list[uuid.UUID] | None = None,
+    scope=None,
 ) -> Assignment:
     """
     Creates (adds, does not commit) an Assignment plus its
@@ -97,6 +102,29 @@ async def create_assignment(
     """
     if not questions:
         raise AssignmentError("An assignment needs at least one question")
+
+    # NEW 17 Nov 2026 (ADR-031): whole classes can be targeted; expanded
+    # here on the server to their current members, de-duplicated against
+    # any individually-picked learners. Each class must be in this school.
+    learner_ids = list(dict.fromkeys(learner_ids))
+    if class_ids:
+        classes = (
+            await db.execute(
+                select(SchoolClass).where(
+                    SchoolClass.id.in_(class_ids), SchoolClass.school_id == school.id
+                )
+            )
+        ).scalars().all()
+        if len(classes) != len(set(class_ids)):
+            raise AssignmentError("One or more classes are not in this school")
+        members = (
+            await db.execute(
+                select(ClassMember.learner_id).where(ClassMember.class_id.in_(class_ids))
+            )
+        ).scalars().all()
+        for lid in members:
+            if lid not in learner_ids:
+                learner_ids.append(lid)
     if not learner_ids:
         raise AssignmentError("An assignment needs at least one target student")
     if mode not in ("practice", "test"):
@@ -148,6 +176,33 @@ async def create_assignment(
             "Student id(s) not in this school's roster: "
             + ", ".join(str(i) for i in missing_learners)
         )
+
+    # NEW 17 Nov 2026 (ADR-031): school membership isn't enough any more.
+    # Every target learner must be one the caller may assign work to in
+    # EVERY subject the questions come from -- a Maths teacher can't send
+    # a Physical Sciences question to a learner they only teach Maths, or
+    # any work to a learner outside their classes.
+    if scope is not None:
+        subject_by_question = dict(
+            (
+                await db.execute(
+                    select(Question.id, Topic.subject_id)
+                    .join(Topic, Question.topic_id == Topic.id)
+                    .where(Question.id.in_(question_ids))
+                )
+            ).all()
+        )
+        needed = set(subject_by_question.values())
+        not_allowed = [
+            lid
+            for lid in learner_ids
+            if not all(scope.can_see_subject(lid, sid) for sid in needed)
+        ]
+        if not_allowed:
+            raise AssignmentError(
+                f"{len(not_allowed)} selected student(s) are not in your classes for this "
+                "subject. You can only assign work to learners you teach (or oversee) in it."
+            )
 
     assignment = Assignment(
         school_id=school.id,

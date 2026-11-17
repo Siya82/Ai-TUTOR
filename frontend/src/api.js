@@ -330,11 +330,13 @@ export function createAssignment({
   mode,
   questions,
   learnerIds,
+  classIds, // NEW 17 Nov 2026 (ADR-031): whole classes, expanded on the server
 }) {
   const payload = {
     title,
     questions: questions.map((q) => ({ question_id: q.id, marks: q.marks })),
-    learner_ids: learnerIds,
+    learner_ids: learnerIds || [],
+    class_ids: classIds || [],
   };
   if (instructions) payload.instructions = instructions;
   if (dueAt) payload.due_at = dueAt;
@@ -372,8 +374,11 @@ export function releaseAssignmentResults(token, assignmentId) {
  */
 
 /** Class summary + per-learner risk/accuracy + per-topic class accuracy. `grade` optional. */
-export function fetchClassProgress(token, grade) {
-  const query = grade ? `?grade=${grade}` : "";
+export function fetchClassProgress(token, grade, classId) {
+  const params = new URLSearchParams();
+  if (grade) params.set("grade", grade);
+  if (classId) params.set("class_id", classId); // NEW 17 Nov 2026 (ADR-031)
+  const query = params.toString() ? `?${params}` : "";
   return getJson(`/api/v1/dashboard/progress${query}`, token);
 }
 
@@ -420,4 +425,85 @@ export function submitAssignmentAnswer({ token, assignmentId, questionId, learne
   return postJson(`/assignments/${assignmentId}/questions/${questionId}/answer`, token, {
     learner_response: learnerResponse,
   });
+}
+
+/*
+ * NEW 17 Nov 2026 (ADR-031, school roles and scoping). The /school/*
+ * router: the logged-in staff member's scope, classes, staff, roles and
+ * teaching allocations. Every check is enforced on the server; these
+ * only drive what TeacherAdminScreen.jsx/SchoolPanel.jsx show.
+ */
+
+async function deleteJson(path, token) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `DELETE ${path} failed with status ${response.status}`),
+      response.status
+    );
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+/** Roles, allocations and permissions of the logged-in staff member. */
+export function fetchSchoolMe(token) {
+  return getJson("/school/me", token);
+}
+
+export function fetchClasses(token) {
+  return getJson("/school/classes", token);
+}
+
+export function fetchClassDetail(token, classId) {
+  return getJson(`/school/classes/${classId}`, token);
+}
+
+export function createClass(token, { name, grade }) {
+  return postJson("/school/classes", token, { name, grade: Number(grade) });
+}
+
+export function addClassMembers(token, classId, learnerIds) {
+  return postJson(`/school/classes/${classId}/members`, token, { learner_ids: learnerIds });
+}
+
+export function removeClassMember(token, classId, learnerId) {
+  return deleteJson(`/school/classes/${classId}/members/${learnerId}`, token);
+}
+
+export function fetchStaff(token) {
+  return getJson("/school/staff", token);
+}
+
+/** Returns { user_id, display_name, staff_number, temp_password } -- password shown once. */
+export function createStaff(token, { displayName, staffNumber }) {
+  const body = { display_name: displayName };
+  if (staffNumber) body.staff_number = staffNumber;
+  return postJson("/school/staff", token, body);
+}
+
+export function grantStaffRole(token, userId, { role, subjectName, grade }) {
+  const body = { role };
+  if (subjectName) body.subject_name = subjectName;
+  if (grade) body.grade = Number(grade);
+  return postJson(`/school/staff/${userId}/roles`, token, body);
+}
+
+export function revokeStaffRole(token, roleId) {
+  return deleteJson(`/school/roles/${roleId}`, token);
+}
+
+export function createAllocation(token, { teacherUserId, subjectId, classId }) {
+  return postJson("/school/allocations", token, {
+    teacher_user_id: teacherUserId,
+    subject_id: subjectId,
+    class_id: classId,
+  });
+}
+
+export function deleteAllocation(token, allocationId) {
+  return deleteJson(`/school/allocations/${allocationId}`, token);
 }

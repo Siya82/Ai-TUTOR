@@ -119,6 +119,7 @@ class ClassProgressSummary(BaseModel):
 
 class ClassProgressResponse(BaseModel):
     grade: Optional[int] = None
+    class_id: Optional[str] = None  # NEW 17 Nov 2026 (ADR-031)
     available_grades: List[int]
     summary: ClassProgressSummary
     learners: List[ClassProgressLearner]

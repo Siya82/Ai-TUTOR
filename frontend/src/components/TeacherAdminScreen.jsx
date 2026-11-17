@@ -19,6 +19,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ProgressPanel from "./ProgressPanel";
+import SchoolPanel from "./SchoolPanel";
 import {
   bulkCreateStudents,
   createAssignment,
@@ -26,6 +27,8 @@ import {
   createStudent,
   fetchAdminStudents,
   fetchBankQuestions,
+  fetchClasses,
+  fetchSchoolMe,
   fetchSubjects,
   fetchTeachAssignment,
   fetchTeachAssignments,
@@ -33,19 +36,45 @@ import {
   releaseAssignmentResults,
 } from "../api";
 
+// UPDATED 17 Nov 2026 (ADR-031): which tabs show depends on the staff
+// member's scope from GET /school/me -- `when` is checked against it.
+// The server enforces the same rules; hiding a tab is only convenience.
 const TABS = [
-  { id: "roster", label: "Students" },
-  { id: "add", label: "Add student" },
-  { id: "bulk", label: "Bulk upload" },
-  { id: "assignments", label: "Assignments" },
-  { id: "progress", label: "Progress" }, // NEW 17 Nov 2026 (ADR-030)
+  { id: "roster", label: "Students", when: () => true },
+  { id: "add", label: "Add student", when: (me) => me.can_manage_school },
+  { id: "bulk", label: "Bulk upload", when: (me) => me.can_manage_school },
+  { id: "assignments", label: "Assignments", when: (me) => me.has_academic_access },
+  { id: "progress", label: "Progress", when: (me) => me.has_academic_access }, // ADR-030
+  { id: "school", label: "School", when: (me) => me.can_manage_school }, // ADR-031
 ];
+
+function roleSummary(me) {
+  if (!me) return "Staff";
+  const labels = [...new Set(me.roles.map((r) => r.label))];
+  if (me.allocations.length > 0) labels.push("Teacher");
+  return labels.length ? labels.join(", ") : "Staff (no classes yet)";
+}
 
 export default function TeacherAdminScreen({ auth, onLogout }) {
   const [tab, setTab] = useState("roster");
   const [students, setStudents] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(true);
   const [rosterError, setRosterError] = useState(null);
+  const [me, setMe] = useState(null);
+  const [meError, setMeError] = useState(null);
+
+  const loadMe = async () => {
+    try {
+      setMe(await fetchSchoolMe(auth.token));
+      setMeError(null);
+    } catch (err) {
+      if (err.status === 401) {
+        onLogout();
+        return;
+      }
+      setMeError(err.message);
+    }
+  };
 
   const loadRoster = async () => {
     setRosterLoading(true);
@@ -66,8 +95,15 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
 
   useEffect(() => {
     loadRoster();
+    loadMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const visibleTabs = me ? TABS.filter((t) => t.when(me)) : TABS.filter((t) => t.id === "roster");
+  const refreshAll = () => {
+    loadRoster();
+    loadMe();
+  };
 
   return (
     <div className="admin-screen">
@@ -78,7 +114,10 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         </div>
         <div className="chat-screen__header-right">
           <div className="chat-screen__profile">
-            <span className="chat-screen__profile-name">{auth.school.name} — Teacher</span>
+            <span className="chat-screen__profile-name">
+              {me?.display_name ? `${me.display_name} · ` : ""}
+              {roleSummary(me)} — {auth.school.name}
+            </span>
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               Log out
             </button>
@@ -87,7 +126,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
       </header>
 
       <nav className="admin-screen__tabs">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -99,13 +138,19 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         ))}
       </nav>
 
-      <main className={`admin-screen__body${tab === "progress" ? " admin-screen__body--wide" : ""}`}>
+      <main
+        className={`admin-screen__body${
+          tab === "progress" || tab === "school" ? " admin-screen__body--wide" : ""
+        }`}
+      >
+        {meError && <div className="admin-screen__error">{meError}</div>}
         {tab === "roster" && (
           <RosterPanel
             students={students}
             loading={rosterLoading}
             error={rosterError}
             onRetry={loadRoster}
+            me={me}
           />
         )}
         {tab === "add" && (
@@ -115,15 +160,24 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
           <BulkUploadPanel token={auth.token} onLogout={onLogout} onCreated={loadRoster} />
         )}
         {tab === "progress" && <ProgressPanel token={auth.token} onLogout={onLogout} />}
+        {tab === "school" && me && (
+          <SchoolPanel
+            token={auth.token}
+            onLogout={onLogout}
+            me={me}
+            students={students}
+            onChanged={refreshAll}
+          />
+        )}
         {tab === "assignments" && (
-          <AssignmentsPanel token={auth.token} onLogout={onLogout} students={students} />
+          <AssignmentsPanel token={auth.token} onLogout={onLogout} students={students} me={me} />
         )}
       </main>
     </div>
   );
 }
 
-function RosterPanel({ students, loading, error, onRetry }) {
+function RosterPanel({ students, loading, error, onRetry, me }) {
   if (loading) return <p className="admin-screen__muted">Loading students…</p>;
   if (error) {
     return (
@@ -138,7 +192,9 @@ function RosterPanel({ students, loading, error, onRetry }) {
   if (students.length === 0) {
     return (
       <p className="admin-screen__muted">
-        No students yet — add one, or upload a CSV, using the tabs above.
+        {me && !me.can_manage_school
+          ? "No learners to show yet. You'll see learners here once the principal or school admin allocates you a class."
+          : "No students yet — add one, or upload a CSV, using the tabs above."}
       </p>
     );
   }
@@ -149,6 +205,7 @@ function RosterPanel({ students, loading, error, onRetry }) {
           <th>Name</th>
           <th>Grade</th>
           <th>Student number</th>
+          <th>Classes</th>
           <th>Added</th>
         </tr>
       </thead>
@@ -158,6 +215,7 @@ function RosterPanel({ students, loading, error, onRetry }) {
             <td>{s.display_name}</td>
             <td>{s.grade}</td>
             <td>{s.student_number}</td>
+            <td>{s.classes?.length ? s.classes.join(", ") : <span className="admin-screen__muted">—</span>}</td>
             <td>{new Date(s.created_at).toLocaleDateString()}</td>
           </tr>
         ))}
@@ -352,7 +410,7 @@ function BulkUploadPanel({ token, onLogout, onCreated }) {
   );
 }
 
-function AssignmentsPanel({ token, onLogout, students }) {
+function AssignmentsPanel({ token, onLogout, students, me }) {
   const [assignments, setAssignments] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState(null);
@@ -428,6 +486,7 @@ function AssignmentsPanel({ token, onLogout, students }) {
         token={token}
         onLogout={onLogout}
         students={students}
+        me={me}
         onCreated={loadAssignments}
       />
 
@@ -540,11 +599,14 @@ function AssignmentsPanel({ token, onLogout, students }) {
   );
 }
 
-function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
+function CreateAssignmentForm({ token, onLogout, students, me, onCreated }) {
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [selectedLearnerIds, setSelectedLearnerIds] = useState([]);
+  // NEW 17 Nov 2026 (ADR-031): whole classes can be targeted too
+  const [classes, setClasses] = useState([]);
+  const [selectedClassIds, setSelectedClassIds] = useState([]);
 
   // NEW (ADR-029): "practice" (default) shows AI feedback the instant
   // a student answers, exactly as every assignment behaved before this
@@ -603,6 +665,9 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
         }
         setSubjectsError(err.message);
       });
+    fetchClasses(token)
+      .then(setClasses)
+      .catch(() => setClasses([]));
     fetchTopics(token)
       .then(setTopics)
       .catch((err) => {
@@ -642,7 +707,15 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicId]);
 
-  const subjectsForGrade = subjects.filter((s) => String(s.grade) === String(grade));
+  // NEW 17 Nov 2026 (ADR-031): only subjects this teacher may assign in
+  // (their allocations / department), unless they're whole-school staff.
+  // The server rejects anything else anyway; this just avoids offering it.
+  const allowedSubjectIds = me && !me.whole_school_academic ? new Set(me.visible_subject_ids) : null;
+  const allowedSubjects = allowedSubjectIds
+    ? subjects.filter((s) => allowedSubjectIds.has(s.id))
+    : subjects;
+  const gradeOptions = [...new Set(allowedSubjects.map((s) => s.grade))].sort((a, b) => a - b);
+  const subjectsForGrade = allowedSubjects.filter((s) => String(s.grade) === String(grade));
   const topicsForSubject = topics.filter((t) => t.subject_id === subjectId);
   const draftQuestionIds = new Set(draftQuestions.map((q) => q.id));
 
@@ -660,6 +733,11 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [createdSummary, setCreatedSummary] = useState(null);
+
+  const hasTargets = selectedLearnerIds.length > 0 || selectedClassIds.length > 0;
+  const toggleClass = (id) =>
+    setSelectedClassIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const classesForGrade = grade ? classes.filter((c) => String(c.grade) === String(grade)) : classes;
 
   const toggleLearner = (id) => {
     setSelectedLearnerIds((prev) =>
@@ -713,7 +791,7 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
 
   const handleCreateAssignment = async (e) => {
     e.preventDefault();
-    if (!title.trim() || draftQuestions.length === 0 || selectedLearnerIds.length === 0) return;
+    if (!title.trim() || draftQuestions.length === 0 || !hasTargets) return;
     if (submitting) return;
     setSubmitting(true);
     setSubmitError(null);
@@ -726,6 +804,7 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
         mode,
         questions: draftQuestions,
         learnerIds: selectedLearnerIds,
+        classIds: selectedClassIds,
       });
       setCreatedSummary(created);
       setTitle("");
@@ -734,6 +813,7 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
       setMode("practice");
       setDraftQuestions([]);
       setSelectedLearnerIds([]);
+      setSelectedClassIds([]);
       onCreated();
     } catch (err) {
       if (err.status === 401) {
@@ -782,9 +862,11 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
           <span>Grade</span>
           <select value={grade} onChange={handleGradeChange}>
             <option value="">Select a grade…</option>
-            <option value={10}>10</option>
-            <option value={11}>11</option>
-            <option value={12}>12</option>
+            {gradeOptions.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
           </select>
         </label>
         <label className="admin-form__field">
@@ -896,9 +978,29 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
       </fieldset>
 
       <fieldset className="admin-form__fieldset">
-        <legend>Assign to</legend>
+        <legend>Assign to a whole class</legend>
+        {classesForGrade.length === 0 ? (
+          <p className="admin-screen__muted">
+            {grade ? `No Grade ${grade} classes available to you.` : "No classes available to you yet."}
+          </p>
+        ) : (
+          classesForGrade.map((c) => (
+            <label key={c.id} className="admin-form__checkbox-row">
+              <input
+                type="checkbox"
+                checked={selectedClassIds.includes(c.id)}
+                onChange={() => toggleClass(c.id)}
+              />
+              {c.name} (Grade {c.grade}, {c.member_count} learner{c.member_count === 1 ? "" : "s"})
+            </label>
+          ))
+        )}
+      </fieldset>
+
+      <fieldset className="admin-form__fieldset">
+        <legend>…or to individual learners</legend>
         {students.length === 0 && (
-          <p className="admin-screen__muted">No students yet — add one on the Students tab first.</p>
+          <p className="admin-screen__muted">No learners available to you yet.</p>
         )}
         {students.map((s) => (
           <label key={s.learner_id} className="admin-form__checkbox-row">
@@ -918,7 +1020,7 @@ function CreateAssignmentForm({ token, onLogout, students, onCreated }) {
         className="admin-form__primary-button"
         onClick={handleCreateAssignment}
         disabled={
-          submitting || !title.trim() || draftQuestions.length === 0 || selectedLearnerIds.length === 0
+          submitting || !title.trim() || draftQuestions.length === 0 || !hasTargets
         }
       >
         {submitting ? "Creating…" : "Create assignment"}

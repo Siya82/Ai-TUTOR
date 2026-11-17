@@ -16,7 +16,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_teacher
+from app.core.security import get_current_staff_scope, get_current_teacher
+from app.services.school_scope import StaffScope
 from app.models import (
     Assignment,
     AssignmentQuestion,
@@ -139,6 +140,7 @@ async def list_questions_for_topic(
 async def create_new_assignment(
     payload: AssignmentCreateRequest,
     teacher: User = Depends(get_current_teacher),
+    scope: StaffScope = Depends(get_current_staff_scope),
     db: AsyncSession = Depends(get_db),
 ) -> AssignmentSummary:
     school = await _teacher_school(db, teacher)
@@ -153,6 +155,8 @@ async def create_new_assignment(
             mode=payload.mode,
             questions=[(q.question_id, q.marks) for q in payload.questions],
             learner_ids=payload.learner_ids,
+            class_ids=payload.class_ids,
+            scope=scope,
         )
     except AssignmentError as exc:
         # Bad input (unknown question id, a student outside this
@@ -170,7 +174,13 @@ async def create_new_assignment(
         mode=assignment.mode,
         results_released=assignment.results_released,
         question_count=len(payload.questions),
-        target_count=len(payload.learner_ids),
+        target_count=len(
+            (
+                await db.execute(
+                    select(AssignmentTarget.id).where(AssignmentTarget.assignment_id == assignment.id)
+                )
+            ).scalars().all()
+        ),
         marks_total=sum(q.marks for q in payload.questions),
     )
 

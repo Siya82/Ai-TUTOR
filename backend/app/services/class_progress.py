@@ -74,6 +74,7 @@ class TopicRow:
     subject_name: str
     grade: int
     order_index: int = 0
+    subject_id: Optional[UUID] = None  # NEW (ADR-031): lets callers filter attempts by subject scope
 
 
 def _accuracy(attempts: Iterable[AttemptRow]) -> Optional[float]:

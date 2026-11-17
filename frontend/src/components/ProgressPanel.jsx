@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { fetchClassProgress, fetchLearnerProgress } from "../api";
+import { fetchClasses, fetchClassProgress, fetchLearnerProgress } from "../api";
 
 const RISK_META = {
   high: { label: "High", icon: "▲" },
@@ -69,6 +69,10 @@ function StatTile({ label, value, hint }) {
 
 export default function ProgressPanel({ token, onLogout }) {
   const [grade, setGrade] = useState(null);
+  // NEW 17 Nov 2026 (ADR-031): filter to one class. Classes come from
+  // /school/classes, already limited to the ones this person may see.
+  const [classId, setClassId] = useState("");
+  const [classes, setClasses] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -85,7 +89,19 @@ export default function ProgressPanel({ token, onLogout }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchClassProgress(token, grade)
+    fetchClasses(token)
+      .then((c) => {
+        if (!cancelled) setClasses(c);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchClassProgress(token, grade, classId)
       .then((d) => {
         if (cancelled) return;
         setData(d);
@@ -104,7 +120,7 @@ export default function ProgressPanel({ token, onLogout }) {
     return () => {
       cancelled = true;
     };
-  }, [token, grade, reloadKey]);
+  }, [token, grade, classId, reloadKey]);
 
   const load = () => {
     setLoading(true);
@@ -114,6 +130,12 @@ export default function ProgressPanel({ token, onLogout }) {
     if (g === grade) return;
     setLoading(true);
     setGrade(g);
+    setClassId(""); // a class belongs to one grade; don't leave a stale one selected
+  };
+  const chooseClass = (id) => {
+    if (id === classId) return;
+    setLoading(true);
+    setClassId(id);
   };
 
   if (selectedLearnerId) {
@@ -165,9 +187,26 @@ export default function ProgressPanel({ token, onLogout }) {
             </button>
           ))}
         </div>
-        <button type="button" className="admin-screen__link-button" onClick={load} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="progress-toolbar__right">
+          {classes.length > 0 && (
+            <label className="progress-class-filter">
+              <span className="admin-screen__muted">Class</span>
+              <select value={classId} onChange={(e) => chooseClass(e.target.value)}>
+                <option value="">All my learners</option>
+                {classes
+                  .filter((c) => grade === null || c.grade === grade)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} (Grade {c.grade})
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+          <button type="button" className="admin-screen__link-button" onClick={load} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       <div className="stat-tiles">
@@ -186,7 +225,10 @@ export default function ProgressPanel({ token, onLogout }) {
       <section>
         <h3 className="admin-screen__subheading">Learners</h3>
         {learners.length === 0 ? (
-          <p className="admin-screen__muted">No learners in this grade yet.</p>
+          <p className="admin-screen__muted">
+            No learners to show. You see the learners in the classes you're allocated (or your
+            department, or the whole school, depending on your role).
+          </p>
         ) : (
           <table className="admin-table progress-table">
             <thead>

@@ -21,7 +21,7 @@ from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
-    Learner, Attempt, Question, Topic, Subject, User
+    Learner, Attempt, Question, Topic, Subject, User, ClassMember
 )
 from app.services.risk_assessment import assess_risk, RiskLevel
 from app.services.class_progress import (
@@ -45,7 +45,8 @@ _CORRECT_AS_NUMBER = case((Attempt.is_correct.is_(True), 1), else_=0)
 async def get_learner_mastery(
     db: AsyncSession,
     learner_id: UUID,
-    topic_id: Optional[UUID] = None
+    topic_id: Optional[UUID] = None,
+    subject_ids: Optional[set] = None,
 ) -> Dict:
     """
     Returns mastery summary for a learner:
@@ -75,6 +76,10 @@ async def get_learner_mastery(
     )
     if topic_id:
         stmt = stmt.where(Topic.id == topic_id)
+    # NEW 17 Nov 2026 (ADR-031): None = every subject (whole-school roles);
+    # a set = only those subjects (a teacher's allocation, a departmental head's department).
+    if subject_ids is not None:
+        stmt = stmt.where(Topic.subject_id.in_(subject_ids))
 
     result = await db.execute(stmt)
     rows = result.all()
@@ -92,6 +97,8 @@ async def get_learner_mastery(
     )
     if topic_id:
         mis_stmt = mis_stmt.where(Topic.id == topic_id)
+    if subject_ids is not None:
+        mis_stmt = mis_stmt.where(Topic.subject_id.in_(subject_ids))
     mis_stmt = mis_stmt.order_by(Attempt.created_at.desc()).limit(5)
 
     mis_result = await db.execute(mis_stmt)
@@ -163,6 +170,8 @@ async def get_dashboard_summary(
     learner_id: Optional[UUID] = None,
     topic_id: Optional[UUID] = None,
     school_id: Optional[UUID] = None,
+    subject_ids: Optional[set] = None,
+    learner_ids: Optional[set] = None,
 ) -> Dict:
     """
     Overall dashboard summary:
@@ -181,7 +190,7 @@ async def get_dashboard_summary(
         if not learner:
             return {"error": "Learner not found"}
 
-        mastery = await get_learner_mastery(db, learner_id, topic_id)
+        mastery = await get_learner_mastery(db, learner_id, topic_id, subject_ids)
 
         # FIX 17 Nov 2026 (ADR-030): previously looped over EVERY topic in
         # the learner's grade with 1-2 queries per topic (N+1), and
@@ -191,6 +200,10 @@ async def get_dashboard_summary(
         # app/services/class_progress.py's module docstring.
         topics = await _load_topic_rows(db)
         attempts = await _load_attempt_rows(db, [learner.id])
+        if subject_ids is not None:
+            # ADR-031: only the subjects this viewer may see for this learner
+            topics = {k: t for k, t in topics.items() if t.subject_id in subject_ids}
+            attempts = [a for a in attempts if a.topic_id in topics]
         risks = assess_learner_topics(
             LearnerRow(id=learner.id, name=learner.display_name, grade=learner.grade),
             attempts,
@@ -239,6 +252,8 @@ async def get_dashboard_summary(
         # school_id) is unchanged for every other caller.
         if school_id is not None:
             stmt = stmt.join(User, Learner.user_id == User.id).where(User.school_id == school_id)
+        if learner_ids is not None:  # ADR-031: only learners this viewer may see
+            stmt = stmt.where(Learner.id.in_(learner_ids))
         stmt = stmt.order_by(Learner.display_name)
         result = await db.execute(stmt)
         rows = result.all()
@@ -279,6 +294,7 @@ async def _load_topic_rows(db: AsyncSession) -> Dict[UUID, TopicRow]:
             subject_name=subject_name,
             grade=grade,
             order_index=t.order_index or 0,
+            subject_id=t.subject_id,
         )
         for t, subject_name, grade in rows
     }
@@ -304,40 +320,58 @@ async def _load_attempt_rows(db: AsyncSession, learner_ids: List[UUID]) -> List[
 
 async def get_class_progress(
     db: AsyncSession,
-    school_id: UUID,
+    scope,
     grade: Optional[int] = None,
+    class_id: Optional[UUID] = None,
 ) -> Dict:
     """
-    The TEACH Progress tab payload for one school (optionally one grade).
-    Three queries total regardless of class size: learners, their
-    attempts, topics. Aggregation is pure -- see class_progress.py.
-    Only learners linked to a User in this school are included (same
-    scoping rule as the overview, ADR-024).
+    The TEACH Progress tab payload. Three queries plus the scope lookup,
+    regardless of class size; aggregation is pure (class_progress.py).
+
+    UPDATED 17 Nov 2026 (ADR-031): scoped by the viewer's StaffScope, not
+    just school_id. Only learners the viewer may see academically are
+    listed, and only attempts on subjects the viewer may see FOR THAT
+    LEARNER are counted -- a Maths teacher's view of a learner never
+    includes that learner's Accounting answers.
     """
-    stmt = (
-        select(Learner)
-        .join(User, Learner.user_id == User.id)
-        .where(User.school_id == school_id)
-        .where(User.role == "student")
-    )
-    if grade is not None:
-        stmt = stmt.where(Learner.grade == grade)
-    learners = (await db.execute(stmt.order_by(Learner.display_name))).scalars().all()
+    from app.services.school_scope import ALL_SUBJECTS
+
+    visible_ids = scope.academic_learner_ids()
+    member_ids = None
+    if class_id is not None:
+        member_ids = set(
+            (await db.execute(select(ClassMember.learner_id).where(ClassMember.class_id == class_id)))
+            .scalars()
+            .all()
+        )
+
+    learners: List[Learner] = []
+    if visible_ids:
+        stmt = select(Learner).where(Learner.id.in_(visible_ids))
+        if grade is not None:
+            stmt = stmt.where(Learner.grade == grade)
+        if member_ids is not None:
+            stmt = stmt.where(Learner.id.in_(member_ids or {None}))
+        learners = (await db.execute(stmt.order_by(Learner.display_name))).scalars().all()
 
     learner_rows = [LearnerRow(id=l.id, name=l.display_name, grade=l.grade) for l in learners]
-    attempts = await _load_attempt_rows(db, [l.id for l in learners])
     topics = await _load_topic_rows(db)
+    attempts = [
+        a
+        for a in await _load_attempt_rows(db, [l.id for l in learners])
+        if a.topic_id in topics and scope.can_see_subject(a.learner_id, topics[a.topic_id].subject_id)
+    ]
     data = summarize_class_progress(learner_rows, attempts, topics)
 
-    # Grades present in this school, for the UI's grade filter -- computed
-    # without the grade filter so switching grades never empties the list.
-    grade_stmt = (
-        select(Learner.grade)
-        .join(User, Learner.user_id == User.id)
-        .where(User.school_id == school_id)
-        .where(User.role == "student")
-        .distinct()
-    )
-    data["available_grades"] = sorted(g for (g,) in (await db.execute(grade_stmt)).all())
+    # Grades the viewer can see at all, for the grade chips -- computed
+    # without the grade/class filters so switching never empties the chips.
+    if visible_ids:
+        grade_rows = (
+            await db.execute(select(Learner.grade).where(Learner.id.in_(visible_ids)).distinct())
+        ).all()
+        data["available_grades"] = sorted(g for (g,) in grade_rows)
+    else:
+        data["available_grades"] = []
     data["grade"] = grade
+    data["class_id"] = str(class_id) if class_id else None
     return data

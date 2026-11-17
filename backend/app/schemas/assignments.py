@@ -62,7 +62,11 @@ class AssignmentCreateRequest(BaseModel):
     # Assignment.mode's docstring in app/models/__init__.py.
     mode: Literal["practice", "test"] = "practice"
     questions: list[AssignmentQuestionInput] = Field(min_length=1)
-    learner_ids: list[uuid.UUID] = Field(min_length=1)
+    # UPDATED 17 Nov 2026 (ADR-031): pick individual learners, whole
+    # classes, or both -- at least one learner must result (checked in
+    # create_assignment(), after classes are expanded).
+    learner_ids: list[uuid.UUID] = Field(default_factory=list)
+    class_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class AssignmentSummary(BaseModel):
