@@ -152,6 +152,7 @@ def prepare_tutor_turn(
         grade=recommended_topic.subject.grade,
         diagnosis_note=diagnosis_note,
         grounding_text=grounding_text,
+        section=getattr(recommended_topic, "section", None),  # ADR-046
     )
 
     return TutorTurnPrep(

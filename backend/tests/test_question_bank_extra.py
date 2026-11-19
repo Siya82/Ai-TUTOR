@@ -61,3 +61,49 @@ def test_algebra_answers():
     assert sp.simplify((2 * x**2 - 8) / (x - 2)) == 2 * x + 4
     n = sp.symbols("n")
     assert [(n**2 + n).subs(n, i) for i in range(1, 5)] == [2, 6, 12, 20]
+
+
+def test_chemistry_numbers():
+    """ADR-046: the chemistry and Grade 11 optics answers, re-computed."""
+    assert 23 - 11 == 12
+    assert round(35 * 0.75 + 37 * 0.25, 2) == 35.5
+    assert 2 * 1 + 16 == 18 and 36 / 18 == 2 and 2 / 0.5 == 4
+    assert round(0.5 * 6.02e23 / 1e23, 2) == 3.01
+    assert round(math.degrees(math.asin(math.sin(math.radians(30)) / 1.5)), 2) == 19.47
+    assert round(math.degrees(math.asin(1 / 1.5)), 2) == 41.81
+    assert round(12 / 44 * 100, 2) == 27.27
+    c, h, o = 40 / 12, 6.7 / 1, 53.3 / 16
+    smallest = min(c, h, o)
+    assert [round(v / smallest) for v in (c, h, o)] == [1, 2, 1]  # CH2O
+    assert 6 * 2 / 3 == 4  # N2 + 3H2 -> 2NH3
+    assert 2 * 100 / 200 == 1 and 3 * 600 / 300 == 6 and round(4.48 / 22.4, 2) == 0.2
+    assert 1 + 4 * (-2) + 7 == 0  # K Mn O4
+    assert round(0.34 - (-0.76), 2) == 1.10
+    assert round(-math.log10(0.01), 6) == 2 and round(14 + math.log10(0.001), 6) == 11
+    assert 50 / 25 == 2
+
+
+def test_physical_sciences_has_both_papers():
+    from scripts.chemistry_content import CHEMISTRY, PHYSICS, topic_section
+
+    specs = {(s["name"], s["grade"]): s for s in seed.SUBJECTS}
+    for grade in (10, 11, 12):
+        names = [t for t, _ in specs[("Physical Sciences", grade)]["topics"]]
+        sections = {topic_section("Physical Sciences", grade, n) for n in names}
+        assert sections == {PHYSICS, CHEMISTRY}, grade
+        assert len(names) == len(set(names)), grade  # no duplicate topic names within a grade
+        for name in names:  # every PS topic has at least 4 questions once merged
+            base = specs[("Physical Sciences", grade)]["questions"].get(name, [])
+            extra = EXTRA_QUESTIONS[("Physical Sciences", grade)].get(name, [])
+            assert len(base) + len(extra) >= 4, (grade, name)
+    assert topic_section("Pure Mathematics", 10, "Functions") is None
+
+
+def test_every_mapped_book_chapter_exists_as_a_topic():
+    from scripts.ingest_books import BOOKS
+
+    specs = {(s["name"], s["grade"]): s for s in seed.SUBJECTS}
+    for book in BOOKS:
+        topics = {t for t, _ in specs[(book["subject"], book["grade"])]["topics"]}
+        missing = set(book["topics"]) - topics
+        assert not missing, (book["title"], missing)

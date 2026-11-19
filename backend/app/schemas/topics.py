@@ -26,6 +26,7 @@ class TopicResponse(BaseModel):
     name: str
     caps_reference: str | None
     prerequisite_id: uuid.UUID | None
+    section: str | None = None  # ADR-046: e.g. "Chemistry (Paper 2)"
 
     class Config:
         from_attributes = True

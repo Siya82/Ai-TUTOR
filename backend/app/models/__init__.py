@@ -94,6 +94,10 @@ class Topic(Base):
     # seed_dev_data.py (which follows the real DBE ATP term order, per
     # every subject-addition ADR), set/refreshed there on every seed run.
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # NEW 19 Nov 2026 (ADR-046; migration 0021): the part of the subject a
+    # topic belongs to -- "Physics (Paper 1)" or "Chemistry (Paper 2)" for
+    # Physical Sciences, None elsewhere. LEARN groups the topic list by it.
+    section: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     subject: Mapped["Subject"] = relationship(back_populates="topics")
 

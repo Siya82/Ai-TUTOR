@@ -2986,3 +2986,15 @@ textarea {
     padding: 0.25rem;
   }
 }
+
+/* NEW 19 Nov 2026 (ADR-046): Physics (Paper 1) / Chemistry (Paper 2) headings */
+.subject-group__section {
+  list-style: none;
+  margin: 10px 0 4px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}

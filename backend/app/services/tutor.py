@@ -133,6 +133,7 @@ def build_tutor_system_prompt(
     grade: int = 10,
     diagnosis_note: str | None = None,
     grounding_text: str | None = None,
+    section: str | None = None,
 ) -> str:
     """
     Builds the full tutor system prompt. Always includes, in order: a
@@ -160,16 +161,31 @@ def build_tutor_system_prompt(
     grounding_section = grounding_text or _build_rag_grounding_placeholder(subject_name, grade)
     sections = [
         f"You are THUTOra, a CAPS-aligned Grade {grade} {subject_name} tutor. The current "
-        f"topic is: {topic_name}.",
+        f"topic is: {topic_name}" + (f" ({section})." if section else "."),
         _WORKED_EXAMPLE_ANCHOR,
         _MATH_FORMATTING_RULE,
         _EXPLAIN_WHY_RULE,
         grounding_section,
     ]
+    if section and section.startswith("Chemistry"):  # ADR-046
+        sections.insert(3, _CHEMISTRY_NOTATION_RULE)
     if diagnosis_note:
         sections.append(diagnosis_note)
     sections.append(personalization_block)
     return "\n\n".join(sections)
+
+
+# NEW 19 Nov 2026 (ADR-046). MathGuard checks what's inside $$...$$ as algebra.
+# A chemical equation isn't algebra (2H2 + O2 -> 2H2O would be "wrong" maths),
+# so formulas and reaction equations stay OUT of $$...$$; calculations
+# (moles, concentration, pH, gas laws) stay IN, so they're still verified.
+_CHEMISTRY_NOTATION_RULE = (
+    "Chemistry notation: write chemical formulas and reaction equations as plain text with "
+    "subscripts and arrows, e.g. H₂O, CO₂, Na⁺, 2H₂ + O₂ → 2H₂O, N₂ + 3H₂ ⇌ 2NH₃ -- never inside "
+    "$$...$$. Put calculations (moles, concentration, pH, gas laws, percentages) in $$...$$ as usual, "
+    "with units and the CAPS data-sheet values (e.g. Vm = 22.4 dm³/mol at STP, NA = 6.02 × 10²³ mol⁻¹). "
+    "Use IUPAC names, as CAPS does."
+)
 
 
 class TutorClient:

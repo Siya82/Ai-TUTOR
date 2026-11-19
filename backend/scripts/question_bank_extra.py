@@ -305,12 +305,19 @@ PHYSICS_G12 = {
     ],
 }
 
+from scripts.chemistry_content import (  # noqa: E402  ADR-046
+    CHEM_QUESTIONS_G10,
+    CHEM_QUESTIONS_G11,
+    CHEM_QUESTIONS_G12,
+    PHYSICS_QUESTIONS_G11_EXTRA,
+)
+
 # (subject name, grade) -> extra questions per topic, merged by seed_dev_data.py
 EXTRA_QUESTIONS = {
     ("Pure Mathematics", 10): MATHS_G10,
     ("Pure Mathematics", 11): MATHS_G11,
     ("Pure Mathematics", 12): MATHS_G12,
-    ("Physical Sciences", 10): PHYSICS_G10,
-    ("Physical Sciences", 11): PHYSICS_G11,
-    ("Physical Sciences", 12): PHYSICS_G12,
+    ("Physical Sciences", 10): {**PHYSICS_G10, **CHEM_QUESTIONS_G10},
+    ("Physical Sciences", 11): {**PHYSICS_G11, **PHYSICS_QUESTIONS_G11_EXTRA, **CHEM_QUESTIONS_G11},
+    ("Physical Sciences", 12): {**PHYSICS_G12, **CHEM_QUESTIONS_G12},
 }

@@ -96,3 +96,14 @@ def test_math_formatting_rule_still_applies_to_non_maths_subjects():
     )
     assert "MATH FORMATTING RULE" in prompt
     assert "$$" in prompt
+
+
+def test_chemistry_topics_get_the_notation_rule():
+    """ADR-046: chemical equations stay out of $$...$$ (MathGuard checks algebra)."""
+    from app.services.tutor import build_tutor_system_prompt
+
+    chem = build_tutor_system_prompt("Representing Chemical Change", "", "Physical Sciences", 10,
+                                     section="Chemistry (Paper 2)")
+    phys = build_tutor_system_prompt("Electric Circuits", "", "Physical Sciences", 10, section="Physics (Paper 1)")
+    assert "Chemistry notation" in chem and "2H₂ + O₂ → 2H₂O" in chem and "(Chemistry (Paper 2))" in chem
+    assert "Chemistry notation" not in phys

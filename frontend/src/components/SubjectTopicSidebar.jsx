@@ -109,7 +109,13 @@ export default function SubjectTopicSidebar({
                 </button>
                 {isExpanded && (
                   <ul className="subject-group__topics">
-                    {subjectTopics.map((topic) => (
+                    {subjectTopics.map((topic, i) => [
+                      // ADR-046: "Physics (Paper 1)" / "Chemistry (Paper 2)" headings
+                      topic.section && topic.section !== subjectTopics[i - 1]?.section && (
+                        <li key={`section-${topic.section}`} className="subject-group__section">
+                          {topic.section}
+                        </li>
+                      ),
                       <li key={topic.id}>
                         <button
                           type="button"
@@ -121,8 +127,8 @@ export default function SubjectTopicSidebar({
                         >
                           {topic.name}
                         </button>
-                      </li>
-                    ))}
+                      </li>,
+                    ])}
                     {subjectTopics.length === 0 && (
                       <li className="subject-group__empty">No topics yet</li>
                     )}

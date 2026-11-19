@@ -41,6 +41,13 @@ import asyncio
 from sqlalchemy import select
 
 from scripts.question_bank_extra import EXTRA_QUESTIONS  # code review 19 Nov #15
+from scripts.chemistry_content import (  # ADR-046
+    CHEM_TOPICS_G10,
+    CHEM_TOPICS_G11,
+    CHEM_TOPICS_G12,
+    PHYSICS_TOPICS_G11_EXTRA,
+    topic_section,
+)
 from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models import (
@@ -1363,7 +1370,7 @@ SUBJECTS: list[dict] = [
     {
         "name": "Physical Sciences",
         "grade": 10,
-        "topics": _PHYSICAL_SCIENCES_TOPICS,
+        "topics": _PHYSICAL_SCIENCES_TOPICS + CHEM_TOPICS_G10,  # ADR-046: + Chemistry (Paper 2)
         "questions": _PHYSICAL_SCIENCES_QUESTIONS,
     },
     {
@@ -1375,7 +1382,7 @@ SUBJECTS: list[dict] = [
     {
         "name": "Physical Sciences",
         "grade": 11,
-        "topics": _PHYSICAL_SCIENCES_GRADE11_TOPICS,
+        "topics": _PHYSICAL_SCIENCES_GRADE11_TOPICS + PHYSICS_TOPICS_G11_EXTRA + CHEM_TOPICS_G11,  # ADR-046
         "questions": _PHYSICAL_SCIENCES_GRADE11_QUESTIONS,
     },
     {
@@ -1387,7 +1394,7 @@ SUBJECTS: list[dict] = [
     {
         "name": "Physical Sciences",
         "grade": 12,
-        "topics": _PHYSICAL_SCIENCES_GRADE12_TOPICS,
+        "topics": _PHYSICAL_SCIENCES_GRADE12_TOPICS + CHEM_TOPICS_G12,  # ADR-046
         "questions": _PHYSICAL_SCIENCES_GRADE12_QUESTIONS,
     },
     {
@@ -1428,7 +1435,7 @@ async def get_or_create_subject(session, name: str, grade: int) -> Subject:
 
 
 async def get_or_create_topic(
-    session, name: str, subject_id, prerequisite_id, order_index: int
+    session, name: str, subject_id, prerequisite_id, order_index: int, section: str | None = None
 ) -> Topic:
     """FIX 15 Nov 2026 (live-test finding, order_index column): order_index
     is this topic's position in its subject's own topic list below, which
@@ -1443,8 +1450,9 @@ async def get_or_create_topic(
     )
     existing = result.scalar_one_or_none()
     if existing is not None:
-        if existing.order_index != order_index:
+        if existing.order_index != order_index or existing.section != section:  # ADR-046: section too
             existing.order_index = order_index
+            existing.section = section
             await session.flush()
         return existing
     topic = Topic(
@@ -1452,6 +1460,7 @@ async def get_or_create_topic(
         name=name,
         prerequisite_id=prerequisite_id,
         order_index=order_index,
+        section=section,
     )
     session.add(topic)
     await session.flush()
@@ -1892,7 +1901,8 @@ async def _seed_subject(
         else:
             prerequisite_id = topics_by_name[prereq].id if prereq else None
         topics_by_name[name] = await get_or_create_topic(
-            session, name, subject.id, prerequisite_id, order_index
+            session, name, subject.id, prerequisite_id, order_index,
+            topic_section(subject_spec["name"], subject_spec["grade"], name),  # ADR-046
         )
 
     questions_created = 0

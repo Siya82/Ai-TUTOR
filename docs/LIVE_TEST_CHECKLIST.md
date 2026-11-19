@@ -9,6 +9,14 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## Chemistry (ADR-046)
+
+- [ ] Restart (migration 0021 + re-seed), then re-import books: `python -m scripts.ingest_books`.
+- [ ] LEARN → Grade 10 → Physical Sciences shows "Physics (Paper 1)" and "Chemistry (Paper 2)".
+- [ ] Open "The Atom": the textbook panel shows "Chapter 4: The atom"; the keyboard has ₂ ⁺ → ⇌.
+- [ ] Ask "Balance Mg + HCl" and "How many moles in 36 g of water?". The equation is in plain text and the calculation shows ✓ Math verified.
+- [ ] TEACH → new assignment → Physical Sciences → a chemistry topic → bank questions appear.
+
 ## Review fixes (ADR-045)
 
 - [ ] Restart (migration 0020 + re-seed adds 145 practice questions).

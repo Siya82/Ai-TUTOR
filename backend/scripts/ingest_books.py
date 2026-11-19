@@ -80,8 +80,9 @@ def _siyavula(file_name: str, title: str, subject: str, grade: int, topics: dict
 # Topic -> the book's chapter title(s) that teach it (matched case-insensitively,
 # without the "Chapter N:" prefix). Checked against the real Siyavula CC BY
 # ePubs on 17 Nov 2026. Chapters with no seeded CAPS topic (e.g. Grade 11
-# "Linear programming", every Chemistry chapter) are simply left unmapped:
-# still readable, just not tied to a tutor topic.
+# "Linear programming") are simply left unmapped: still readable, just not
+# tied to a tutor topic. UPDATED 19 Nov 2026 (ADR-046): the Chemistry chapters
+# (and Grade 11 optics/wavefronts) now map to the new chemistry topics.
 BOOKS: list[dict] = [
     _siyavula("everything-maths-grade-10.epub", "Everything Maths Grade 10", "Pure Mathematics", 10, {
         "Algebraic Expressions": ["Algebraic expressions"],
@@ -133,6 +134,17 @@ BOOKS: list[dict] = [
         "Magnetism": ["Magnetism"],
         "Electrostatics": ["Electrostatics"],
         "Electric Circuits": ["Electric circuits"],
+        # ADR-046: Chemistry (Paper 2)
+        "Classification of Matter": ["Classification of matter"],
+        "States of Matter and the Kinetic Molecular Theory": ["States of matter and the kinetic molecular theory"],
+        "The Atom": ["The atom"],
+        "The Periodic Table": ["The periodic table"],
+        "Chemical Bonding": ["Chemical bonding", "The particles that substances are made of"],
+        "Physical and Chemical Change": ["Physical and chemical change"],
+        "Representing Chemical Change": ["Representing chemical change"],
+        "Reactions in Aqueous Solution": ["Reactions in aqueous solution"],
+        "Quantitative Aspects of Chemical Change": ["Quantitative aspects of chemical change"],
+        "The Hydrosphere": ["The hydrosphere"],
     }),
     _siyavula("everything-science-grade-11.epub", "Everything Science Grade 11", "Physical Sciences", 11, {
         "Vectors in Two Dimensions": ["Vectors in two dimensions"],
@@ -141,6 +153,17 @@ BOOKS: list[dict] = [
         "Electrostatics": ["Electrostatics"],
         "Electromagnetism": ["Electromagnetism"],
         "Electric Circuits": ["Electric circuits"],
+        # ADR-046
+        "Geometrical Optics": ["Geometrical optics"],
+        "2D and 3D Wavefronts": ["2D and 3D wavefronts"],
+        "Atomic Combinations and Molecular Structure": ["Atomic combinations"],
+        "Intermolecular Forces": ["Intermolecular forces"],
+        "Ideal Gases": ["Ideal gases"],
+        "Quantitative Aspects of Chemical Change": ["Quantitative aspects of chemical change"],
+        "Energy and Chemical Change": ["Energy and chemical change"],
+        "Acids and Bases": ["Types of reactions"],  # acid-base and redox share this chapter
+        "Redox Reactions": ["Types of reactions"],
+        "The Lithosphere": ["The lithosphere"],
     }),
     _siyavula("everything-science-grade-12.epub", "Everything Science Grade 12", "Physical Sciences", 12, {
         "Momentum and Impulse": ["Momentum and impulse"],
@@ -150,6 +173,13 @@ BOOKS: list[dict] = [
         "Electric Circuits": ["Electric circuits"],
         "Electrodynamics": ["Electrodynamics"],
         "Photoelectric Effect": ["Optical phenomena and properties of matter"],
+        # ADR-046
+        "Organic Molecules": ["Organic molecules"],
+        "Rate and Extent of Reaction": ["Rate and Extent of Reaction"],
+        "Chemical Equilibrium": ["Chemical equilibrium"],
+        "Acids and Bases": ["Acids and bases"],
+        "Electrochemical Reactions": ["Electrochemical reactions"],
+        "The Chemical Industry": ["The chemical industry"],
     }),
 ]
 

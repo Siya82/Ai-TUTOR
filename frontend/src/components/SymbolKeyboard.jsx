@@ -338,6 +338,16 @@ const TOPIC_SYMBOLS = {
     { label: "λ", insert: "λ" },
     { label: "Hz", insert: "Hz" },
   ],
+  // NEW 19 Nov 2026 (ADR-046): the two Grade 11 physics topics added with Chemistry
+  "Geometrical Optics": [
+    { label: "θ", insert: "θ" },
+    { label: "°", insert: "°" },
+    { label: "sin", insert: "sin(" },
+  ],
+  "2D and 3D Wavefronts": [
+    { label: "λ", insert: "λ" },
+    { label: "θ", insert: "θ" },
+  ],
   // NEW 15 Nov 2026 (ADR-022, Accounting Grade 12 added): same R/%
   // convenience row as every other Accounting entry above. "Fixed
   // Assets", "Inventory Systems", "Value-Added Tax (VAT)",
@@ -369,8 +379,26 @@ const TOPIC_SYMBOLS = {
   ],
 };
 
-export default function SymbolKeyboard({ topicName, onInsert, onNextBox }) {
-  const topicButtons = TOPIC_SYMBOLS[topicName] || [];
+// NEW 19 Nov 2026 (ADR-046): one row for every Chemistry (Paper 2) topic --
+// subscripts for formulas (H₂O), charges for ions, reaction arrows, and the
+// units chemistry calculations use.
+const CHEMISTRY_SYMBOLS = [
+  { label: "₂", insert: "₂" },
+  { label: "₃", insert: "₃" },
+  { label: "₄", insert: "₄" },
+  { label: "⁺", insert: "⁺" },
+  { label: "⁻", insert: "⁻" },
+  { label: "²⁺", insert: "²⁺" },
+  { label: "→", insert: " → " },
+  { label: "⇌", insert: " ⇌ " },
+  { label: "ΔH", insert: "ΔH" },
+  { label: "mol/dm³", insert: "mol/dm³" },
+  { label: "°C", insert: "°C" },
+];
+
+export default function SymbolKeyboard({ topicName, section, onInsert, onNextBox }) {
+  const topicButtons =
+    section && section.startsWith("Chemistry") ? CHEMISTRY_SYMBOLS : TOPIC_SYMBOLS[topicName] || [];
 
   return (
     <div className="symbol-keyboard" role="toolbar" aria-label="Math symbol keyboard">

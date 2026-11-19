@@ -771,6 +771,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
 
       <SymbolKeyboard
         topicName={topics.find((t) => t.id === topicId)?.name}
+        section={topics.find((t) => t.id === topicId)?.section}
         onInsert={insertSymbol}
         onNextBox={jumpToNextBox}
       />

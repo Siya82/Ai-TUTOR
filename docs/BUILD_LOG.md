@@ -3173,3 +3173,13 @@ assignments.closed_at, audit_events). New: tests/integration (20 HTTP tests),
 TEST_DATABASE_URL), 22 frontend tests, lint, build, browser run of school
 search, chat history, My progress, change password, answer review + override,
 ADMIN Activity, and 390px phone widths for LEARN, TEACH and ADMIN.
+
+## 19 Nov 2026 — Chemistry (Paper 2) in Physical Sciences (ADR-046)
+
+24 chemistry topics (Gr 10: 10, Gr 11: 8, Gr 12: 6) + Gr 11 Geometrical
+Optics and 2D/3D Wavefronts, each with 4 questions and its Everything
+Science chapter; Physics/Chemistry headings in LEARN; chemistry keyboard row;
+tutor notation rule so reaction equations aren't checked as algebra.
+Migration 0021. Checked: 294 backend tests, lint, build, seed + book import
+(22/16/13 chapter ranges, no warnings), browser run of Grade 10 → The Atom
+with its chapter and the chemistry keys, MathGuard on a mixed reply.
