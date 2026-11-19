@@ -10,6 +10,7 @@ import { Settings } from "lucide-react";
 import { fetchHomeLanguages, setHomeLanguage } from "../api";
 import { isLowData, setLowData } from "../utils/lowData";
 import { ICON_BUTTON } from "./icons";
+import PrivacyNotice from "./PrivacyNotice";
 
 export default function LearnerSettings({ token, learner, onLearnerChange }) {
   const [open, setOpen] = useState(false);
@@ -17,6 +18,7 @@ export default function LearnerSettings({ token, learner, onLearnerChange }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [lowData, setLowDataState] = useState(isLowData);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const boxRef = useRef(null);
 
   useEffect(() => {
@@ -105,8 +107,12 @@ export default function LearnerSettings({ token, learner, onLearnerChange }) {
             Save data (textbook pictures load only when you tap them)
           </label>
           {error && <div className="admin-screen__error">{error}</div>}
+          <button type="button" className="privacy-link" onClick={() => setShowPrivacy(true)}>
+            Privacy notice
+          </button>
         </div>
       )}
+      {showPrivacy && <PrivacyNotice onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 }

@@ -32,6 +32,7 @@ from app.routers import admin as admin_router  # NEW 15 Nov 2026, teacher dashbo
 from app.routers import teach_assignments as teach_assignments_router  # NEW 15 Nov 2026, teacher assignment authoring/scoring (ADR-028)
 from app.routers import learner_assignments as learner_assignments_router  # NEW 15 Nov 2026, learner assignment answering (ADR-028)
 from app.routers import teacher_today as teacher_today_router  # NEW 19 Nov 2026 (ADR-036)
+from app.routers import privacy as privacy_router  # NEW 19 Nov 2026 (ADR-037)
 
 app = FastAPI(
     title="AI CAPS Tutor — Pilot API",
@@ -87,6 +88,7 @@ app.add_middleware(
 )
 
 app.include_router(teacher_today_router.router)
+app.include_router(privacy_router.router)
 app.include_router(tutor_router.router, prefix="/tutor", tags=["tutor"])
 app.include_router(topics_router.router, tags=["topics"])  # NEW 8 Nov 2026, step 7
 # REMOVED 17 Nov 2026 (code review #1): GET /learners/ listed every learner in every

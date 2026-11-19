@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_staff_scope, get_current_teacher
-from app.models import ClassMember, Learner, School, SchoolClass, User
+from app.models import ClassMember, ConsentRecord, Learner, School, SchoolClass, User
 from app.services.school_scope import StaffScope
 from app.schemas.admin import (
     BulkStudentRowError,
@@ -151,6 +151,19 @@ async def list_students(
         .order_by(User.is_active.desc(), Learner.grade, Learner.display_name)
     )
     rows = (await db.execute(stmt)).all()
+    # ADR-037: which of these learners have an active consent on record
+    consented = set()
+    if rows:
+        consented = set(
+            (
+                await db.execute(
+                    select(ConsentRecord.learner_id).where(
+                        ConsentRecord.learner_id.in_([learner.id for learner, _ in rows]),
+                        ConsentRecord.withdrawn_at.is_(None),
+                    )
+                )
+            ).scalars().all()
+        )
     class_names: dict = {}
     for lid, cname in (
         await db.execute(
@@ -171,6 +184,7 @@ async def list_students(
             created_at=user.created_at,
             classes=class_names.get(learner.id, []),
             is_active=bool(user.is_active),
+            has_consent=learner.id in consented,
         )
         for learner, user in rows
     ]

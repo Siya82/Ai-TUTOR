@@ -2246,3 +2246,76 @@ body {
   font-size: 0.92rem;
   line-height: 1.5;
 }
+
+/* NEW 19 Nov 2026 (ADR-037): privacy notice and consent */
+.privacy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+.privacy-notice {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  max-width: 720px;
+  width: 100%;
+  padding: 1.5rem;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.privacy-notice h3 {
+  font-size: 1rem;
+  margin: 1.2rem 0 0.4rem;
+}
+.privacy-notice__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.privacy-notice__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.privacy-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.consent-badge {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.consent-badge--yes {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+.consent-badge--no {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}
+.consent-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.6rem;
+  align-items: end;
+  margin: 0.5rem 0 1rem;
+}
+button.consent-badge {
+  border: none;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}

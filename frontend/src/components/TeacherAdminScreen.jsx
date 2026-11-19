@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import ProgressPanel from "./ProgressPanel";
 import { BarChart3, ClipboardList, LogOut, School, Sun, Upload, UserPlus, Users } from "lucide-react";
 import TodayPanel from "./TodayPanel";
+import LearnerPrivacyPanel from "./LearnerPrivacyPanel";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import SchoolPanel from "./SchoolPanel";
 import {
@@ -213,6 +214,7 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
   const [busyId, setBusyId] = useState(null);
   const [notice, setNotice] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [privacyFor, setPrivacyFor] = useState(null); // ADR-037
 
   const run = async (learner, action) => {
     setBusyId(learner.user_id);
@@ -271,6 +273,21 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
         </div>
       )}
       {actionError && <div className="admin-screen__error">{actionError}</div>}
+      {privacyFor && (
+        <LearnerPrivacyPanel
+          key={privacyFor.learner_id}
+          token={token}
+          learner={privacyFor}
+          canManage={canManage}
+          onClose={() => setPrivacyFor(null)}
+          onChanged={onChanged}
+        />
+      )}
+      {students.some((st) => st.is_active !== false && !st.has_consent) && (
+        <p className="admin-screen__muted">
+          Learners marked "Not yet" have no parent/guardian consent recorded. Click it to record a signed form.
+        </p>
+      )}
       <table className="admin-table">
         <thead>
           <tr>
@@ -278,6 +295,7 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
             <th>Grade</th>
             <th>Student number</th>
             <th>Classes</th>
+            <th>Consent</th>
             <th>Added</th>
             <th></th>
           </tr>
@@ -292,6 +310,17 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
               <td>{s.grade}</td>
               <td>{s.student_number}</td>
               <td>{s.classes?.length ? s.classes.join(", ") : <span className="admin-screen__muted">—</span>}</td>
+              <td>
+                {/* ADR-037: parent/guardian consent status */}
+                <button
+                  type="button"
+                  className={`consent-badge ${s.has_consent ? "consent-badge--yes" : "consent-badge--no"}`}
+                  onClick={() => setPrivacyFor(s)}
+                  title="Consent and privacy"
+                >
+                  {s.has_consent ? "Yes" : "Not yet"}
+                </button>
+              </td>
               <td>{new Date(s.created_at).toLocaleDateString()}</td>
               <td className="admin-table__actions">
                 {s.is_active !== false && (

@@ -22,9 +22,11 @@
 
 import { useEffect, useState } from "react";
 import { changePassword, fetchSchools, login } from "../api";
+import PrivacyNotice from "./PrivacyNotice";
 
 export default function LoginScreen({ onLogin, notice }) {
   const [schools, setSchools] = useState([]);
+  const [showPrivacy, setShowPrivacy] = useState(false); // ADR-037
   const [schoolId, setSchoolId] = useState("");
   const [studentNumber, setStudentNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -221,7 +223,11 @@ export default function LoginScreen({ onLogin, notice }) {
             {loading ? "Logging in…" : "Log in"}
           </button>
         </form>
+        <button type="button" className="privacy-link" onClick={() => setShowPrivacy(true)}>
+          Privacy notice
+        </button>
       </div>
+      {showPrivacy && <PrivacyNotice onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-"""ADR-035/036: learner home language; privacy consent records.
+"""ADR-035: learner home language.
 
 Revision ID: 0014
 Revises: 0013

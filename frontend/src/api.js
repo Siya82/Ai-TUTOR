@@ -651,3 +651,48 @@ export function fetchToday(token) {
 export function createTodayPractice(token, topicId, learnerIds) {
   return postJson("/teach/today/practice", token, { topic_id: topicId, learner_ids: learnerIds });
 }
+
+/*
+ * NEW 19 Nov 2026 (ADR-037): POPIA -- consent, export, delete.
+ */
+export function fetchConsent(token, learnerId) {
+  return getJson(`/school/learners/${learnerId}/consent`, token);
+}
+
+export function recordConsent(token, learnerId, { givenByName, relationship, method }) {
+  return postJson(`/school/learners/${learnerId}/consent`, token, {
+    given_by_name: givenByName,
+    relationship_to_learner: relationship,
+    method,
+  });
+}
+
+export function withdrawConsent(token, learnerId) {
+  return postJson(`/school/learners/${learnerId}/consent/withdraw`, token, {});
+}
+
+export async function downloadLearnerExport(token, learnerId) {
+  const response = await fetch(`${API_BASE_URL}/school/learners/${learnerId}/export`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw httpError(formatErrorDetail(body.detail, "Export failed"), response.status);
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/);
+  return { blob: await response.blob(), fileName: match ? match[1] : "thutora_learner.json" };
+}
+
+export async function deleteLearnerData(token, learnerId, confirmName) {
+  const response = await fetch(`${API_BASE_URL}/school/learners/${learnerId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ confirm_name: confirmName }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw httpError(formatErrorDetail(body.detail, "Delete failed"), response.status);
+  }
+  return response.json();
+}

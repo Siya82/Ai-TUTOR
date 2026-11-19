@@ -56,3 +56,4 @@ class StudentRosterItem(BaseModel):
     # NEW 17 Nov 2026 (ADR-031): names of the classes this learner is in
     classes: list[str] = []
     is_active: bool = True  # code review #13
+    has_consent: bool = False  # ADR-037: an active parent/guardian consent is on record

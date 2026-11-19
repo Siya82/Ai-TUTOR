@@ -595,3 +595,26 @@ class BookTopicRange(Base):
     topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("topics.id"), nullable=False)
     start_page: Mapped[int] = mapped_column(Integer, nullable=False)
     end_page: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class ConsentRecord(Base):
+    """
+    NEW 19 Nov 2026 (ADR-037, POPIA basics, migration 0015). A learner is a
+    child under POPIA, so processing their personal information rests on a
+    parent's/guardian's consent (or the school's own lawful basis). The
+    school collects consent -- usually a signed form -- and a staff member
+    records it here; THUTOra keeps who gave it, how, against which version
+    of the privacy notice, and when it was withdrawn, if ever.
+    """
+
+    __tablename__ = "consent_records"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"), nullable=False, index=True)
+    given_by_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    relationship_to_learner: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g. "Mother", "Guardian"
+    method: Mapped[str] = mapped_column(String(30), nullable=False)  # "signed_form" | "parent_portal" | "other"
+    notice_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    recorded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
