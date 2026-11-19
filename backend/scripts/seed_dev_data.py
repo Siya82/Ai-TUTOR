@@ -46,6 +46,7 @@ from app.models import (
     Circuit,
     District,
     OfficialAssignment,
+    ParentLink,
     ClassMember,
     ContentChunk,
     Learner,
@@ -1625,7 +1626,9 @@ async def get_or_create_demo_teacher_account(session, school: School) -> User:
     return user
 
 
-DEV_OFFICIAL_NUMBER = "O00001"
+DEV_OFFICIAL_NUMBER = "O00001"          # district official (Demo District Office)
+DEV_CIRCUIT_OFFICIAL_NUMBER = "C00001"  # circuit manager (Demo Circuit Office)
+DEV_PARENT_NUMBER = "G00001"            # parent of the dev learner 100001 (Demo School)
 
 
 async def ensure_dev_insights(session, school: School) -> None:
@@ -1676,6 +1679,66 @@ async def ensure_dev_insights(session, school: School) -> None:
     ).scalar_one_or_none()
     if exists is None:
         session.add(OfficialAssignment(user_id=official.id, district_id=district.id))
+
+    # NEW 19 Nov 2026: a circuit manager, logging in through the circuit's office.
+    circuit_office = (
+        await session.execute(select(School).where(School.name == "Demo Circuit Office", School.kind == "office"))
+    ).scalar_one_or_none()
+    if circuit_office is None:
+        circuit_office = School(name="Demo Circuit Office", kind="office")
+        session.add(circuit_office)
+        await session.flush()
+    manager = (
+        await session.execute(
+            select(User).where(
+                User.school_id == circuit_office.id, User.student_number == DEV_CIRCUIT_OFFICIAL_NUMBER
+            )
+        )
+    ).scalar_one_or_none()
+    if manager is None:
+        manager = User(role="official", school_id=circuit_office.id, student_number=DEV_CIRCUIT_OFFICIAL_NUMBER)
+        session.add(manager)
+    manager.display_name = "Dev Circuit Manager"
+    manager.password_hash = hash_password(DEV_STUDENT_PASSWORD)
+    manager.must_change_password = False
+    manager.is_active = True
+    await session.flush()
+    has_circuit = (
+        await session.execute(
+            select(OfficialAssignment).where(
+                OfficialAssignment.user_id == manager.id, OfficialAssignment.circuit_id == circuit.id
+            )
+        )
+    ).scalar_one_or_none()
+    if has_circuit is None:
+        session.add(OfficialAssignment(user_id=manager.id, circuit_id=circuit.id))
+
+
+async def ensure_dev_parent(session, school: School, learner: Learner) -> None:
+    """
+    NEW 19 Nov 2026 (ADR-038). A parent login G00001 (password DevPass123!)
+    linked to the dev learner 100001, for trying the CONNECT view. Idempotent.
+    """
+    parent = (
+        await session.execute(
+            select(User).where(User.school_id == school.id, User.student_number == DEV_PARENT_NUMBER)
+        )
+    ).scalar_one_or_none()
+    if parent is None:
+        parent = User(role="parent", school_id=school.id, student_number=DEV_PARENT_NUMBER)
+        session.add(parent)
+    parent.display_name = "Dev Parent"
+    parent.password_hash = hash_password(DEV_STUDENT_PASSWORD)
+    parent.must_change_password = False
+    parent.is_active = True
+    await session.flush()
+    link = (
+        await session.execute(
+            select(ParentLink).where(ParentLink.parent_user_id == parent.id, ParentLink.learner_id == learner.id)
+        )
+    ).scalar_one_or_none()
+    if link is None:
+        session.add(ParentLink(parent_user_id=parent.id, learner_id=learner.id, relationship_to_learner="Parent"))
 
 
 async def ensure_dev_school_structure(session, school: School, teacher: User, learner: Learner) -> User:
@@ -1858,6 +1921,7 @@ async def main() -> None:
         demo_teacher = await get_or_create_demo_teacher_account(session, demo_school)
         demo_principal = await ensure_dev_school_structure(session, demo_school, demo_teacher, learner)
         await ensure_dev_insights(session, demo_school)  # ADR-039
+        await ensure_dev_parent(session, demo_school, learner)  # ADR-038
 
         await session.commit()
 

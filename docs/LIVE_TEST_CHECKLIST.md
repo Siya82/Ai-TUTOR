@@ -11,7 +11,10 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 
 ## New features (19 Nov 2026, ADR-035 to ADR-039)
 
-Re-run the seed first so the demo official exists: `python -m scripts.seed_dev_data`.
+Re-run the seed first so the demo logins exist: `python -m scripts.seed_dev_data`.
+Demo logins (password `DevPass123!` for all): parent **G00001** at THUTOra Demo School
+(child: Test Learner 100001); district official **O00001** at Demo District Office;
+circuit manager **C00001** at Demo Circuit Office.
 
 - [ ] Teacher `T00001` opens on **Today**; "Send practice" on a weak topic creates a practice assignment
 - [ ] Learner `100001` → Settings → Also explain in **isiZulu**; ask a question in isiZulu: explanation uses isiZulu but keeps English terms
