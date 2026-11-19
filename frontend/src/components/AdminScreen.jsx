@@ -13,6 +13,7 @@ import {
   IdCard,
   LayoutDashboard,
   LayoutGrid,
+  History,
   LogOut,
   School,
   Settings,
@@ -24,10 +25,12 @@ import { fetchAdminStudents, fetchSchoolMe, fetchSchoolOverview } from "../api";
 import { roleSummary } from "../utils/staff";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import NoticesSection from "./NoticesSection";
+import ActivityLog from "./ActivityLog";
 import SchoolPanel from "./SchoolPanel";
 import SchoolSettings from "./SchoolSettings";
 import { AddStudentPanel, BulkUploadPanel, RosterPanel } from "./TeacherAdminScreen";
 import Wordmark from "./Wordmark";
+import ChangePassword from "./ChangePassword";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -36,6 +39,7 @@ const TABS = [
   { id: "staff", label: "Staff", icon: IdCard },
   { id: "notices", label: "Notices", icon: Bell },
   { id: "settings", label: "School settings", icon: Settings },
+  { id: "activity", label: "Activity", icon: History }, // code review 19 Nov #11
 ];
 
 function StatTile({ label, value, sub }) {
@@ -216,6 +220,7 @@ export default function AdminScreen({ auth, onLogout, switcher }) {
               {me?.display_name ? `${me.display_name} · ` : ""}
               {roleSummary(me)} — {schoolName}
             </span>
+            <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />
               Log out
@@ -268,6 +273,7 @@ export default function AdminScreen({ auth, onLogout, switcher }) {
         )}
         {tab === "notices" && <NoticesSection token={auth.token} />}
         {tab === "settings" && <SchoolSettings token={auth.token} onRenamed={setSchoolName} />}
+        {tab === "activity" && <ActivityLog token={auth.token} />}
       </main>
     </div>
   );

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # NEW 19 Nov 2026 (ADR-043). How parent sign-up codes are sent; see
     # app/services/sms.py. Empty = off (in development: written to the log).
     sms_provider: str = ""
+    # code review 19 Nov #3: tutor questions per learner per day (South
+    # African day). Keeps the Claude bill predictable; 0 = no limit.
+    tutor_daily_limit: int = 60
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
 

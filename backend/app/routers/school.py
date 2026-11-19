@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.audit import record as audit  # code review 19 Nov #11
 from app.core.database import get_db
 from app.core.security import get_current_staff_scope, get_current_teacher
 from app.models import (
@@ -377,6 +378,7 @@ async def create_staff(
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     user.display_name = payload.display_name.strip()
+    await audit(db, scope.user_id, scope.school_id, "staff.create", "user", user.id, {"name": user.display_name})
     await db.commit()
     return StaffCreateResult(
         user_id=user.id,
@@ -434,6 +436,7 @@ async def grant_role(
         granted_by_user_id=scope.user_id,
     )
     db.add(role)
+    await audit(db, scope.user_id, scope.school_id, "role.grant", "user", target.id, {"role": payload.role, "subject": payload.subject_name, "grade": payload.grade})
     await db.commit()
     return _role_out(role)
 
@@ -452,6 +455,7 @@ async def revoke_role(
     if role.role not in scope.grantable_roles:
         raise HTTPException(status_code=403, detail=f"You can't remove the {ROLE_LABELS.get(role.role, role.role)} role")
     await db.delete(role)
+    await audit(db, scope.user_id, scope.school_id, "role.revoke", "user", role.user_id, {"role": role.role})
     await db.commit()
 
 
@@ -598,6 +602,7 @@ async def reset_password(
     user.password_hash = hash_password(temp)
     user.must_change_password = True
     user.token_version = (user.token_version or 0) + 1
+    await audit(db, scope.user_id, scope.school_id, "password.reset", "user", user.id, {"role": user.role})
     await db.commit()
     return PasswordResetResult(user_id=user.id, temp_password=temp)
 
@@ -621,6 +626,7 @@ async def set_active(
     user.is_active = payload.active
     if not payload.active:
         user.token_version = (user.token_version or 0) + 1
+    await audit(db, scope.user_id, scope.school_id, "user.reactivate" if payload.active else "user.deactivate", "user", user.id, {"role": user.role})
     await db.commit()
 
 
@@ -668,6 +674,7 @@ async def promote_learners(
             removed = result.rowcount or 0
         for learner in learners:
             learner.grade = payload.grade + 1
+    await audit(db, scope.user_id, scope.school_id, "learners.promote", "grade", payload.grade, {"promoted": len(ids)})
     await db.commit()
     return PromoteResult(promoted=len(ids), removed_from_classes=removed)
 
@@ -712,3 +719,79 @@ async def delete_class(
     await db.execute(delete(TeachingAllocation).where(TeachingAllocation.class_id == cls.id))
     await db.delete(cls)
     await db.commit()
+
+
+# --- NEW 19 Nov 2026 (code review 19 Nov #8): correct a person's details ------------------
+
+from pydantic import BaseModel as _BaseModel, Field as _Field  # noqa: E402
+
+
+class PersonEdit(_BaseModel):
+    display_name: str | None = _Field(default=None, min_length=1, max_length=100)
+    login_number: str | None = _Field(default=None, min_length=1, max_length=50)
+    grade: int | None = _Field(default=None, ge=1, le=12)  # learners only
+
+
+@router.patch("/users/{user_id}")
+async def edit_person(
+    user_id: uuid.UUID,
+    payload: PersonEdit,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Fix a name typo, a student/staff number, or a learner's grade (e.g. a
+    learner who repeats a year) without recreating the account -- so their
+    history, marks and parent links stay. School management only. Changing
+    a learner's grade takes them out of their old grade's classes.
+    """
+    _require_manage(scope)
+    user = await _user_in_school(db, user_id, scope)
+    changes: dict = {}
+    learner = None
+    if user.role == "student":
+        learner = (await db.execute(select(Learner).where(Learner.user_id == user.id))).scalar_one_or_none()
+    if payload.display_name is not None:
+        name = payload.display_name.strip()
+        if learner is not None:
+            changes["name"] = [learner.display_name, name]
+            learner.display_name = name
+        else:
+            changes["name"] = [user.display_name, name]
+        user.display_name = name
+    if payload.login_number is not None:
+        number = payload.login_number.strip()
+        if number != user.student_number:
+            clash = (
+                await db.execute(
+                    select(User.id).where(User.school_id == user.school_id, User.student_number == number, User.id != user.id)
+                )
+            ).first()
+            if clash:
+                raise HTTPException(status_code=400, detail=f"Number {number} is already in use at this school")
+            changes["login_number"] = [user.student_number, number]
+            user.student_number = number
+    if payload.grade is not None:
+        if learner is None:
+            raise HTTPException(status_code=400, detail="Only a learner has a grade")
+        if payload.grade != learner.grade:
+            old_classes = (
+                await db.execute(
+                    select(SchoolClass.id).where(SchoolClass.school_id == scope.school_id, SchoolClass.grade == learner.grade)
+                )
+            ).scalars().all()
+            if old_classes:
+                await db.execute(
+                    delete(ClassMember).where(ClassMember.learner_id == learner.id, ClassMember.class_id.in_(old_classes))
+                )
+            changes["grade"] = [learner.grade, payload.grade]
+            learner.grade = payload.grade
+    if changes:
+        await audit(db, scope.user_id, scope.school_id, "user.edit", "user", user.id, changes)
+    await db.commit()
+    return {
+        "user_id": str(user.id),
+        "display_name": learner.display_name if learner else user.display_name,
+        "login_number": user.student_number,
+        "grade": learner.grade if learner else None,
+    }

@@ -39,6 +39,7 @@ from app.schemas.assignments import (
 )
 from app.services.assignments import (
     AssignmentError,
+    answers_closed_reason,
     create_assignment,
     create_custom_question,
     get_assignment_completion,
@@ -373,6 +374,9 @@ async def get_assignment(
         created_at=assignment.created_at,
         mode=assignment.mode,
         results_released=assignment.results_released,
+        answers_closed=answers_closed_reason(assignment),
+        closed=assignment.closed_at is not None,
+        can_change=_can_release(scope, assignment),
         questions=question_items,
         completions=completion_items,
     )
@@ -397,3 +401,204 @@ async def release_results(
     await db.commit()
     names = await _teacher_names(db, {assignment.teacher_user_id})
     return _summary(assignment, facts, scope, names)
+
+
+# ---------------------------------------------------------------------------
+# NEW 19 Nov 2026 (code review 19 Nov #2): see what each learner wrote, and
+# correct the AI's mark. (#7): edit, extend, close, duplicate, delete.
+# Changing anything is for the teacher who set it, or school management --
+# the same people who may release results.
+# ---------------------------------------------------------------------------
+
+from datetime import datetime, timezone  # noqa: E402
+
+from pydantic import BaseModel, Field  # noqa: E402
+from sqlalchemy import delete, func  # noqa: E402
+
+from app.core.clock import utcnow_naive  # noqa: E402
+from app.models import Attempt  # noqa: E402
+from app.services.audit import record as audit  # noqa: E402
+
+
+def _require_owner(scope: StaffScope, assignment: Assignment) -> None:
+    if not _can_release(scope, assignment):
+        raise HTTPException(status_code=403, detail="Only the teacher who set this, or school management, can change it")
+
+
+@router.get("/assignments/{assignment_id}/learners/{learner_id}/answers")
+async def learner_answers(
+    assignment_id: uuid.UUID,
+    learner_id: uuid.UUID,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    assignment, facts = await _visible_assignment(db, assignment_id, scope)
+    if learner_id not in facts.learner_ids:
+        raise HTTPException(status_code=404, detail="That learner wasn't given this assignment")
+    learner = await db.get(Learner, learner_id)
+    aqs = (
+        await db.execute(
+            select(AssignmentQuestion, Question)
+            .join(Question, AssignmentQuestion.question_id == Question.id)
+            .where(AssignmentQuestion.assignment_id == assignment.id)
+            .order_by(AssignmentQuestion.order_index)
+        )
+    ).all()
+    attempts = (
+        await db.execute(
+            select(Attempt)
+            .where(Attempt.assignment_id == assignment.id, Attempt.learner_id == learner_id)
+            .order_by(Attempt.created_at)
+        )
+    ).scalars().all()
+    by_q: dict[uuid.UUID, list[Attempt]] = {}
+    for at in attempts:
+        by_q.setdefault(at.question_id, []).append(at)
+    items = []
+    for aq, q in aqs:
+        tries = by_q.get(q.id, [])
+        latest = tries[-1] if tries else None
+        items.append(
+            {
+                "question_id": str(q.id),
+                "text": q.text,
+                "model_answer": q.model_answer,
+                "marks": aq.marks,
+                "tries": len(tries),
+                "attempt_id": str(latest.id) if latest else None,
+                "learner_response": latest.learner_response if latest else None,
+                "is_correct": latest.is_correct if latest else None,
+                "ai_feedback": latest.ai_feedback if latest else None,
+                "teacher_note": latest.teacher_note if latest else None,
+                "marked_by_teacher": bool(latest and latest.marked_by_user_id),
+                "answered_at": latest.created_at.isoformat() if latest else None,
+            }
+        )
+    return {
+        "learner_id": str(learner_id),
+        "display_name": learner.display_name if learner else "",
+        "can_mark": _can_release(scope, assignment),
+        "questions": items,
+    }
+
+
+class MarkOverride(BaseModel):
+    is_correct: bool
+    note: str | None = Field(default=None, max_length=1000)
+
+
+@router.post("/assignments/{assignment_id}/attempts/{attempt_id}/mark")
+async def override_mark(
+    assignment_id: uuid.UUID,
+    attempt_id: uuid.UUID,
+    payload: MarkOverride,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    assignment, _ = await _visible_assignment(db, assignment_id, scope)
+    _require_owner(scope, assignment)
+    attempt = await db.get(Attempt, attempt_id)
+    if attempt is None or attempt.assignment_id != assignment.id:
+        raise HTTPException(status_code=404, detail="Answer not found")
+    before = attempt.is_correct
+    attempt.is_correct = payload.is_correct
+    attempt.teacher_note = (payload.note or "").strip() or None
+    attempt.marked_by_user_id = scope.user_id
+    attempt.marked_at = utcnow_naive()
+    await audit(db, scope.user_id, scope.school_id, "mark.override", "attempt", attempt.id,
+                {"assignment_id": str(assignment.id), "from": before, "to": payload.is_correct})
+    await db.commit()
+    return {"attempt_id": str(attempt.id), "is_correct": attempt.is_correct, "teacher_note": attempt.teacher_note}
+
+
+class AssignmentEdit(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    instructions: str | None = Field(default=None, max_length=4000)
+    due_at: datetime | None = None
+
+
+@router.patch("/assignments/{assignment_id}")
+async def edit_assignment(
+    assignment_id: uuid.UUID,
+    payload: AssignmentEdit,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Title, instructions, due date (extend it, or set one). Questions and
+    learners stay fixed once issued -- duplicate to make a changed copy."""
+    assignment, _ = await _visible_assignment(db, assignment_id, scope)
+    _require_owner(scope, assignment)
+    assignment.title = payload.title.strip()
+    assignment.instructions = (payload.instructions or "").strip() or None
+    due = payload.due_at
+    if due is not None and due.tzinfo is not None:  # stored as naive UTC, like every timestamp here
+        due = due.astimezone(timezone.utc).replace(tzinfo=None)
+    assignment.due_at = due
+    await db.commit()
+    return {"id": str(assignment.id), "title": assignment.title, "due_at": assignment.due_at}
+
+
+@router.post("/assignments/{assignment_id}/close")
+async def close_assignment(
+    assignment_id: uuid.UUID,
+    reopen: bool = False,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    assignment, _ = await _visible_assignment(db, assignment_id, scope)
+    _require_owner(scope, assignment)
+    assignment.closed_at = None if reopen else utcnow_naive()
+    await db.commit()
+    return {"id": str(assignment.id), "closed": assignment.closed_at is not None}
+
+
+@router.post("/assignments/{assignment_id}/duplicate")
+async def duplicate_assignment(
+    assignment_id: uuid.UUID,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """A fresh copy (same questions, marks and learners) the caller owns."""
+    assignment, facts = await _visible_assignment(db, assignment_id, scope)
+    copy = Assignment(
+        school_id=assignment.school_id,
+        teacher_user_id=scope.user_id,
+        title=f"{assignment.title} (copy)"[:200],
+        instructions=assignment.instructions,
+        mode=assignment.mode,
+    )
+    db.add(copy)
+    await db.flush()
+    for aq in (
+        await db.execute(select(AssignmentQuestion).where(AssignmentQuestion.assignment_id == assignment.id))
+    ).scalars():
+        db.add(AssignmentQuestion(assignment_id=copy.id, question_id=aq.question_id, order_index=aq.order_index,
+                                  marks=aq.marks))
+    for lid in set(facts.learner_ids):
+        db.add(AssignmentTarget(assignment_id=copy.id, learner_id=lid))
+    await db.commit()
+    return {"id": str(copy.id), "title": copy.title}
+
+
+@router.delete("/assignments/{assignment_id}", status_code=204)
+async def delete_assignment(
+    assignment_id: uuid.UUID,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Only before anyone has answered -- afterwards, close it instead, so
+    learners' work and marks are never thrown away."""
+    assignment, _ = await _visible_assignment(db, assignment_id, scope)
+    _require_owner(scope, assignment)
+    answered = (
+        await db.execute(select(func.count()).select_from(Attempt).where(Attempt.assignment_id == assignment.id))
+    ).scalar_one()
+    if answered:
+        raise HTTPException(status_code=409, detail="Learners have already answered this. Close it instead of deleting.")
+    await db.execute(delete(AssignmentTarget).where(AssignmentTarget.assignment_id == assignment.id))
+    await db.execute(delete(AssignmentQuestion).where(AssignmentQuestion.assignment_id == assignment.id))
+    await db.execute(delete(Assignment).where(Assignment.id == assignment.id))
+    await audit(db, scope.user_id, scope.school_id, "assignment.delete", "assignment", assignment.id,
+                {"title": assignment.title})
+    await db.commit()
+

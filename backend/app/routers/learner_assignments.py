@@ -201,6 +201,9 @@ async def get_my_assignment(
                 ai_feedback=None if this_withheld else (attempt.ai_feedback if attempt else None),
                 learner_response=attempt.learner_response if attempt else None,
                 feedback_withheld=this_withheld,
+                # code review 19 Nov #2: the teacher's correction, when there is one
+                teacher_note=None if this_withheld or attempt is None else attempt.teacher_note,
+                marked_by_teacher=bool(attempt and attempt.marked_by_user_id and not this_withheld),
             )
         )
 

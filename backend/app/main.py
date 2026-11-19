@@ -119,3 +119,27 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
     return {"status": "ok", "environment": settings.environment}
 
 app.include_router(dashboard_router.router, prefix="/api/v1", tags=["dashboard"])
+
+
+@app.on_event("startup")
+async def _report_pending_registrations() -> None:
+    """code review 19 Nov #16: say at every start-up if schools are waiting."""
+    try:
+        from sqlalchemy import func, select
+
+        from app.core.database import async_session_factory
+        from app.models import SchoolRegistration
+
+        async with async_session_factory() as db:
+            pending = (
+                await db.execute(
+                    select(func.count()).select_from(SchoolRegistration).where(SchoolRegistration.status == "pending")
+                )
+            ).scalar_one()
+        if pending:
+            log.warning(
+                "%d school registration request(s) waiting. List them with: python -m scripts.manage_registrations list",
+                pending,
+            )
+    except Exception as exc:  # noqa: BLE001 -- never block start-up for a reminder
+        log.info("Couldn't check school registrations at start-up: %s", exc)

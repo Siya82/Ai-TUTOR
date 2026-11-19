@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, IdCard, LayoutGrid } from "lucide-react";
 import NoticesSection from "./NoticesSection";
+import EditPerson from "./EditPerson";
 import { ICON_BUTTON } from "./icons";
 import {
   addClassMembers,
@@ -575,7 +576,7 @@ function StaffSection({ token, me, staff, classes, subjects, run }) {
 }
 
 function StaffCard({ token, me, member, classes, subjects, run }) {
-  const [mode, setMode] = useState(null); // "role" | "allocate" | null
+  const [mode, setMode] = useState(null); // "role" | "allocate" | "edit" (code review 19 Nov #8) | null
   const [notice, setNotice] = useState(null);
   const isMe = member.user_id === me.user_id;
   const canRevoke = (role) => !isMe && me.grantable_roles.includes(role.role);
@@ -596,6 +597,9 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
         {/* NEW 17 Nov 2026 (code review #13): forgotten password / left the school */}
         {!isMe && (
           <div className="staff-card__actions">
+            <button type="button" className="admin-screen__link-button" onClick={() => setMode(mode === "edit" ? null : "edit")}>
+              Edit
+            </button>
             {member.is_active !== false && (
               <button
                 type="button"
@@ -634,6 +638,18 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
         )}
       </div>
 
+      {mode === "edit" && (
+        <EditPerson
+          token={token}
+          isLearner={false}
+          person={{ user_id: member.user_id, display_name: member.display_name, login_number: member.staff_number }}
+          onCancel={() => setMode(null)}
+          onSaved={() => {
+            setMode(null);
+            run(async () => null);
+          }}
+        />
+      )}
       <div className="staff-card__row">
         <span className="staff-card__label">Roles</span>
         <div className="staff-card__chips">

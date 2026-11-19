@@ -11,10 +11,13 @@ system prompt against the same client.
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 
 from app.services.tutor import TutorClient
+
+log = logging.getLogger("thutora.marking")
 
 _MARKING_SYSTEM_PROMPT_TEMPLATE = """\
 You are marking a single student answer against a model answer. Be strict \
@@ -83,8 +86,13 @@ async def mark_answer(
             system_prompt, [{"role": "user", "content": "Mark this answer."}], max_tokens=600
         )
     except Exception as exc:  # noqa: BLE001 -- any API failure degrades to unmarked
+        # FIX 19 Nov 2026 (code review 19 Nov follow-up): the raw API error used
+        # to be saved as the feedback -- learners and teachers saw things like
+        # "invalid x-api-key". Log it; show a plain message instead.
+        log.warning("Automatic marking failed: %s", exc)
         return MarkingResult(
-            is_correct=None, feedback=f"Marking failed (API error): {exc}"
+            is_correct=None,
+            feedback="THUTOra couldn't mark this automatically right now. Your teacher can mark it.",
         )
 
     cleaned = _JSON_FENCE_RE.sub("", raw.strip()).strip()

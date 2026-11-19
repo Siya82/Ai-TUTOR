@@ -2754,3 +2754,235 @@ textarea {
   align-items: center;
   gap: 12px;
 }
+
+/* NEW 19 Nov 2026 (code review 19 Nov #2, #7): answer review, assignment controls */
+.answer-review__list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.answer-review__item {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 12px;
+}
+.answer-review__question {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.answer-review__answer {
+  margin-bottom: 4px;
+}
+.answer-review__mark {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-2, rgba(255, 255, 255, 0.06));
+}
+.answer-review__mark--right {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+.answer-review__mark--wrong {
+  background: var(--color-danger-tint);
+  color: var(--color-danger);
+}
+.answer-review__feedback {
+  margin: 6px 0;
+  color: var(--color-text-muted);
+}
+.answer-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.answer-review__actions input {
+  flex: 1 1 220px;
+}
+.answer-review__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.answer-review__btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.assignment-controls {
+  margin: 8px 0 12px;
+}
+.assignment-controls__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.assignment-controls__row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.assignment-question-card__teacher {
+  font-size: 13px;
+  font-weight: 400;
+}
+.assignment-question-card__note {
+  margin: 6px 0 0;
+}
+
+/* NEW 19 Nov 2026 (code review 19 Nov #12): school search on the login page */
+.school-picker__chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-background);
+}
+.school-picker__results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 10px;
+}
+.school-picker__results:empty {
+  display: none;
+}
+.school-picker__results li > button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--color-text);
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  padding: 9px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+.school-picker__results li > button:hover,
+.school-picker__results li > button:focus-visible {
+  background: var(--color-accent-tint);
+}
+.school-picker__results li.admin-screen__muted {
+  padding: 9px 12px;
+}
+.school-picker__kind {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+/* NEW 19 Nov 2026 (code review 19 Nov #9): change-password dialog */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 12, 30, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+}
+.modal-card {
+  width: min(420px, 100%);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 24px;
+}
+@media (max-width: 700px) {
+  .change-password__label {
+    display: none;
+  }
+}
+
+/* NEW 19 Nov 2026 (code review 19 Nov #3, #6) */
+.chat-screen__usage {
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 4px 0;
+}
+.my-progress {
+  padding: 24px;
+  overflow-y: auto;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+.my-progress__title {
+  margin: 0 0 16px;
+  font-size: 22px;
+}
+
+/* NEW 19 Nov 2026 (code review 19 Nov #8) */
+.edit-person {
+  margin: 8px 0;
+}
+.edit-person__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* NEW 19 Nov 2026 (code review 19 Nov #13): on phones the tab bars scroll
+   sideways inside themselves instead of making the whole page wider. */
+.admin-screen__tabs,
+.chat-screen__view-toggle {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.admin-screen,
+.admin-screen__body {
+  min-width: 0;
+  max-width: 100vw;
+}
+.admin-screen__tab {
+  flex-shrink: 0;
+}
+.admin-table {
+  display: block;
+  overflow-x: auto;
+}
+@media (min-width: 701px) {
+  .admin-table {
+    display: table;
+  }
+}
+
+/* FIX 19 Nov 2026 (code review 19 Nov follow-up): with the textbook open the
+   chat column is narrow -- let it shrink instead of running under the book
+   panel, and show the four view buttons as icons only (their names stay
+   readable to screen readers). */
+.app-shell > .chat-screen {
+  min-width: 0;
+}
+.chat-screen__composer input {
+  min-width: 0;
+}
+.app-shell--with-book .chat-screen__view-toggle-button {
+  font-size: 0;
+  padding: 0.25rem;
+}
+.app-shell--with-book .chat-screen__view-toggle-button .icon-chip {
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .chat-screen__view-toggle-button {
+    font-size: 0;
+    padding: 0.25rem;
+  }
+}

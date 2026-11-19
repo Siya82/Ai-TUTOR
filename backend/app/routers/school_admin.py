@@ -12,6 +12,7 @@ this router adds what ADMIN needs on top:
   POST /schools/registrations -- public "Register your school" request
 """
 
+import logging
 import time
 import uuid
 from collections import defaultdict, deque
@@ -21,6 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.audit import record as audit  # code review 19 Nov #11
 from app.core.database import get_db
 from app.core.security import get_current_staff_scope
 from app.models import (
@@ -40,6 +42,7 @@ from app.services.family import normalize_sa_cellphone
 from app.services.school_scope import StaffScope
 
 router = APIRouter(tags=["admin-workspace"])
+log = logging.getLogger("thutora.registrations")
 
 PROVINCES = [
     "Eastern Cape",
@@ -119,6 +122,7 @@ async def update_profile(
     school.physical_address = _blank(payload.physical_address)
     school.parent_signup_enabled = payload.parent_signup_enabled
     school.viewer_invites_enabled = payload.viewer_invites_enabled
+    await audit(db, scope.user_id, scope.school_id, "school.settings", "school", school.id, {"parent_signup_enabled": school.parent_signup_enabled, "viewer_invites_enabled": school.viewer_invites_enabled})
     await db.commit()
     return _profile_out(school, scope)
 
@@ -286,7 +290,78 @@ async def register_school(payload: RegistrationIn, request: Request, db: AsyncSe
     )
     db.add(reg)
     await db.commit()
+    # code review 19 Nov #16: make a new request impossible to miss in the logs
+    log.warning(
+        "NEW SCHOOL REGISTRATION %s: %s (%s), contact %s. Review with: python -m scripts.manage_registrations show %s",
+        str(reg.id)[:8].upper(), reg.school_name, reg.province, reg.contact_name, str(reg.id)[:8].upper(),
+    )
     return {
         "reference": str(reg.id)[:8].upper(),
         "message": "Thank you. The THUTOra team will contact you to confirm your school and set up the principal's login.",
     }
+
+
+# --- audit trail (code review 19 Nov #11) ------------------------------------------------
+
+
+@router.get("/school/audit")
+async def school_audit(
+    limit: int = 100,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The last sensitive actions at this school, newest first -- principal,
+    deputy and school admin only. Names are resolved now (a deleted learner
+    shows as "a deleted learner")."""
+    _require_manage(scope)
+    from app.models import AuditEvent
+    from app.services.audit import LABELS
+
+    events = (
+        await db.execute(
+            select(AuditEvent)
+            .where(AuditEvent.school_id == scope.school_id)
+            .order_by(AuditEvent.created_at.desc())
+            .limit(max(1, min(limit, 500)))
+        )
+    ).scalars().all()
+    user_ids = {e.actor_user_id for e in events if e.actor_user_id}
+    learner_ids, target_user_ids = set(), set()
+    for e in events:
+        try:
+            tid = uuid.UUID(e.target_id) if e.target_id else None
+        except ValueError:
+            tid = None
+        if tid and e.target_type == "learner":
+            learner_ids.add(tid)
+        elif tid and e.target_type == "user":
+            target_user_ids.add(tid)
+    names = {}
+    if user_ids | target_user_ids:
+        for uid, dn, num in (
+            await db.execute(
+                select(User.id, User.display_name, User.student_number).where(User.id.in_(user_ids | target_user_ids))
+            )
+        ).all():
+            names[str(uid)] = dn or num
+    if learner_ids:
+        for lid, dn in (await db.execute(select(Learner.id, Learner.display_name).where(Learner.id.in_(learner_ids)))).all():
+            names[str(lid)] = dn
+    out = []
+    for e in events:
+        target = None
+        if e.target_type in ("learner", "user"):
+            target = names.get(e.target_id) or f"a deleted {e.target_type}"
+        elif e.target_type == "grade":
+            target = f"Grade {e.target_id}"
+        out.append(
+            {
+                "at": e.created_at.isoformat(),
+                "action": e.action,
+                "label": LABELS.get(e.action, e.action),
+                "by": names.get(str(e.actor_user_id), "THUTOra") if e.actor_user_id else "THUTOra",
+                "target": target,
+                "details": e.details or {},
+            }
+        )
+    return {"events": out}

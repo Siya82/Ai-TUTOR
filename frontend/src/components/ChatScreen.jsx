@@ -35,7 +35,15 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { fetchSubjects, fetchTopics, sendTutorMessage, uploadAttachment } from "../api";
+import {
+  fetchSubjects,
+  fetchTopics,
+  fetchTutorSessionMessages,
+  fetchTutorSessions,
+  fetchTutorUsage,
+  sendTutorMessage,
+  uploadAttachment,
+} from "../api";
 import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking } from "../utils/tts";
 import ModalitySwitcher from "./ModalitySwitcher";
 import SubjectTopicSidebar from "./SubjectTopicSidebar";
@@ -45,12 +53,14 @@ import SymbolKeyboard from "./SymbolKeyboard";
 import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
 import LibraryView from "./LibraryView";
 import LearnerSettings from "./LearnerSettings"; // NEW 17 Nov 2026 (ADR-032, e-book library)
-import { BookOpen, BookOpenText, ClipboardList, LogOut, MessageCircle, Paperclip } from "lucide-react";
+import { BookOpen, BookOpenText, ClipboardList, LogOut, MessageCircle, Paperclip, TrendingUp } from "lucide-react";
+import MyProgress from "./MyProgress";
 import TopicTextbook from "./TopicTextbook";
 import { MathPreview, MathText } from "./MathText";
 import { nextSlot, toTutorText } from "../utils/mathInput";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import Wordmark from "./Wordmark";
+import ChangePassword from "./ChangePassword";
 
 function topicNameById(topics, id) {
   const topic = topics.find((t) => t.id === id);
@@ -138,7 +148,9 @@ function AssistantMessage({ message, topics }) {
         </button>
       )}
 
-      <MathVerifiedBadge mathVerified={mathVerified} verificationWarnings={verificationWarnings} />
+      {!message.fromHistory && (
+        <MathVerifiedBadge mathVerified={mathVerified} verificationWarnings={verificationWarnings} />
+      )}
     </div>
   );
 }
@@ -223,7 +235,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   // NEW 15 Nov 2026 (ADR-028, assignments). A lightweight in-screen
   // toggle rather than a real route -- matches how TeacherAdminScreen.jsx
   // switches its own tabs with local state, not a router.
-  const [view, setView] = useState("chat"); // "chat" | "assignments" | "library"
+  const [view, setView] = useState("chat"); // "chat" | "assignments" | "library" | "progress"
   // NEW 19 Nov 2026 (ADR-041): the topic's textbook chapter beside the chat.
   // Open by default on wide screens; the learner's choice is remembered.
   const [bookPanelOpen, setBookPanelOpen] = useState(() => {
@@ -259,6 +271,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [sendError, setSendError] = useState(null);
+  const [questionsLeft, setQuestionsLeft] = useState(null); // code review 19 Nov #3
   // NEW 13 Nov 2026 (ADR-016): files attached to the question currently
   // being composed -- each entry starts as { tempId, original_filename,
   // uploading: true } and is filled in with the backend's { id, kind,
@@ -315,6 +328,45 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
     setSubjectId(newSubjectId);
     setTopicId(newTopicId);
   };
+
+  // NEW 19 Nov 2026 (code review 19 Nov #5): each topic has its own
+  // conversation, kept on the server -- opening a topic shows where the
+  // learner left off (after a refresh, the next day, or on another device).
+  useEffect(() => {
+    if (!topicId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [sessions, usage] = await Promise.all([
+          fetchTutorSessions(auth.token),
+          fetchTutorUsage(auth.token).catch(() => null),
+        ]);
+        if (cancelled) return;
+        if (usage) setQuestionsLeft(usage.left_today);
+        const mine = sessions.find((x) => x.topic_id === topicId);
+        if (!mine) {
+          setMessages([]);
+          setSessionId(null);
+          return;
+        }
+        const history = await fetchTutorSessionMessages(auth.token, mine.session_id);
+        if (cancelled) return;
+        setSessionId(history.session_id);
+        setMessages(
+          history.messages.map((m) =>
+            m.role === "user"
+              ? { role: "user", text: m.content, attachments: [] }
+              : { role: "assistant", reply: m.content, modality: "text", fromHistory: true, topicId }
+          )
+        );
+      } catch {
+        /* history is a convenience: the chat still works without it */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [topicId, auth.token]);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
@@ -523,6 +575,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
         token: auth.token,
       });
       setSessionId(response.session_id);
+      setQuestionsLeft(response.questions_left_today ?? null);
       setMessages((prev) => [
         ...prev,
         {
@@ -588,6 +641,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
                 (view === "chat" ? " chat-screen__view-toggle-button--active" : "")
               }
               onClick={() => setView("chat")}
+              title="Tutor chat"
             >
               <span className="icon-chip"><MessageCircle size={ICON_NAV} aria-hidden="true" /></span>
               Tutor chat
@@ -599,6 +653,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
                 (view === "library" ? " chat-screen__view-toggle-button--active" : "")
               }
               onClick={() => setView("library")}
+              title="Library"
             >
               <span className="icon-chip"><BookOpen size={ICON_NAV} aria-hidden="true" /></span>
               Library
@@ -610,9 +665,23 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
                 (view === "assignments" ? " chat-screen__view-toggle-button--active" : "")
               }
               onClick={() => setView("assignments")}
+              title="Assignments"
             >
               <span className="icon-chip"><ClipboardList size={ICON_NAV} aria-hidden="true" /></span>
               Assignments
+            </button>
+            {/* code review 19 Nov #6 */}
+            <button
+              type="button"
+              className={
+                "chat-screen__view-toggle-button" +
+                (view === "progress" ? " chat-screen__view-toggle-button--active" : "")
+              }
+              onClick={() => setView("progress")}
+              title="My progress"
+            >
+              <span className="icon-chip"><TrendingUp size={ICON_NAV} aria-hidden="true" /></span>
+              My progress
             </button>
           </nav>
           {view === "chat" && <ModalitySwitcher modality={modality} onChange={setModality} />}
@@ -634,6 +703,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">{auth.learner.display_name}</span>
             <LearnerSettings token={auth.token} learner={auth.learner} onLearnerChange={onLearnerChange} />
+            <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />
               Log out
@@ -644,6 +714,16 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
 
       {view === "assignments" ? (
         <AssignmentsView auth={auth} onLogout={onLogout} />
+      ) : view === "progress" ? (
+        <MyProgress
+          token={auth.token}
+          topics={topics}
+          onPractise={(topic) => {
+            setSubjectId(topic.subject_id);
+            setTopicId(topic.id);
+            setView("chat");
+          }}
+        />
       ) : view === "library" ? (
         <LibraryView
           auth={auth}
@@ -681,6 +761,13 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
       </div>
 
       {sendError && <div className="chat-screen__error">{sendError}</div>}
+      {questionsLeft != null && questionsLeft <= 10 && !sendError && (
+        <div className="chat-screen__usage">
+          {questionsLeft === 0
+            ? "You've used today's questions. You can ask again tomorrow."
+            : `${questionsLeft} question${questionsLeft === 1 ? "" : "s"} left today`}
+        </div>
+      )}
 
       <SymbolKeyboard
         topicName={topics.find((t) => t.id === topicId)?.name}

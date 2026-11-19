@@ -23,24 +23,25 @@
 import { useEffect, useState } from "react";
 import {
   changePassword,
-  fetchSchools,
   fetchSignupAvailable,
   login,
 } from "../api";
 import ParentSignup from "./ParentSignup";
+import SchoolPicker from "./SchoolPicker";
+import { recalledSchool, rememberSchool } from "../utils/lastSchool";
 import RegisterSchool from "./RegisterSchool";
 import PrivacyNotice from "./PrivacyNotice";
 import Wordmark from "./Wordmark";
 
 export default function LoginScreen({ onLogin, notice }) {
-  const [schools, setSchools] = useState([]);
   const [showPrivacy, setShowPrivacy] = useState(false); // ADR-037
-  const [schoolId, setSchoolId] = useState("");
+  // code review 19 Nov #12: search for the school; remember it on this device
+  const [school, setSchool] = useState(recalledSchool);
+  const schoolId = school?.id || "";
   const [studentNumber, setStudentNumber] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [loadError, setLoadError] = useState(null);
   const [familyMode, setFamilyMode] = useState(null); // ADR-043: null | "signup" | "invite" | "register" (ADR-044)
   const [signupEnabled, setSignupEnabled] = useState(false);
 
@@ -66,23 +67,10 @@ export default function LoginScreen({ onLogin, notice }) {
     };
   }, [schoolId]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const fetchedSchools = await fetchSchools();
-        setSchools(fetchedSchools);
-        if (fetchedSchools.length > 0) setSchoolId(fetchedSchools[0].id);
-        else
-          setLoadError(
-            "No schools are set up yet. Run backend/scripts/seed_dev_data.py, or ask THUTOra to add one.",
-          );
-      } catch (err) {
-        setLoadError(
-          `Could not reach the backend at http://localhost:8000 (${err.message}). Is uvicorn running?`,
-        );
-      }
-    })();
-  }, []);
+  const finish = (response) => {
+    if (school) rememberSchool(school);
+    onLogin(response);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -98,7 +86,7 @@ export default function LoginScreen({ onLogin, notice }) {
       if (response.must_change_password) {
         setPendingSession(response);
       } else {
-        onLogin(response);
+        finish(response);
       }
     } catch (err) {
       setError(err.message);
@@ -132,7 +120,7 @@ export default function LoginScreen({ onLogin, notice }) {
       });
       // Code review #6: changing the password ends older tokens, so the
       // backend returns a fresh one for this session.
-      onLogin({
+      finish({
         ...pendingSession,
         access_token: changed.access_token || pendingSession.access_token,
         must_change_password: false,
@@ -223,10 +211,9 @@ export default function LoginScreen({ onLogin, notice }) {
           ) : (
             <ParentSignup
               mode={familyMode}
-              schools={schools}
-              schoolId={schoolId}
-              setSchoolId={setSchoolId}
-              onLogin={onLogin}
+              school={school}
+              setSchool={setSchool}
+              onLogin={finish}
               onBack={() => setFamilyMode(null)}
             />
           )}
@@ -241,27 +228,12 @@ export default function LoginScreen({ onLogin, notice }) {
         {brand}
         <h1 className="login-screen__title">Log in</h1>
         {notice && <div className="login-screen__notice">{notice}</div>}
-        {loadError && <div className="login-screen__error">{loadError}</div>}
         <form
           className="login-screen__form"
           onSubmit={handleSubmit}
           autoComplete="on"
         >
-          <label className="login-screen__field">
-            <span>School</span>
-            <select
-              name="organization"
-              value={schoolId}
-              onChange={(e) => setSchoolId(e.target.value)}
-              disabled={schools.length === 0}
-            >
-              {schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SchoolPicker value={school} onChange={setSchool} autoFocus={!school} />
           <label className="login-screen__field">
             {/* NEW 15 Nov 2026 (ADR-024): the backend's User.student_number
                 column is reused as a generic login identifier for a
@@ -275,7 +247,7 @@ export default function LoginScreen({ onLogin, notice }) {
               autoComplete="username"
               value={studentNumber}
               onChange={(e) => setStudentNumber(e.target.value)}
-              autoFocus
+              autoFocus={!!school}
               required
             />
           </label>
@@ -291,7 +263,7 @@ export default function LoginScreen({ onLogin, notice }) {
             />
           </label>
           {error && <div className="login-screen__error">{error}</div>}
-          <button type="submit" disabled={loading || schools.length === 0}>
+          <button type="submit" disabled={loading || !school}>
             {loading ? "Logging in…" : "Log in"}
           </button>
         </form>

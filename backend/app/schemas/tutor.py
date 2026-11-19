@@ -57,3 +57,5 @@ class TutorMessageResponse(BaseModel):
     reply: str
     math_verified: bool
     verification_warnings: list[str]
+    # code review 19 Nov #3: None when there's no daily limit
+    questions_left_today: int | None = None

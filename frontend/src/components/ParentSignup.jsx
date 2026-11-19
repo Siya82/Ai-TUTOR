@@ -9,6 +9,7 @@
  * Both end by logging in normally, so the session looks like any other.
  */
 import { useState } from "react";
+import SchoolPicker from "./SchoolPicker";
 import { login, redeemViewerInvite, startParentSignup, verifyParentSignup } from "../api";
 
 function PasswordFields({ password, setPassword, confirm, setConfirm }) {
@@ -42,7 +43,8 @@ function PasswordFields({ password, setPassword, confirm, setConfirm }) {
   );
 }
 
-export default function ParentSignup({ mode, schools, schoolId, setSchoolId, onLogin, onBack }) {
+export default function ParentSignup({ mode, school, setSchool, onLogin, onBack }) {
+  const schoolId = school?.id || "";
   const [step, setStep] = useState("phone");
   const [cellphone, setCellphone] = useState("");
   const [code, setCode] = useState("");
@@ -81,16 +83,7 @@ export default function ParentSignup({ mode, schools, schoolId, setSchoolId, onL
     });
 
   const schoolSelect = (
-    <label className="login-screen__field">
-      <span>Your child's school</span>
-      <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} disabled={step !== "phone"}>
-        {schools.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <SchoolPicker value={school} onChange={setSchool} label="Your child's school" disabled={step !== "phone"} />
   );
 
   if (done) {
@@ -131,7 +124,7 @@ export default function ParentSignup({ mode, schools, schoolId, setSchoolId, onL
           </label>
           <PasswordFields {...{ password, setPassword, confirm, setConfirm }} />
           {error && <div className="login-screen__error">{error}</div>}
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || !school}>
             {busy ? "Checking…" : "Create my login"}
           </button>
         </form>
@@ -174,7 +167,7 @@ export default function ParentSignup({ mode, schools, schoolId, setSchoolId, onL
             />
           </label>
           {error && <div className="login-screen__error">{error}</div>}
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || !school}>
             {busy ? "Sending…" : "Send me a code"}
           </button>
         </form>

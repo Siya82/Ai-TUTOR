@@ -99,4 +99,4 @@ async def test_api_failure_degrades_to_unmarked():
     )
 
     assert result.is_correct is None
-    assert "API is down" in result.feedback
+    assert "API is down" not in result.feedback and "teacher" in result.feedback  # never leak the raw error

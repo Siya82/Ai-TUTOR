@@ -3163,3 +3163,13 @@ add/bulk/School. Public "Register your school" request + approval CLI
 buttons in the consent/parent/guardian forms. Checked: 267 backend tests,
 22 frontend tests, 13 HTTP checks, approval CLI run, lint, build,
 screenshots of login, register, overview, settings, staff and the switch.
+
+## 19 Nov 2026 — Review fixes (ADR-045)
+
+All 17 items from CODE_REVIEW_2026-11-19, plus the raw marking-error leak and
+a layout overlap with the textbook panel. Migration 0020 (mark overrides,
+assignments.closed_at, audit_events). New: tests/integration (20 HTTP tests),
+145 extra practice questions. Checked: 290 backend tests (with
+TEST_DATABASE_URL), 22 frontend tests, lint, build, browser run of school
+search, chat history, My progress, change password, answer review + override,
+ADMIN Activity, and 390px phone widths for LEARN, TEACH and ADMIN.

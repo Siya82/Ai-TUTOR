@@ -127,6 +127,8 @@ class AssignmentDetail(BaseModel):
     results_released: bool
     # NEW 17 Nov 2026 (code review #2): why answers are closed, or None
     answers_closed: str | None = None
+    closed: bool = False  # code review 19 Nov #7: closed early by the teacher
+    can_change: bool = False
     questions: list[AssignmentQuestionItem]
     completions: list[LearnerCompletionItem]
 
@@ -174,6 +176,8 @@ class LearnerQuestionItem(BaseModel):
     # hasn't released results yet) -- lets the frontend show "Submitted
     # -- awaiting release" instead of silently looking unmarked.
     feedback_withheld: bool = False
+    teacher_note: str | None = None  # code review 19 Nov #2
+    marked_by_teacher: bool = False
 
 
 class LearnerAssignmentDetail(BaseModel):

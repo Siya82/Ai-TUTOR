@@ -48,6 +48,8 @@ def answers_closed_reason(assignment: "Assignment", now: datetime | None = None)
     read the feedback and re-submit for a better mark) or once its due
     date has passed. due_at is stored as naive UTC, like every timestamp here.
     """
+    if getattr(assignment, "closed_at", None) is not None:  # code review 19 Nov #7
+        return "Your teacher has closed this assignment, so it no longer accepts answers."
     if assignment.mode != "test":
         return None
     if assignment.results_released:

@@ -40,6 +40,7 @@ import asyncio
 
 from sqlalchemy import select
 
+from scripts.question_bank_extra import EXTRA_QUESTIONS  # code review 19 Nov #15
 from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models import (
@@ -1897,7 +1898,10 @@ async def _seed_subject(
     questions_created = 0
     chunks_created = 0
     for name, topic in topics_by_name.items():
-        questions_created += await ensure_questions(session, topic, subject_spec["questions"].get(name, []))
+        # code review 19 Nov #15: plus the extra practice questions, by topic name
+        extra = EXTRA_QUESTIONS.get((subject_spec["name"], subject_spec["grade"]), {})
+        pairs = list(subject_spec["questions"].get(name, [])) + list(extra.get(name, []))
+        questions_created += await ensure_questions(session, topic, pairs)
         chunks_created += 1 if await ensure_placeholder_content_chunk(session, topic) else 0
 
     return subject, topics_by_name, questions_created, chunks_created

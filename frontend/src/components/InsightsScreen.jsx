@@ -12,6 +12,7 @@ import { fetchInsightsOverview, fetchInsightsSchool, fetchInsightsScope } from "
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import PrivacyNotice from "./PrivacyNotice";
 import Wordmark from "./Wordmark";
+import ChangePassword from "./ChangePassword";
 
 // "Umgungundlovu" -> "Umgungundlovu District", but "Demo District" stays as is
 const withSuffix = (name, word) => (name.toLowerCase().endsWith(word.toLowerCase()) ? name : `${name} ${word}`);
@@ -126,6 +127,7 @@ export default function InsightsScreen({ auth, onLogout }) {
               {scope?.display_name ? `${scope.display_name} · ` : ""}
               {area}
             </span>
+            <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />
               Log out

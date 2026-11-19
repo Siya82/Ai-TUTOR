@@ -25,6 +25,10 @@ import LearnerPrivacyPanel from "./LearnerPrivacyPanel";
 import ParentAccessPanel from "./ParentAccessPanel";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import Wordmark from "./Wordmark";
+import ChangePassword from "./ChangePassword";
+import AnswerReview from "./AnswerReview";
+import EditPerson from "./EditPerson";
+import AssignmentControls from "./AssignmentControls";
 import { roleSummary } from "../utils/staff";
 import {
   bulkCreateStudents,
@@ -122,6 +126,7 @@ export default function TeacherAdminScreen({ auth, onLogout, switcher }) {
               {me?.display_name ? `${me.display_name} · ` : ""}
               {roleSummary(me)} — {auth.school.name}
             </span>
+            <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />
               Log out
@@ -188,6 +193,7 @@ export function RosterPanel({ token, onChanged, students, loading, error, onRetr
   const [actionError, setActionError] = useState(null);
   const [privacyFor, setPrivacyFor] = useState(null); // ADR-037
   const [parentsFor, setParentsFor] = useState(null); // ADR-038
+  const [editing, setEditing] = useState(null); // code review 19 Nov #8
 
   const run = async (learner, action) => {
     setBusyId(learner.user_id);
@@ -269,6 +275,22 @@ export function RosterPanel({ token, onChanged, students, loading, error, onRetr
           Learners marked "Not yet" have no parent/guardian consent recorded. Click it to record a signed form.
         </p>
       )}
+      {editing && (
+        <div className="admin-result">
+          <p className="admin-result__title">Edit {editing.display_name}</p>
+          <EditPerson
+            key={editing.user_id}
+            token={token}
+            isLearner
+            person={{ ...editing, login_number: editing.student_number }}
+            onCancel={() => setEditing(null)}
+            onSaved={() => {
+              setEditing(null);
+              onChanged();
+            }}
+          />
+        </div>
+      )}
       <table className="admin-table">
         <thead>
           <tr>
@@ -317,6 +339,11 @@ export function RosterPanel({ token, onChanged, students, loading, error, onRetr
                 {s.is_active !== false && (
                   <button type="button" className="admin-screen__link-button" onClick={() => setParentsFor(s)}>
                     Parents
+                  </button>
+                )}
+                {canManage && (
+                  <button type="button" className="admin-screen__link-button" onClick={() => setEditing(s)}>
+                    Edit
                   </button>
                 )}
                 {canManage && (
@@ -540,6 +567,7 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
   const [detail, setDetail] = useState(null);
   const [detailError, setDetailError] = useState(null);
   const [releasing, setReleasing] = useState(false);
+  const [reviewing, setReviewing] = useState(null); // code review 19 Nov #2: learner_id
 
   const loadAssignments = async () => {
     setListLoading(true);
@@ -566,9 +594,12 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openDetail = async (id) => {
+  const openDetail = async (id, keep = false) => {
     setSelected(id);
-    setDetail(null);
+    if (!keep) {
+      setDetail(null);
+      setReviewing(null);
+    }
     setDetailError(null);
     try {
       const d = await fetchTeachAssignment(token, id);
@@ -698,6 +729,26 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
                   {releasing ? "Releasing…" : "Release results to students"}
                 </button>
               )}
+              {detail.can_change && (
+                <AssignmentControls
+                  key={detail.id}
+                  token={token}
+                  detail={detail}
+                  onChanged={async () => {
+                    await openDetail(detail.id, true);
+                    await loadAssignments();
+                  }}
+                  onDeleted={async () => {
+                    setSelected(null);
+                    setDetail(null);
+                    await loadAssignments();
+                  }}
+                  onDuplicated={async (id) => {
+                    await loadAssignments();
+                    await openDetail(id);
+                  }}
+                />
+              )}
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -706,6 +757,7 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
                     <th>Answered</th>
                     <th>Correct</th>
                     <th>Marks</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -720,10 +772,31 @@ function AssignmentsPanel({ token, onLogout, students, me }) {
                       <td>
                         {c.marks_earned} / {c.marks_total}
                       </td>
+                      <td>
+                        {c.answered_count > 0 && (
+                          <button
+                            type="button"
+                            className="admin-screen__link-button"
+                            onClick={() => setReviewing(c.learner_id)}
+                          >
+                            View answers
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {reviewing && (
+                <AnswerReview
+                  key={reviewing}
+                  token={token}
+                  assignmentId={detail.id}
+                  learnerId={reviewing}
+                  onClose={() => setReviewing(null)}
+                  onChanged={() => openDetail(detail.id, true)}
+                />
+              )}
             </>
           )}
         </div>

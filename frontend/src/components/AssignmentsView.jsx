@@ -300,7 +300,13 @@ function AssignmentQuestionCard({ auth, onLogout, assignmentId, question, closed
                 ? "Not quite"
                 : "Unmarked"}
           </strong>
+          {question.marked_by_teacher && <span className="assignment-question-card__teacher"> · marked by your teacher</span>}
           {question.ai_feedback && <p>{question.ai_feedback}</p>}
+          {question.teacher_note && (
+            <p className="assignment-question-card__note">
+              <strong>Teacher:</strong> {question.teacher_note}
+            </p>
+          )}
         </div>
       )}
     </li>

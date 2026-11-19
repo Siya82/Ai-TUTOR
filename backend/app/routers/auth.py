@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user_allow_password_change
+from app.core.security import get_current_user, get_current_user_allow_password_change
 from app.models import Learner, School, User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -174,3 +174,15 @@ async def set_home_language(
     learner.home_language = None if value in (None, "", "English") else value
     await db.commit()
     return _learner_profile(learner)
+
+
+@router.post("/refresh")
+async def refresh_token(user: User = Depends(get_current_user)) -> dict:
+    """
+    NEW 19 Nov 2026 (code review 19 Nov #5). A fresh token for a session
+    that is still valid, so an open app stays logged in while it's in use
+    (the frontend renews every 30 minutes). A deactivated account, or one
+    whose password changed, already fails get_current_user -- so this
+    can't extend a revoked session.
+    """
+    return {"access_token": create_access_token(str(user.id), user.role, user.token_version or 0)}

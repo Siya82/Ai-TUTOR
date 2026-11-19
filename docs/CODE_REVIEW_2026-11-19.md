@@ -60,3 +60,29 @@ zero-rating, GCP).
     prominently.
 17. **Throttles live in memory** (login, SMS codes, registrations): fine on
     one server, ineffective once there are several. Revisit with GCP.
+
+## Status — all fixed the same day (see ADR-045)
+
+| # | Fix |
+|---|-----|
+| 1 | `services/attempt_visibility.py`: CONNECT and "My progress" leave out answers to unreleased tests. Regression test proves it. |
+| 2 | Teachers see each learner's answers, the AI feedback and the model answer, and can mark right/wrong with a note (shown to the learner once results are visible). |
+| 3 | `TUTOR_DAILY_LIMIT` (default 60 per South African day, 0 = no limit); friendly 429; "N questions left today" in LEARN. |
+| 4 | `tests/integration/`: 20 HTTP tests through the real app and Postgres (scoping, parents/viewers, privacy, overrides, limits, profile switches). In CI via `TEST_DATABASE_URL`. |
+| 5 | Each topic's conversation reloads from the server; logins renew every 30 min while the app is open. |
+| 6 | LEARN → My progress (same numbers as the parent view). |
+| 7 | Edit title/instructions/due date, close now / reopen, duplicate, delete (only before anyone answers). |
+| 8 | ADMIN: edit a learner's name, student number or grade, and a staff member's name or number. |
+| 9 | "Password" button in every product header. |
+| 10 | Export now includes guardian contacts and family logins. Deleting a learner removes parent/viewer logins that have no other child. |
+| 11 | `audit_events` table plus ADMIN → Activity. It records resets, switch-off, roles, consent, export/delete, mark changes, edits, settings, promotions and parent links. |
+| 12 | Login page searches schools (name or EMIS) and remembers the last school on the device. |
+| 13 | Tab bars scroll inside themselves on phones: the page is 390px wide at 390px. |
+| 14 | Error boundary: "Something went wrong — Reload" instead of a blank page. |
+| 15 | +105 Maths questions (3 per topic, Grades 10-12) and +40 physics questions (2 per topic). Numeric answers are re-computed in a test. isiZulu Grades 11-12 still need a fluent author (ADR-021: no invented isiZulu content). |
+| 16 | A new registration logs a WARNING with the review command; start-up reports pending requests. |
+| 17 | Documented: move the throttles to the database or Redis when there's more than one server (GCP plan). |
+
+Also found and fixed while testing:
+- When AI marking failed, the raw API error was shown to learners and teachers. It now shows a plain message and logs the error.
+- With the textbook open, the new 4th tab and the Send button ran under the book panel. The chat column now shrinks and the view buttons become icons.

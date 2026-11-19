@@ -41,7 +41,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -385,6 +385,12 @@ class Attempt(Base):
     assignment_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("assignments.id"), nullable=True
     )
+    # NEW 19 Nov 2026 (code review 19 Nov #2; migration 0020): a teacher can
+    # correct the AI's mark. When marked_by_user_id is set, is_correct is the
+    # TEACHER's decision; teacher_note is shown to the learner with it.
+    teacher_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    marked_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    marked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     learner: Mapped["Learner"] = relationship(back_populates="attempts")
 
@@ -417,6 +423,9 @@ class Assignment(Base):
     # is gated, never what's recorded.
     mode: Mapped[str] = mapped_column(String(20), default="practice")
     results_released: Mapped[bool] = mapped_column(Boolean, default=False)
+    # NEW 19 Nov 2026 (code review 19 Nov #7; migration 0020): the teacher
+    # closed it early -- no more answers, whatever the mode or due date.
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class AssignmentQuestion(Base):
@@ -804,3 +813,23 @@ class SchoolRegistration(Base):
     school_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("schools.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AuditEvent(Base):
+    """
+    NEW 19 Nov 2026 (code review 19 Nov #11; migration 0020). Who did what
+    sensitive thing, when: password resets, account switch-off, role grants,
+    consent, data export/deletion, mark overrides, school settings. Kept for
+    POPIA accountability; never holds passwords or tutor conversations.
+    """
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("schools.id"), nullable=True, index=True)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    target_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)

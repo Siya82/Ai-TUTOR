@@ -46,6 +46,29 @@ function formatErrorDetail(detail, fallback) {
 // Login and change-password pass quiet=true: their 401 means "wrong
 // password", not "session over".
 let onUnauthorized = null;
+/*
+ * NEW 19 Nov 2026 (code review 19 Nov #5, #9). Tokens are renewed every 30
+ * minutes (and replaced when a password changes) WITHOUT re-rendering the
+ * app: screens keep passing the token they were given at login, and every
+ * request swaps in the newest token issued in its place.
+ */
+const renewedTokens = new Map();
+export function liveToken(token) {
+  let t = token;
+  for (let i = 0; i < 50 && renewedTokens.has(t); i += 1) t = renewedTokens.get(t);
+  return t;
+}
+let tokenRenewedHandler = null;
+export function setTokenRenewedHandler(handler) {
+  tokenRenewedHandler = handler;
+}
+export function replaceToken(oldToken, newToken) {
+  if (oldToken && newToken && oldToken !== newToken) {
+    renewedTokens.set(liveToken(oldToken), newToken);
+    tokenRenewedHandler?.(newToken); // App keeps it for the next page load
+  }
+}
+
 export function setUnauthorizedHandler(handler) {
   onUnauthorized = handler;
 }
@@ -58,7 +81,7 @@ function httpError(message, status, { quiet = false } = {}) {
 }
 
 async function getJson(path, token) {
-  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+  const headers = token ? { Authorization: `Bearer ${liveToken(token)}` } : undefined;
   const response = await fetch(`${API_BASE_URL}${path}`, { headers });
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
@@ -98,6 +121,17 @@ export function fetchSchools() {
   return getJson("/schools/");
 }
 
+// NEW 19 Nov 2026 (code review 19 Nov #12): search instead of one huge list
+export async function searchSchools(q) {
+  const response = await fetch(`${API_BASE_URL}/schools/?q=${encodeURIComponent(q)}`);
+  if (!response.ok) throw httpError(`Couldn't search schools (${response.status})`, response.status, { quiet: true });
+  return response.json();
+}
+export async function fetchSchool(id) {
+  const response = await fetch(`${API_BASE_URL}/schools/${id}`);
+  return response.ok ? response.json() : null;
+}
+
 /*
  * NEW 14 Nov 2026 (ADR-017, student login). Returns the backend's
  * LoginResponse: { access_token, token_type, must_change_password,
@@ -134,7 +168,7 @@ export function fetchMe(token) {
 export async function changePassword({ token, currentPassword, newPassword }) {
   const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${liveToken(token)}` },
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
   if (!response.ok) {
@@ -172,7 +206,7 @@ export async function createStudent({ token, displayName, grade, studentNumber }
 
   const response = await fetch(`${API_BASE_URL}/admin/students`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${liveToken(token)}` },
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -201,7 +235,7 @@ export async function bulkCreateStudents({ token, file }) {
 
   const response = await fetch(`${API_BASE_URL}/admin/students/bulk`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${liveToken(token)}` },
     body: formData,
   });
   if (!response.ok) {
@@ -237,7 +271,7 @@ export async function uploadAttachment(file, token) {
 
   const response = await fetch(`${API_BASE_URL}/attachments/`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${liveToken(token)}` },
     body: formData,
   });
 
@@ -279,7 +313,7 @@ export async function sendTutorMessage({ message, sessionId, topicId, attachment
 
   const response = await fetch(`${API_BASE_URL}/tutor/message`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${liveToken(token)}` },
     body: JSON.stringify(payload),
   });
 
@@ -307,7 +341,7 @@ export async function sendTutorMessage({ message, sessionId, topicId, attachment
 async function postJson(path, token, body) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${liveToken(token)}` },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -324,7 +358,7 @@ async function postJson(path, token, body) {
 async function patchJson(path, token, body) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${liveToken(token)}` },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -474,7 +508,7 @@ export function submitAssignmentAnswer({ token, assignmentId, questionId, learne
 async function deleteJson(path, token) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${liveToken(token)}` },
   });
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
@@ -574,7 +608,7 @@ export function fetchBookPage(token, bookId, pageNumber) {
 /** That single page as a small PDF (ArrayBuffer), for rendering with pdf.js. */
 export async function fetchBookPagePdf(token, bookId, pageNumber) {
   const response = await fetch(`${API_BASE_URL}/books/${bookId}/pages/${pageNumber}/pdf`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${liveToken(token)}` },
   });
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
@@ -590,7 +624,7 @@ export async function fetchBookPagePdf(token, bookId, pageNumber) {
 export async function fetchBookAsset(token, bookId, assetPath) {
   const response = await fetch(
     `${API_BASE_URL}/books/${bookId}/assets?path=${encodeURIComponent(assetPath)}`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${liveToken(token)}` } }
   );
   if (!response.ok) throw httpError(`Image failed with status ${response.status}`, response.status);
   return response.blob();
@@ -631,7 +665,7 @@ export async function fetchHomeLanguages() {
 export async function setHomeLanguage(token, homeLanguage) {
   const response = await fetch(`${API_BASE_URL}/auth/me/home-language`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${liveToken(token)}` },
     body: JSON.stringify({ home_language: homeLanguage }),
   });
   if (!response.ok) {
@@ -673,7 +707,7 @@ export function withdrawConsent(token, learnerId) {
 
 export async function downloadLearnerExport(token, learnerId) {
   const response = await fetch(`${API_BASE_URL}/school/learners/${learnerId}/export`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${liveToken(token)}` },
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -687,7 +721,7 @@ export async function downloadLearnerExport(token, learnerId) {
 export async function deleteLearnerData(token, learnerId, confirmName) {
   const response = await fetch(`${API_BASE_URL}/school/learners/${learnerId}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${liveToken(token)}` },
     body: JSON.stringify({ confirm_name: confirmName }),
   });
   if (!response.ok) {
@@ -759,7 +793,7 @@ export function fetchChaptersForTopic(token, topicId) {
  */
 async function sendJson(method, path, token, body) {
   const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token) headers.Authorization = `Bearer ${liveToken(token)}`;
   const response = await fetch(`${API_BASE_URL}${path}`, { method, headers, body: JSON.stringify(body) });
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
@@ -836,4 +870,68 @@ export async function fetchRegistrationOptions() {
 }
 export function registerSchool(body) {
   return sendJson("POST", "/schools/registrations", null, body);
+}
+
+/*
+ * NEW 19 Nov 2026 (code review 19 Nov #2, #7): look at a learner's answers,
+ * correct a mark; edit / close / duplicate / delete an assignment.
+ */
+export function fetchLearnerAnswers(token, assignmentId, learnerId) {
+  return getJson(`/teach/assignments/${assignmentId}/learners/${learnerId}/answers`, token);
+}
+export function overrideMark(token, assignmentId, attemptId, isCorrect, note) {
+  return sendJson("POST", `/teach/assignments/${assignmentId}/attempts/${attemptId}/mark`, token, {
+    is_correct: isCorrect,
+    note: note || null,
+  });
+}
+export function editAssignment(token, assignmentId, { title, instructions, dueAt }) {
+  return sendJson("PATCH", `/teach/assignments/${assignmentId}`, token, {
+    title,
+    instructions: instructions || null,
+    due_at: dueAt ? new Date(dueAt).toISOString() : null,
+  });
+}
+export function closeAssignment(token, assignmentId, reopen = false) {
+  return sendJson("POST", `/teach/assignments/${assignmentId}/close${reopen ? "?reopen=true" : ""}`, token, {});
+}
+export function duplicateAssignment(token, assignmentId) {
+  return sendJson("POST", `/teach/assignments/${assignmentId}/duplicate`, token, {});
+}
+export function deleteAssignment(token, assignmentId) {
+  return deleteJson(`/teach/assignments/${assignmentId}`, token);
+}
+
+// NEW 19 Nov 2026 (code review 19 Nov #5): renew a still-valid login.
+export async function refreshToken(token) {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${liveToken(token)}` },
+  });
+  if (!response.ok) throw httpError("Session expired", response.status, { quiet: true });
+  const { access_token: fresh } = await response.json();
+  replaceToken(token, fresh);
+  return fresh;
+}
+
+// NEW 19 Nov 2026 (code review 19 Nov #3, #5, #6): learner usage, history, progress
+export function fetchTutorUsage(token) {
+  return getJson("/tutor/usage", token);
+}
+export function fetchTutorSessions(token) {
+  return getJson("/tutor/sessions", token);
+}
+export function fetchTutorSessionMessages(token, sessionId) {
+  return getJson(`/tutor/sessions/${sessionId}/messages`, token);
+}
+export function fetchMyProgress(token) {
+  return getJson("/me/progress", token);
+}
+
+// NEW 19 Nov 2026 (code review 19 Nov #8, #11)
+export function editPerson(token, userId, body) {
+  return sendJson("PATCH", `/school/users/${userId}`, token, body);
+}
+export function fetchAuditTrail(token) {
+  return getJson("/school/audit", token);
 }

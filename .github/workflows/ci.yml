@@ -25,6 +25,10 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/caps_tutor
+      # code review 19 Nov #4: the HTTP permission tests run against the same
+      # throwaway CI database (locally they need their own -- see
+      # tests/integration/conftest.py)
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/caps_tutor
       ANTHROPIC_API_KEY: ci-placeholder
       JWT_SECRET_KEY: ci-only-not-a-real-secret
       ENVIRONMENT: ci

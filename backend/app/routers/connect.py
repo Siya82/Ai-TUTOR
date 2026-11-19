@@ -26,10 +26,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.audit import record as audit  # code review 19 Nov #11
 from app.core.clock import utcnow_naive
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import get_current_staff_scope, get_current_user
+from app.core.security import get_current_learner, get_current_staff_scope, get_current_user
 from app.models import (
     Assignment,
     AssignmentQuestion,
@@ -47,6 +48,7 @@ from app.models import (
 )
 from app.services.assignments import get_learner_completions
 from app.services.auth import _generate_unique_login_number, generate_temp_password, hash_password
+from app.services.attempt_visibility import released_attempts_only
 from app.services.connect import (
     TOPIC_WINDOW_DAYS,
     TRANSLATE_SYSTEM_PROMPT,
@@ -130,6 +132,7 @@ async def _overview(db: AsyncSession, learner: Learner) -> dict:
                 Attempt.learner_id == learner.id,
                 Attempt.is_correct.isnot(None),
                 Attempt.created_at >= now - timedelta(days=TOPIC_WINDOW_DAYS),
+                released_attempts_only(),  # code review 19 Nov #1
             )
         )
     ).all()
@@ -387,6 +390,7 @@ async def add_parent(
                 created_by_user_id=scope.user_id,
             )
         )
+    await audit(db, scope.user_id, scope.school_id, "parent.link", "learner", learner.id, {"parent_user_id": str(parent.id)})
     await db.commit()
     return {
         "user_id": str(parent.id),
@@ -407,6 +411,7 @@ async def remove_parent(
     await db.execute(
         delete(ParentLink).where(ParentLink.learner_id == learner.id, ParentLink.parent_user_id == parent_user_id)
     )
+    await audit(db, scope.user_id, scope.school_id, "parent.unlink", "learner", learner.id, {"parent_user_id": str(parent_user_id)})
     await db.commit()
 
 
@@ -494,3 +499,16 @@ async def delete_notice(
     await db.execute(delete(NoticeAck).where(NoticeAck.notice_id == notice.id))
     await db.delete(notice)
     await db.commit()
+
+
+@router.get("/me/progress")
+async def my_progress(learner: Learner = Depends(get_current_learner), db: AsyncSession = Depends(get_db)) -> dict:
+    """
+    NEW 19 Nov 2026 (code review 19 Nov #6). The learner's own "My progress":
+    the same numbers their parent sees (this week, strongest topics, topics
+    to practise, school work), with unreleased test answers left out the
+    same way.
+    """
+    data = await _overview(db, learner)
+    data["grade"] = learner.grade
+    return data

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import ChatScreen from "./components/ChatScreen";
 import LoginScreen from "./components/LoginScreen";
 import StaffWorkspace from "./components/StaffWorkspace";
-import { fetchMe, setUnauthorizedHandler } from "./api";
+import { fetchMe, refreshToken, setTokenRenewedHandler, setUnauthorizedHandler } from "./api";
 import ParentScreen from "./components/ParentScreen";
 import InsightsScreen from "./components/InsightsScreen";
 import "./styles/product-tokens.css";
@@ -38,6 +38,24 @@ function App() {
     });
     return () => setUnauthorizedHandler(null);
   }, []);
+
+  // NEW 19 Nov 2026 (code review 19 Nov #5): logins last an hour, so renew
+  // every 30 minutes while the app is open -- a learner mid-conversation is
+  // never thrown out. Renewed tokens are swapped in by api.js (no re-render)
+  // and kept here for the next page load.
+  useEffect(() => {
+    setTokenRenewedHandler((fresh) => sessionStorage.setItem(TOKEN_STORAGE_KEY, fresh));
+    return () => setTokenRenewedHandler(null);
+  }, []);
+  useEffect(() => {
+    if (!auth?.token) return undefined;
+    const id = setInterval(() => {
+      refreshToken(auth.token).catch(() => {
+        /* expired or revoked: the next request's 401 logs out with a notice */
+      });
+    }, 30 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [auth?.token]);
 
   useEffect(() => {
     const storedToken = sessionStorage.getItem(TOKEN_STORAGE_KEY);

@@ -17,7 +17,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -29,6 +29,8 @@ from app.models import (
     Learner,
     LearnerGuardian,
     ParentLink,
+    NoticeAck,
+    AuditEvent,
     ViewerInvite,
     PracticalRun,
     Question,
@@ -85,6 +87,17 @@ async def export_learner_data(db: AsyncSession, learner: Learner) -> dict:
     consents = (
         await db.execute(select(ConsentRecord).where(ConsentRecord.learner_id == learner.id))
     ).scalars().all()
+    # code review 19 Nov #10: the family records held about this learner too
+    guardians = (
+        await db.execute(select(LearnerGuardian).where(LearnerGuardian.learner_id == learner.id))
+    ).scalars().all()
+    linked = (
+        await db.execute(
+            select(ParentLink, User)
+            .join(User, ParentLink.parent_user_id == User.id)
+            .where(ParentLink.learner_id == learner.id)
+        )
+    ).all()
     return {
         "exported_at_notice_version": PRIVACY_NOTICE_VERSION,
         "learner": {
@@ -125,6 +138,26 @@ async def export_learner_data(db: AsyncSession, learner: Learner) -> dict:
             }
             for c in consents
         ],
+        "guardian_contacts": [
+            {
+                "name": g.full_name,
+                "relationship": g.relationship_to_learner,
+                "cellphone": g.cellphone,
+                "email": g.email,
+                "signed_up": g.parent_user_id is not None,
+            }
+            for g in guardians
+        ],
+        "family_logins": [
+            {
+                "name": u.display_name,
+                "relationship": link.relationship_to_learner,
+                "access": "parent or guardian" if link.kind == "guardian" else "viewer (invited by a guardian)",
+                "login_number": u.student_number,
+                "linked": _iso(link.created_at),
+            }
+            for link, u in linked
+        ],
     }
 
 
@@ -164,9 +197,13 @@ async def delete_learner_data(db: AsyncSession, learner: Learner) -> tuple[dict,
     await db.execute(delete(ClassMember).where(ClassMember.learner_id == lid))
     await db.execute(delete(PracticalRun).where(PracticalRun.learner_id == lid))
     await db.execute(delete(ConsentRecord).where(ConsentRecord.learner_id == lid))
+    family_ids = (
+        await db.execute(select(ParentLink.parent_user_id).where(ParentLink.learner_id == lid))
+    ).scalars().all()
     await db.execute(delete(ParentLink).where(ParentLink.learner_id == lid))  # ADR-038
     await db.execute(delete(LearnerGuardian).where(LearnerGuardian.learner_id == lid))  # ADR-043
     await db.execute(delete(ViewerInvite).where(ViewerInvite.learner_id == lid))  # ADR-043
+    counts["family_logins_removed"] = await _remove_orphaned_family(db, set(family_ids))
     user_id = learner.user_id
     await db.delete(learner)
     await db.flush()
@@ -175,6 +212,32 @@ async def delete_learner_data(db: AsyncSession, learner: Learner) -> tuple[dict,
         if user is not None:
             await db.delete(user)
     return counts, paths
+
+
+async def _remove_orphaned_family(db: AsyncSession, user_ids: set) -> int:
+    """
+    code review 19 Nov #10. A parent or viewer login that is linked to no
+    other child is personal information with no remaining purpose, so it
+    goes too (POPIA: keep only what's needed). A parent with another child
+    at the school keeps their login.
+    """
+    removed = 0
+    for uid in user_ids:
+        still_linked = (
+            await db.execute(select(ParentLink.id).where(ParentLink.parent_user_id == uid).limit(1))
+        ).first()
+        if still_linked:
+            continue
+        await db.execute(delete(NoticeAck).where(NoticeAck.user_id == uid))
+        await db.execute(delete(ViewerInvite).where(ViewerInvite.invited_by_user_id == uid))
+        await db.execute(
+            update(LearnerGuardian).where(LearnerGuardian.parent_user_id == uid).values(parent_user_id=None)
+        )
+        await db.execute(update(ParentLink).where(ParentLink.invited_by_user_id == uid).values(invited_by_user_id=None))
+        await db.execute(update(AuditEvent).where(AuditEvent.actor_user_id == uid).values(actor_user_id=None))
+        await db.execute(delete(User).where(User.id == uid, User.role == "parent"))
+        removed += 1
+    return removed
 
 
 def remove_files(paths: list[str]) -> None:

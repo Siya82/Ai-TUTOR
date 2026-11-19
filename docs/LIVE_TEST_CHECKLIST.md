@@ -9,6 +9,20 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## Review fixes (ADR-045)
+
+- [ ] Restart (migration 0020 + re-seed adds 145 practice questions).
+- [ ] Login: type part of the school name, pick it, log in. Log out: the school is remembered.
+- [ ] LEARN: ask something, refresh the page, and the conversation is still there. Open "My progress".
+- [ ] LEARN: Password → change it → log in again with the new one.
+- [ ] TEACH → Assignments → View → "View answers" → Mark right with a note → the learner sees "marked by your teacher" and the note.
+- [ ] TEACH: Edit the due date; Close now (the learner can't answer); Duplicate; Delete the copy.
+- [ ] Parent view: a test that hasn't been released doesn't change the percentages.
+- [ ] ADMIN → Learners → Edit (fix a name, change a grade). ADMIN → Activity lists the change.
+- [ ] Phone width: TEACH and ADMIN tabs scroll sideways; the page doesn't.
+- [ ] Optional: set TUTOR_DAILY_LIMIT=2 in .env, restart, ask 3 questions, and the third is refused politely.
+- [ ] Optional integration tests (needs a second database; see tests/integration/conftest.py).
+
 ## THUTOra ADMIN (ADR-044)
 
 - [ ] Restart (migration 0019). Log in as P00001 → opens in ADMIN (teal), with a TEACH | ADMIN switch.

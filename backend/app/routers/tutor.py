@@ -37,9 +37,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.services.usage import questions_today, remaining  # code review 19 Nov #3
 from app.core.database import get_db
 from app.core.security import get_current_learner
 from app.models import Attachment, Attempt, Learner, Question, Topic, TutorMessage, TutorSession
+from app.core.config import settings
 from app.schemas.tutor import TutorMessageRequest, TutorMessageResponse
 from app.services.attachments import build_attachment_content_blocks, history_summary_for
 from app.services.diagnosis import diagnose_root_gap
@@ -188,6 +190,19 @@ async def send_tutor_message(
         raise HTTPException(
             status_code=403,
             detail="This topic is above your current grade.",
+        )
+
+    # code review 19 Nov #3: a daily limit per learner, checked before any
+    # work (or any Claude call) is done for this turn.
+    used_today = await questions_today(db, learner.id)
+    if remaining(used_today) == 0:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"You've asked {used_today} questions today -- that's today's limit. "
+                "Well done for working so hard! You can ask again tomorrow, and you can still "
+                "read your textbook and do your assignments."
+            ),
         )
 
     # NEW 13 Nov 2026 (ADR-016, student file attachments). Loaded before
@@ -339,6 +354,7 @@ async def send_tutor_message(
         reply=reply_text,
         math_verified=math_result.verified,
         verification_warnings=math_result.warnings,
+        questions_left_today=remaining(used_today + 1),
     )
 
 
@@ -346,3 +362,62 @@ async def send_tutor_message(
 async def ping() -> dict:
     """Cheap liveness check that doesn't touch the DB or the Anthropic API."""
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# NEW 19 Nov 2026 (code review 19 Nov #3, #5): today's usage, and the
+# learner's own past conversations (one per topic -- see
+# _get_or_create_session), so a refresh or a new day doesn't lose them.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/usage")
+async def tutor_usage(learner: Learner = Depends(get_current_learner), db: AsyncSession = Depends(get_db)) -> dict:
+    used = await questions_today(db, learner.id)
+    return {"used_today": used, "limit": settings.tutor_daily_limit or None, "left_today": remaining(used)}
+
+
+@router.get("/sessions")
+async def my_sessions(learner: Learner = Depends(get_current_learner), db: AsyncSession = Depends(get_db)) -> list[dict]:
+    from sqlalchemy import func
+
+    rows = (
+        await db.execute(
+            select(
+                TutorSession.id,
+                TutorSession.topic_id,
+                Topic.name,
+                func.count(TutorMessage.id),
+                func.max(TutorMessage.created_at),
+            )
+            .join(Topic, TutorSession.topic_id == Topic.id)
+            .join(TutorMessage, TutorMessage.session_id == TutorSession.id)
+            .where(TutorSession.learner_id == learner.id)
+            .group_by(TutorSession.id, TutorSession.topic_id, Topic.name)
+            .order_by(func.max(TutorMessage.created_at).desc())
+            .limit(50)
+        )
+    ).all()
+    return [
+        {"session_id": str(sid), "topic_id": str(tid), "topic_name": name, "messages": n, "last_at": last.isoformat()}
+        for sid, tid, name, n, last in rows
+    ]
+
+
+@router.get("/sessions/{session_id}/messages")
+async def session_messages(
+    session_id: uuid.UUID, learner: Learner = Depends(get_current_learner), db: AsyncSession = Depends(get_db)
+) -> dict:
+    session = await db.get(TutorSession, session_id)
+    if session is None or session.learner_id != learner.id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    msgs = (
+        await db.execute(
+            select(TutorMessage).where(TutorMessage.session_id == session.id).order_by(TutorMessage.created_at)
+        )
+    ).scalars().all()
+    return {
+        "session_id": str(session.id),
+        "topic_id": str(session.topic_id),
+        "messages": [{"role": m.role, "content": m.content, "at": m.created_at.isoformat()} for m in msgs[-100:]],
+    }

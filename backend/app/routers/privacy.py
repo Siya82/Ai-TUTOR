@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.audit import record as audit  # code review 19 Nov #11
 from app.core.clock import utcnow_naive
 from app.core.database import get_db
 from app.core.security import get_current_staff_scope
@@ -132,6 +133,7 @@ async def record_consent(
         recorded_by_user_id=scope.user_id,
     )
     db.add(record)
+    await audit(db, scope.user_id, scope.school_id, "consent.record", "learner", learner.id, {"method": payload.method})
     await db.commit()
     return _out(record)
 
@@ -154,6 +156,7 @@ async def withdraw_consent(
     ).scalars().all()
     for c in active:
         c.withdrawn_at = utcnow_naive()
+    await audit(db, scope.user_id, scope.school_id, "consent.withdraw", "learner", learner.id)
     await db.commit()
 
 
@@ -167,6 +170,8 @@ async def export_learner(
         raise HTTPException(status_code=403, detail="Only school management can export a learner's data")
     learner = await _learner_in_school(db, learner_id, scope)
     data = await export_learner_data(db, learner)
+    await audit(db, scope.user_id, scope.school_id, "privacy.export", "learner", learner.id)
+    await db.commit()
     safe = "".join(ch if ch.isalnum() else "_" for ch in learner.display_name)[:40] or "learner"
     return Response(
         content=json.dumps(data, indent=2, ensure_ascii=False),
@@ -188,6 +193,7 @@ async def delete_learner(
     if payload.confirm_name.strip().lower() != learner.display_name.strip().lower():
         raise HTTPException(status_code=400, detail="The name you typed doesn't match this learner")
     counts, paths = await delete_learner_data(db, learner)
+    await audit(db, scope.user_id, scope.school_id, "privacy.delete", "learner", learner.id, counts)
     await db.commit()
     remove_files(paths)
     return {"deleted": True, **counts}
