@@ -746,3 +746,8 @@ export function fetchInsightsOverview(token, circuitId) {
 export function fetchInsightsSchool(token, schoolId) {
   return getJson(`/insights/schools/${schoolId}`, token);
 }
+
+// NEW 19 Nov 2026 (ADR-041): the textbook chapter(s) linked to a topic.
+export function fetchChaptersForTopic(token, topicId) {
+  return getJson(`/books/for-topic/${topicId}`, token);
+}

@@ -45,7 +45,8 @@ import SymbolKeyboard from "./SymbolKeyboard";
 import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
 import LibraryView from "./LibraryView";
 import LearnerSettings from "./LearnerSettings"; // NEW 17 Nov 2026 (ADR-032, e-book library)
-import { BookOpen, ClipboardList, LogOut, MessageCircle, Paperclip } from "lucide-react";
+import { BookOpen, BookOpenText, ClipboardList, LogOut, MessageCircle, Paperclip } from "lucide-react";
+import TopicTextbook from "./TopicTextbook";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import Wordmark from "./Wordmark";
 
@@ -221,6 +222,25 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   // toggle rather than a real route -- matches how TeacherAdminScreen.jsx
   // switches its own tabs with local state, not a router.
   const [view, setView] = useState("chat"); // "chat" | "assignments" | "library"
+  // NEW 19 Nov 2026 (ADR-041): the topic's textbook chapter beside the chat.
+  // Open by default on wide screens; the learner's choice is remembered.
+  const [bookPanelOpen, setBookPanelOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem("thutora_book_panel");
+      if (saved !== null) return saved === "1";
+    } catch {
+      /* no storage */
+    }
+    return typeof window !== "undefined" && window.innerWidth >= 1100;
+  });
+  const toggleBookPanel = (open) => {
+    setBookPanelOpen(open);
+    try {
+      localStorage.setItem("thutora_book_panel", open ? "1" : "0");
+    } catch {
+      /* fine */
+    }
+  };
   // NEW 17 Nov 2026 (ADR-032): where the reader is (kept here so it reopens on
   // the same page after asking), and the page reference waiting to be sent
   // with the next question.
@@ -518,7 +538,10 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   };
 
   return (
-    <div className="app-shell" data-product="learn">
+    <div
+      className={"app-shell" + (view === "chat" && bookPanelOpen && topicId ? " app-shell--with-book" : "")}
+      data-product="learn"
+    >
       {view === "chat" && (
         <aside className="app-shell__sidebar">
           <SubjectTopicSidebar
@@ -572,6 +595,18 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
             </button>
           </nav>
           {view === "chat" && <ModalitySwitcher modality={modality} onChange={setModality} />}
+          {view === "chat" && topicId && (
+            <button
+              type="button"
+              className={"chat-screen__logout" + (bookPanelOpen ? " chat-screen__logout--active" : "")}
+              aria-pressed={bookPanelOpen}
+              onClick={() => toggleBookPanel(!bookPanelOpen)}
+              title="Show this topic's chapter from the textbook"
+            >
+              <BookOpenText size={ICON_BUTTON} aria-hidden="true" />
+              Textbook
+            </button>
+          )}
           {/* NEW 14 Nov 2026 (ADR-017): the student's own name + a
               logout button, where the Learner badge used to sit in the
               sidebar before real login existed. */}
@@ -707,6 +742,23 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
       </>
       )}
       </div>
+      {view === "chat" && bookPanelOpen && topicId && (
+        <aside className="app-shell__book">
+          <TopicTextbook
+            auth={auth}
+            onLogout={onLogout}
+            topicId={topicId}
+            topicName={topics.find((t) => t.id === topicId)?.name || ""}
+            onAsk={(ctx) => {
+              handleAskFromBook(ctx);
+              // On a phone the panel covers the chat; close it so the question box shows.
+              if (window.innerWidth < 1100) setBookPanelOpen(false);
+            }}
+            onClose={() => toggleBookPanel(false)}
+            onOpenInLibrary={openBookPage}
+          />
+        </aside>
+      )}
     </div>
   );
 }

@@ -124,7 +124,10 @@ function BookList({ auth, onLogout, onOpen }) {
   );
 }
 
-function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk }) {
+// UPDATED 19 Nov 2026 (ADR-041): exported, and `range` ({start, end})
+// limits navigation to one topic's chapter when the reader sits beside the
+// tutor chat; `closeLabel` renames the back button there.
+export function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk, range, closeLabel }) {
   const [book, setBook] = useState(null);
   const [pageData, setPageData] = useState(null);
   const [mode, setMode] = useState("page"); // "page" | "text"
@@ -149,7 +152,7 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
         setBook(b);
         if (!b.file_available || b.format === "epub") setMode("text");
         // An ePub opens on its copyright notice; start at Chapter 1 instead.
-        if (b.format === "epub" && page === 1) {
+        if (b.format === "epub" && page === 1 && !range) {
           const firstChapter = (b.sections || []).find((sec) => sec.chapter);
           if (firstChapter && firstChapter.number !== 1) onPageChange(firstChapter.number);
         }
@@ -181,8 +184,10 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
 
   const pageCount = book?.page_count || pageData?.page_count || 0;
   const isEpub = book?.format === "epub";
+  const first = range ? range.start : 1;
+  const last = range ? Math.min(range.end, pageCount || range.end) : pageCount || 1;
   const goTo = (n) => {
-    const target = Math.min(Math.max(1, n), pageCount || 1);
+    const target = Math.min(Math.max(first, n), last);
     if (target !== page) onPageChange(target);
   };
 
@@ -204,12 +209,14 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
   return (
     <div className="reader">
       <div className="reader__toolbar">
-        <button type="button" className="reader__link" onClick={onClose}>
-          ← Library
-        </button>
+        {onClose && (
+          <button type="button" className="reader__link" onClick={onClose}>
+            {closeLabel || "← Library"}
+          </button>
+        )}
         <div className="reader__title">{book?.title || "…"}</div>
         <div className="reader__nav">
-          <button type="button" onClick={() => goTo(page - 1)} disabled={page <= 1} aria-label="Previous page">
+          <button type="button" onClick={() => goTo(page - 1)} disabled={page <= first} aria-label="Previous page">
             ‹
           </button>
           {isEpub ? (
@@ -219,7 +226,9 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
               onChange={(e) => goTo(Number(e.target.value))}
               aria-label="Section"
             >
-              {groupByChapter(book.sections || []).map(([chapter, secs]) => (
+              {groupByChapter(
+                (book.sections || []).filter((sec) => !range || (sec.number >= range.start && sec.number <= range.end))
+              ).map(([chapter, secs]) => (
                 <optgroup key={`${chapter}-${secs[0].number}`} label={chapter || "Front matter"}>
                   {secs.map((sec) => (
                     <option key={sec.number} value={sec.number}>
@@ -244,11 +253,11 @@ function BookReader({ auth, onLogout, bookId, page, onPageChange, onClose, onAsk
             />
           </form>
           )}
-          <span className="reader__muted">/ {pageCount || "…"}</span>
+          {!isEpub && <span className="reader__muted">/ {pageCount || "…"}</span>}
           <button
             type="button"
             onClick={() => goTo(page + 1)}
-            disabled={pageCount > 0 && page >= pageCount}
+            disabled={pageCount > 0 && page >= last}
             aria-label="Next page"
           >
             ›

@@ -53,6 +53,56 @@ async def list_books(
     return [BookSummary(**_summary(b, s)) for b, s in rows]
 
 
+@router.get("/for-topic/{topic_id}")
+async def chapters_for_topic(
+    topic_id: uuid.UUID,
+    identity: tuple[User, Learner | None] = Depends(get_current_learner_or_teacher),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """
+    NEW 19 Nov 2026 (ADR-041, textbook beside the tutor). The textbook
+    chapter(s) mapped to a topic (book_topic_ranges, from the ingest), so
+    the chat can open the right chapter next to the conversation. Same
+    grade rule as the Library: a learner only gets books at or below
+    their grade.
+    """
+    _, learner = identity
+    stmt = (
+        select(BookTopicRange, Book, Subject)
+        .join(Book, BookTopicRange.book_id == Book.id)
+        .join(Subject, Book.subject_id == Subject.id)
+        .where(BookTopicRange.topic_id == topic_id)
+        .order_by(Subject.grade.desc(), BookTopicRange.start_page)
+    )
+    if learner is not None:
+        stmt = stmt.where(Subject.grade <= learner.grade)
+    rows = (await db.execute(stmt)).all()
+    out = []
+    for r, book, subject in rows:
+        first = (
+            await db.execute(
+                select(BookPage.chapter, BookPage.title).where(
+                    BookPage.book_id == book.id, BookPage.page_number == r.start_page
+                )
+            )
+        ).first()
+        out.append(
+            {
+                "book_id": str(book.id),
+                "book_title": book.title,
+                "format": book.format,
+                "grade": subject.grade,
+                "start_page": r.start_page,
+                "end_page": r.end_page,
+                "chapter": (first[0] or first[1]) if first else None,
+            }
+        )
+    # Best match first: the book for the topic's own grade, an ePub (sections
+    # read better beside a chat than PDF pages), then the fullest chapter.
+    out.sort(key=lambda b: (-b["grade"], b["format"] != "epub", -(b["end_page"] - b["start_page"])))
+    return out
+
+
 @router.get("/{book_id}", response_model=BookDetail)
 async def book_detail(
     book_id: uuid.UUID,

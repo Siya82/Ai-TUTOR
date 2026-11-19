@@ -2484,3 +2484,90 @@ select,
 textarea {
   font-family: inherit;
 }
+
+/* NEW 19 Nov 2026 (ADR-041): the topic's textbook chapter beside the chat */
+.app-shell--with-book {
+  max-width: 1680px;
+}
+.app-shell__book {
+  flex: 0 0 min(600px, 44%);
+  height: 100vh;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.topic-book {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.topic-book .reader {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.topic-book__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0.7rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.topic-book__eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.topic-book__chapter {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0.15rem 0;
+}
+.topic-book__close {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.topic-book__empty {
+  padding: 1rem;
+}
+.chat-screen__logout--active {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+.chat-screen__logout--active svg {
+  color: var(--color-accent);
+}
+@media (max-width: 1099px) {
+  /* Phones and small screens: the chapter opens over the chat. */
+  .app-shell__book {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    flex: none;
+    width: 100%;
+    border-left: none;
+  }
+}
+.topic-book .reader__nav {
+  min-width: 0;
+  max-width: 100%;
+}
+.topic-book .reader__section-select {
+  min-width: 0;
+  flex: 1;
+}

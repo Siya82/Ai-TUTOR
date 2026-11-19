@@ -3126,3 +3126,11 @@ new product marks and app icons cut from the brand sheet; THUTO/ra wordmark
 component on every header and the login screen. **Needs `npm install` in
 `frontend/`** (@fontsource/poppins). Checked: lint, build, 6 frontend tests,
 screenshots of login, LEARN, TEACH, CONNECT and INSIGHTS headers.
+
+## 19 Nov 2026 — Textbook beside the tutor (ADR-041)
+
+Picking a topic in Tutor chat opens its textbook chapter in a side panel;
+Ask buttons drop the section or highlight into the chat. New endpoint
+`/books/for-topic/{id}`. Checked: lint, build, 249 backend tests, the
+endpoint for Grade 10/11/12 Maths topics, screenshots on desktop (chat +
+chapter side by side, Ask → book chip in the composer) and phone (overlay).
