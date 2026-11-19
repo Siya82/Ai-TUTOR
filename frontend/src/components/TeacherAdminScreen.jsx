@@ -19,7 +19,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import ProgressPanel from "./ProgressPanel";
-import { BarChart3, ClipboardList, LogOut, School, Upload, UserPlus, Users } from "lucide-react";
+import { BarChart3, ClipboardList, LogOut, School, Sun, Upload, UserPlus, Users } from "lucide-react";
+import TodayPanel from "./TodayPanel";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import SchoolPanel from "./SchoolPanel";
 import {
@@ -44,6 +45,8 @@ import {
 // member's scope from GET /school/me -- `when` is checked against it.
 // The server enforces the same rules; hiding a tab is only convenience.
 const TABS = [
+  // NEW 19 Nov 2026 (ADR-036): the daily overview comes first for teachers
+  { id: "today", label: "Today", icon: Sun, when: (me) => me.has_academic_access },
   { id: "roster", label: "Students", icon: Users, when: () => true },
   { id: "add", label: "Add student", icon: UserPlus, when: (me) => me.can_manage_school },
   { id: "bulk", label: "Bulk upload", icon: Upload, when: (me) => me.can_manage_school },
@@ -69,8 +72,11 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
 
   const loadMe = async () => {
     try {
-      setMe(await fetchSchoolMe(auth.token));
+      const loaded = await fetchSchoolMe(auth.token);
+      setMe(loaded);
       setMeError(null);
+      // ADR-036: open on Today for anyone who teaches (once, on first load)
+      if (loaded.has_academic_access) setTab((t) => (t === "roster" ? "today" : t));
     } catch (err) {
       if (err.status === 401) {
         onLogout();
@@ -177,6 +183,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
         {tab === "bulk" && (
           <BulkUploadPanel token={auth.token} onLogout={onLogout} onCreated={loadRoster} />
         )}
+        {tab === "today" && <TodayPanel token={auth.token} onGoToAssignments={() => setTab("assignments")} />}
         {tab === "progress" && (
           <div data-product="insights">
             <ProgressPanel token={auth.token} onLogout={onLogout} />

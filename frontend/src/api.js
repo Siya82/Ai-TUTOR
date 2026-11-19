@@ -640,3 +640,14 @@ export async function setHomeLanguage(token, homeLanguage) {
   }
   return response.json();
 }
+
+/*
+ * NEW 19 Nov 2026 (ADR-036): the teacher's Today panel.
+ */
+export function fetchToday(token) {
+  return getJson("/teach/today", token);
+}
+
+export function createTodayPractice(token, topicId, learnerIds) {
+  return postJson("/teach/today/practice", token, { topic_id: topicId, learner_ids: learnerIds });
+}

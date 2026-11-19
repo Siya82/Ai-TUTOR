@@ -2174,3 +2174,75 @@ body {
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+/* NEW 19 Nov 2026 (ADR-036): teacher Today panel */
+.today__lede {
+  color: var(--color-text-muted);
+  margin: 0 0 1rem;
+}
+.today__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+.today-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+}
+.today-card__title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+.today-card__title .icon-chip {
+  width: 32px;
+  height: 32px;
+}
+.today-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+}
+.today-list__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+.today-list__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.today-list__action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.today-list__done {
+  font-size: 0.82rem;
+  color: var(--color-success);
+  white-space: nowrap;
+}
+.today__names {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
