@@ -61,10 +61,12 @@ async def main(args) -> None:
                 raise SystemExit("Give exactly one of --circuit or --district")
             if args.circuit:
                 level = await _one(session, Circuit, args.circuit, "circuit")
-                office_name = f"{level.name} Circuit Office"
+                office_name = level.name if level.name.lower().endswith("circuit") else f"{level.name} Circuit"
+                office_name += " Office"
             else:
                 level = await _one(session, District, args.district, "district")
-                office_name = f"{level.name} District Office"
+                office_name = level.name if level.name.lower().endswith("district") else f"{level.name} District"
+                office_name += " Office"
             office = (
                 await session.execute(select(School).where(School.name == office_name, School.kind == "office"))
             ).scalar_one_or_none()

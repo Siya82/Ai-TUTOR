@@ -116,7 +116,7 @@ def summary_text(overview: dict) -> str:
     if overview["weakest_topics"]:
         weak = overview["weakest_topics"][0]
         parts.append(
-            f"{weak['topic_name']} ({weak['subject_name']}) needs more practice -- "
+            f"{weak['topic_name']} ({weak['subject_name']}) needs more practice — "
             f"about {weak['accuracy']}% right so far."
         )
     if overview["outstanding_count"]:

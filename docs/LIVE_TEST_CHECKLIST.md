@@ -9,6 +9,20 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## New features (19 Nov 2026, ADR-035 to ADR-039)
+
+Re-run the seed first so the demo official exists: `python -m scripts.seed_dev_data`.
+
+- [ ] Teacher `T00001` opens on **Today**; "Send practice" on a weak topic creates a practice assignment
+- [ ] Learner `100001` → Settings → Also explain in **isiZulu**; ask a question in isiZulu: explanation uses isiZulu but keeps English terms
+- [ ] Settings → Save data on: textbook figures show a "Show figure" button; equations still load
+- [ ] Students tab → **Consent** → record a signed form; **Download all data** gives a JSON file
+- [ ] Students → **Parents** → create a parent login; log in as the parent: progress, summary in another language, Notices
+- [ ] School → **Notices**: post a Grade 12 notice asking for acknowledgement; parent clicks "I've read this"; count updates
+- [ ] Log in as **Demo District Office** / `O00001` / `DevPass123!`: INSIGHTS overview and school drill-down
+- [ ] Production build (`npm run build` + `npx vite preview`): browser offers "Install app"
+- [ ] Optional: set `MARKING_MODEL=claude-haiku-5-5` in `backend/.env` and check assignment marking still works
+
 ## Code review fixes (17 Nov 2026)
 
 Run `alembic upgrade head` (migration 0013) and `npm install` in `frontend/` first.

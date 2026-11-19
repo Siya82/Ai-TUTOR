@@ -12,6 +12,9 @@ import { fetchInsightsOverview, fetchInsightsSchool, fetchInsightsScope } from "
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import PrivacyNotice from "./PrivacyNotice";
 
+// "Umgungundlovu" -> "Umgungundlovu District", but "Demo District" stays as is
+const withSuffix = (name, word) => (name.toLowerCase().endsWith(word.toLowerCase()) ? name : `${name} ${word}`);
+
 const BAND_LABEL = { good: "Good", watch: "Watch", concern: "Concern" };
 
 function Band({ row }) {
@@ -109,8 +112,8 @@ export default function InsightsScreen({ auth, onLogout }) {
   const area =
     scope &&
     (scope.district_level
-      ? scope.districts.map((d) => `${d.name} District`).join(", ")
-      : scope.circuits.map((c) => `${c.name} Circuit`).join(", "));
+      ? scope.districts.map((d) => withSuffix(d.name, "District")).join(", ")
+      : scope.circuits.map((c) => withSuffix(c.name, "Circuit")).join(", "));
 
   return (
     <div className="admin-screen" data-product="insights">

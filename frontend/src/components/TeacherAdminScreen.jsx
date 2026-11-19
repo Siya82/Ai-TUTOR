@@ -164,7 +164,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
 
       <main
         className={`admin-screen__body${
-          tab === "progress" || tab === "school" ? " admin-screen__body--wide" : ""
+          tab === "progress" || tab === "school" || tab === "today" ? " admin-screen__body--wide" : ""
         }`}
       >
         {meError && <div className="admin-screen__error">{meError}</div>}

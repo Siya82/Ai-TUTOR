@@ -3100,3 +3100,21 @@ the other option. Principals/deputies/school admins see every class. No
 backend change: `class_ids` already existed and the server still re-checks
 scope (a Grade 12 Maths question to 10A is refused). Checked: lint, build,
 drop-down contents for T00001 and P00001, create-by-class over HTTP.
+
+## 19 Nov 2026 — SamarthX-inspired improvements (ADR-035 to ADR-039)
+
+Five phases, each committed separately:
+1. ADR-035: prompt caching, optional cheaper `MARKING_MODEL`, "Also explain
+   in" home language (migration 0014), installable app + service worker,
+   Save-data mode.
+2. ADR-036: teacher **Today** tab with one-click practice sets.
+3. ADR-037: privacy notice (draft), consent records (0015), learner data
+   export and deletion.
+4. ADR-038: CONNECT parent logins, child progress, translated summaries,
+   school notices with acknowledgement (0016).
+5. ADR-039: INSIGHTS districts/circuits/officials (0017) with suppressed,
+   aggregate-only dashboards; `scripts/manage_insights.py`.
+Checked: 249 backend tests, 6 frontend tests, eslint, build, migrations, HTTP
+runs for each phase, screenshots of Today, Students, Settings, parent view,
+notices and INSIGHTS. Live Claude translation and prompt caching need a real
+API key to confirm (the sandbox has none; translation fell back to English).
