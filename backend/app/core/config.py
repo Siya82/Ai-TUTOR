@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     retention_conversation_days: int = 0
     # ADR-049: where the topic overview videos live (served at /media/topic-videos)
     topic_video_dir: str = "media/topic-videos"
+    # ADR-049 voice: an Azure Speech resource, used only by
+    # scripts/topic_videos/voice.py on a developer machine (never by the API)
+    azure_speech_key: str = ""
+    azure_speech_region: str = ""
     retention_upload_days: int = 0
     retention_audit_days: int = 0
     environment: str = "development"

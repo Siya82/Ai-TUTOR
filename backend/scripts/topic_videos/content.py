@@ -13,6 +13,9 @@ Fields
   who      careers that use it
   paper    which final exam paper it's in
   how      a worked example: {"q": question, "steps": [...], "a": answer}
+  say      how the narrator says lines that contain maths (ADR-049 voice):
+           "q", "steps", "a", and "where" ({index: text}). Lines without
+           maths are spoken as written.
 
 "Builds on" and "leads to" come from the topic prerequisites in the seed,
 so they always match what THUTOra's tutor uses.
@@ -30,6 +33,16 @@ GRADE10_MATHS = {
         ],
         "who": ["Engineers", "Programmers", "Actuaries", "Economists"],
         "paper": "Paper 1",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "where": {0: "A cellphone bill: ninety-nine rand, plus one rand fifty a minute."},
+            "q": "Factorise x squared, minus five x, plus six.",
+            "steps": [
+                "Find two numbers that multiply to six, and add to negative five.",
+                "They are negative two, and negative three.",
+                "So it factorises as x minus two, times x minus three.",
+            ],
+            "a": "Check by expanding: you get x squared, minus five x, plus six. Correct.",
+        },
         "how": {
             "q": r"Factorise $x^2 - 5x + 6$",
             "steps": [
@@ -51,6 +64,15 @@ GRADE10_MATHS = {
         ],
         "who": ["Scientists", "Computer scientists", "Financial analysts", "Health researchers"],
         "paper": "Paper 1",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "where": {0: "Phone memory sizes: sixteen, thirty-two, sixty-four, and a hundred and twenty-eight gigabytes.", 2: "The Sun is about a hundred and fifty million kilometres away. That's one comma five, times ten to the power eight."},
+            "q": "Simplify: two to the power x plus two, times two to the power x, all over two to the power two x.",
+            "steps": [
+                "Same base, multiplying: add the exponents. That gives two to the power two x plus two.",
+                "Same base, dividing: subtract the exponents. That leaves two to the power two.",
+            ],
+            "a": "And two squared is four.",
+        },
         "how": {
             "q": r"Simplify $\dfrac{2^{x+2} \cdot 2^{x}}{2^{2x}}$",
             "steps": [
@@ -71,6 +93,14 @@ GRADE10_MATHS = {
         ],
         "who": ["Engineers", "Accountants", "Pharmacists", "Logistics planners"],
         "paper": "Paper 1",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "Solve: two minus three x is less than or equal to eleven.",
+            "steps": [
+                "Subtract two from both sides: negative three x is less than or equal to nine.",
+                "Now divide by negative three. Dividing by a negative flips the sign, so x is greater than or equal to negative three.",
+            ],
+            "a": "So x is greater than or equal to negative three.",
+        },
         "how": {
             "q": r"Solve $2 - 3x \leq 11$",
             "steps": [
@@ -91,6 +121,15 @@ GRADE10_MATHS = {
         ],
         "who": ["Data analysts", "Programmers", "Scientists"],
         "paper": "Paper 1",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "Find the general term, and the fiftieth term, of five, eight, eleven, fourteen, and so on.",
+            "steps": [
+                "It goes up by three each time, so T n equals three n, plus c.",
+                "The first term is five, so three plus c equals five, and c is two.",
+                "So T n equals three n, plus two.",
+            ],
+            "a": "The fiftieth term is three times fifty, plus two. That's one hundred and fifty-two.",
+        },
         "how": {
             "q": r"Find $T_n$ and $T_{50}$ for $5;\ 8;\ 11;\ 14;\ \ldots$",
             "steps": [
@@ -112,6 +151,14 @@ GRADE10_MATHS = {
         ],
         "who": ["Architects", "Surveyors", "Pilots", "Engineers"],
         "paper": "Paper 2",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "A five metre ladder leans against a wall, at sixty degrees to the ground. How high up the wall does it reach?",
+            "steps": [
+                "The ladder is the hypotenuse, and the height is opposite the sixty degree angle.",
+                "So sine sixty degrees equals h over five, which means h equals five, times sine sixty degrees.",
+            ],
+            "a": "h is about four comma three three metres.",
+        },
         "how": {
             "q": r"A $5$ m ladder leans against a wall at $60^\circ$ to the ground. How high up the wall does it reach?",
             "steps": [
@@ -132,6 +179,15 @@ GRADE10_MATHS = {
         ],
         "who": ["Economists", "Engineers", "Data scientists"],
         "paper": "Paper 1",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "Find the key points of y equals x squared, minus four.",
+            "steps": [
+                "The y-intercept: put x equal to zero, and y is negative four.",
+                "The x-intercepts: x squared minus four equals zero, so x is plus or minus two.",
+                "a is positive, so the graph opens upward, with its turning point at zero, negative four.",
+            ],
+            "a": "A U-shaped parabola, through negative two, zero; zero, negative four; and two, zero.",
+        },
         "how": {
             "q": r"Sketch the key points of $y = x^2 - 4$",
             "steps": [
@@ -153,6 +209,14 @@ GRADE10_MATHS = {
         ],
         "who": ["Bankers", "Accountants", "Financial planners", "Everyone with money"],
         "paper": "Paper 1",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "Five thousand rand is invested at eight percent per year, compound interest, for three years. What is it worth?",
+            "steps": [
+                "Use A equals P, times one plus i, to the power n. P is five thousand, i is zero comma zero eight, and n is three.",
+                "So A equals five thousand, times one comma zero eight, cubed.",
+            ],
+            "a": "That's six thousand, two hundred and ninety-eight rand, fifty-six. Simple interest would give only six thousand, two hundred rand.",
+        },
         "how": {
             "q": r"R5 000 is invested at $8\%$ per year, compound interest, for $3$ years. What is it worth?",
             "steps": [
@@ -173,6 +237,15 @@ GRADE10_MATHS = {
         ],
         "who": ["GIS analysts", "Game developers", "Civil engineers"],
         "paper": "Paper 2",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "A is the point one, two, and B is seven, ten. Find the length A B, the midpoint, and the gradient.",
+            "steps": [
+                "A B is the square root of six squared plus eight squared. That's the square root of a hundred, which is ten.",
+                "The midpoint is the average of the coordinates: four, six.",
+                "The gradient is the change in y over the change in x: eight over six, which is four thirds.",
+            ],
+            "a": "So A B is ten, the midpoint is four, six, and the gradient is four thirds.",
+        },
         "how": {
             "q": r"$A(1;\,2)$ and $B(7;\,10)$. Find $AB$, the midpoint and the gradient.",
             "steps": [
@@ -194,6 +267,14 @@ GRADE10_MATHS = {
         ],
         "who": ["Architects", "Engineers", "Carpenters", "Designers"],
         "paper": "Paper 2",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "In triangle A B C, D and E are the midpoints of A B and A C. B C is twelve centimetres. Find D E.",
+            "steps": [
+                "D and E are the midpoints of two sides of the triangle.",
+                "The midpoint theorem says D E is parallel to B C, and half as long.",
+            ],
+            "a": "So D E is six centimetres. Reason: the midpoint theorem.",
+        },
         "how": {
             "q": r"In $\triangle ABC$, $D$ and $E$ are the midpoints of $AB$ and $AC$. $BC = 12$ cm. Find $DE$.",
             "steps": [
@@ -214,6 +295,14 @@ GRADE10_MATHS = {
         ],
         "who": ["Builders", "Quantity surveyors", "Manufacturers"],
         "paper": "Paper 2",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "A cylindrical tank has a radius of zero comma five metres, and a height of two metres. How much water does it hold?",
+            "steps": [
+                "Volume equals pi r squared h: pi, times zero comma five squared, times two.",
+                "That's about one comma five seven cubic metres. And one cubic metre holds a thousand litres.",
+            ],
+            "a": "So it holds about one thousand, five hundred and seventy litres.",
+        },
         "how": {
             "q": r"A cylindrical tank has radius $0{,}5$ m and height $2$ m. How much water does it hold?",
             "steps": [
@@ -234,6 +323,15 @@ GRADE10_MATHS = {
         ],
         "who": ["Statisticians", "Health researchers", "Sports analysts", "Marketers"],
         "paper": "Paper 2",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "q": "Find the mean, median and range of three, five, seven, eight and twelve.",
+            "steps": [
+                "The mean: add them to get thirty-five, and divide by five. That's seven.",
+                "The median: the middle value of the ordered list is seven.",
+                "The range: twelve minus three is nine.",
+            ],
+            "a": "Mean seven, median seven, range nine.",
+        },
         "how": {
             "q": r"Find the mean, median and range of $3;\ 5;\ 7;\ 8;\ 12$",
             "steps": [
@@ -255,6 +353,15 @@ GRADE10_MATHS = {
         ],
         "who": ["Actuaries", "Insurers", "Meteorologists", "Doctors"],
         "paper": "Paper 1",
+        "say": {  # spoken versions of lines with maths in them (ADR-049 voice)
+            "where": {0: "Weather forecasts: a seventy percent chance of rain."},
+            "q": "A bag has three red and five blue marbles. Find the probability of red, and of not red.",
+            "steps": [
+                "There are eight marbles, and three are red, so the probability of red is three eighths.",
+                "Not red is the complement: one minus three eighths.",
+            ],
+            "a": "So the probability of red is three eighths, and of not red, five eighths.",
+        },
         "how": {
             "q": r"A bag has $3$ red and $5$ blue marbles. Find $P(\text{red})$ and $P(\text{not red})$.",
             "steps": [

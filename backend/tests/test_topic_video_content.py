@@ -30,3 +30,24 @@ def test_links_and_slugs():
     assert topic_links("Pure Mathematics", 10, "Exponents") == (["Algebraic Expressions"], ["Number Patterns", "Finance, Growth and Decay"])
     assert video_slug("Pure Mathematics", 10, "Finance, Growth and Decay") == "g10-pure-mathematics-finance-growth-and-decay"
     assert re.fullmatch(r"[a-z0-9-]+", video_slug("Physical Sciences", 11, "2D & 3D Wavefronts"))
+
+
+def test_narration_is_speakable_and_matches_the_scenes():
+    """ADR-049 voice: one spoken line per scene, with no maths markup left in."""
+    from scripts.topic_videos.narration import narration
+    from scripts.topic_videos.render import frames_for
+
+    for (subject, grade), topics in CONTENT.items():
+        for name, c in topics.items():
+            lines = narration(subject, grade, name, c)
+            assert len(lines) == len(frames_for(subject, grade, name, c)), name
+            for line in lines:
+                assert "$" not in line and "\\" not in line, f"{name}: {line!r}"
+            assert len(c["say"].get("steps", [])) in (0, len(c["how"]["steps"])), name
+
+
+def test_voice_ssml_escapes_and_names_the_brand():
+    from scripts.topic_videos.voice import ssml
+
+    out = ssml("x < 5 & ask THUTOra", "en-ZA-LeahNeural")
+    assert "x &lt; 5 &amp; ask" in out and "<sub alias=" in out and "xml:lang='en-ZA'" in out

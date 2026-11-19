@@ -25,9 +25,8 @@ for each W, in this order:
 
 **Format.**
 - 720p, 30 fps.
-- **No sound.** The words are on screen, so videos work muted in class, and no
-  synthetic voice is needed (a natural-sounding voice wasn't available offline).
-  A recorded voice can be added later.
+- The words are on screen, so videos work muted in class. Narration was added
+  later (see "Narration" below).
 - About **0.5 MB** each, to keep learners' data costs down: 135 topics come to
   about 70 MB in total.
 
@@ -67,6 +66,31 @@ for each W, in this order:
 
 **isiZulu HL** topics get no video until a fluent speaker writes or checks the
 text (ADR-021).
+
+## Narration (added 20 Nov 2026)
+
+Siya asked for a voice. It uses **Azure neural voices**, with South African
+English: `en-ZA-LeahNeural` (female) and `en-ZA-LukeNeural` (male). There
+are isiZulu voices for later. The free F0 tier allows 0.5 million characters
+a month, and all 135 videos come to about 145,000.
+
+- **Spoken script.** `narration.py` builds one spoken line per scene. Lines
+  with maths use the entry's `say` block, which writes the maths the way a
+  teacher reads it ("x squared, minus five x, plus six"); a voice can't read
+  LaTeX. A test checks there's a line for every scene and that no maths
+  markup is left.
+- **Making the audio.** `voice.py` calls Azure from a developer machine. The
+  sandbox can't reach Azure, and the API never does.
+  - The key goes in `backend/.env` (`AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`).
+  - Each line is saved as an mp3, and unchanged lines aren't sent again.
+  - "THUTOra" is said through an SSML alias (`BRAND_ALIAS`); adjust it if the
+    sample sounds wrong.
+- **Fitting the video to the voice.** `render.py --voice <name>` makes each
+  scene last as long as its narration plus a short pause, and never less than
+  the reading time. The audio is AAC 48 kbps mono, so a voiced video is about
+  0.9 MB.
+- **On-screen text stays.** It still works muted in class, and for learners
+  who are hard of hearing.
 
 ## Rollout
 

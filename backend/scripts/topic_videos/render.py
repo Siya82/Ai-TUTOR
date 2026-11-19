@@ -204,7 +204,19 @@ def frames_for(subject: str, grade: int, topic: str, c: dict) -> list[tuple[str,
     return out
 
 
-def encode(png: Path, secs: float, fade: str, out: Path) -> None:
+def audio_seconds(path: Path) -> float:
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                         capture_output=True, text=True, check=True).stdout
+    return float(out)
+
+
+VOICE_LEAD = 0.35  # seconds of quiet before the narrator starts a scene
+VOICE_TAIL = 0.6   # and after they finish, before the next scene
+
+
+def encode(png: Path, secs: float, fade: str, out: Path, audio: Path | None = None, voiced: bool = False) -> None:
+    """One scene. With `voiced`, every scene gets an audio track (silence if
+    `audio` is None) so the scenes join without re-encoding."""
     n = round(secs * FPS)
     vf = [f"scale={W}:{H}:flags=lanczos", "format=yuv420p", "loop=-1:1", f"trim=end_frame={n}", f"setpts=N/{FPS}/TB"]
     if fade in ("in", "both"):
@@ -212,18 +224,33 @@ def encode(png: Path, secs: float, fade: str, out: Path) -> None:
     if fade in ("out", "both"):
         vf.append(f"fade=t=out:st={secs - 0.35:.2f}:d=0.35:color={BG}")
     tmp = out.with_suffix(".tmp.mp4")
-    subprocess.run(
-        ["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(FPS), "-i", str(png), "-vf", ",".join(vf),
-         "-frames:v", str(n), "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-crf", "26",
-         "-r", str(FPS), "-g", str(FPS * 10), "-pix_fmt", "yuv420p", str(tmp)],
-        check=True,
-    )
+    cmd = ["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(FPS), "-i", str(png)]
+    if voiced:
+        if audio is not None:
+            cmd += ["-i", str(audio)]
+        else:
+            cmd += ["-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono"]
+        delay = int(VOICE_LEAD * 1000)
+        af = f"adelay={delay}:all=1,apad,atrim=0:{secs:.3f},afade=t=out:st={max(0, secs - 0.15):.3f}:d=0.15"
+        cmd += ["-filter_complex", f"[0:v]{','.join(vf)}[v];[1:a]{af},aresample=24000[a]", "-map", "[v]", "-map", "[a]"]
+    else:
+        cmd += ["-vf", ",".join(vf)]
+    cmd += ["-frames:v", str(n), "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-crf", "26",
+            "-r", str(FPS), "-g", str(FPS * 10), "-pix_fmt", "yuv420p"]
+    if voiced:
+        cmd += ["-c:a", "aac", "-b:a", "48k", "-ac", "1", "-ar", "24000", "-t", f"{secs:.3f}"]
+    subprocess.run(cmd + [str(tmp)], check=True)
     tmp.rename(out)
 
 
-def render(subject: str, grade: int, topic: str, c: dict, browser, stills: bool) -> Path:
+def render(subject: str, grade: int, topic: str, c: dict, browser, stills: bool,
+           voice: str | None = None, out_dir: Path | None = None) -> Path:
     slug = video_slug(subject, grade, topic)
     frames = frames_for(subject, grade, topic, c)
+    audio_dir = OUT / "voice" / voice / slug if voice else None
+    if audio_dir is not None and not audio_dir.exists():
+        raise SystemExit(f"No narration for {topic} in {audio_dir}: run scripts.topic_videos.voice first.")
+    target_dir = out_dir or OUT
     work = Path(tempfile.mkdtemp(prefix=f"tv-{slug}-"))
     pg = browser.new_page(viewport={"width": W, "height": H}, device_scale_factor=1.5)
     clips = []
@@ -240,13 +267,21 @@ def render(subject: str, grade: int, topic: str, c: dict, browser, stills: bool)
             shutil.copy(png, OUT / "stills" / f"{slug}-{i:02d}.png")
         else:
             clip = work / f"{i:02d}.mp4"
-            encode(png, secs, fade, clip)
+            audio = None
+            if audio_dir is not None:
+                mp3 = audio_dir / f"{i:02d}.mp3"
+                if mp3.exists():
+                    audio = mp3
+                    # the scene lasts as long as the narrator needs, never less than reading time
+                    secs = round(max(secs, VOICE_LEAD + audio_seconds(mp3) + VOICE_TAIL), 2)
+            encode(png, secs, fade, clip, audio, voiced=audio_dir is not None)
             clips.append(clip)
     pg.close()
-    target = OUT / f"{slug}.mp4"
+    target = target_dir / f"{slug}.mp4"
     if not stills:
+        target_dir.mkdir(parents=True, exist_ok=True)
         (work / "list.txt").write_text("".join(f"file '{c.as_posix()}'\n" for c in clips))
-        tmp = OUT / f"{slug}.tmp.mp4"
+        tmp = target_dir / f"{slug}.tmp.mp4"
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(work / "list.txt"),
                         "-c", "copy", "-movflags", "+faststart", str(tmp)], check=True)
         tmp.replace(target)
@@ -261,9 +296,12 @@ def main() -> None:
     ap.add_argument("--only", help="render just this topic name")
     ap.add_argument("--stills", action="store_true", help="save PNGs instead of video")
     ap.add_argument("--chrome", help="path to a Chrome/Chromium executable (default: Playwright's)")
+    ap.add_argument("--voice", help="add narration made by scripts.topic_videos.voice with this voice, e.g. en-ZA-LeahNeural")
+    ap.add_argument("--out", help="write the videos here instead of media/topic-videos (e.g. for samples)")
     a = ap.parse_args()
-    OUT.mkdir(parents=True, exist_ok=True)
-    manifest_path = OUT / "manifest.json"
+    out_dir = Path(a.out) if a.out else OUT
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = out_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=a.chrome) if a.chrome else p.chromium.launch()
@@ -271,13 +309,14 @@ def main() -> None:
             for topic, c in topics.items():
                 if a.only and topic != a.only:
                     continue
-                path = render(subject, grade, topic, c, browser, a.stills)
+                path = render(subject, grade, topic, c, browser, a.stills, a.voice, out_dir)
                 if not a.stills:
                     secs = float(subprocess.run(
                         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
                         capture_output=True, text=True, check=True).stdout)
                     manifest[path.name] = {"subject": subject, "grade": grade, "topic": topic,
-                                           "seconds": round(secs), "reviewed_by": c.get("reviewed_by")}
+                                           "seconds": round(secs), "voice": a.voice,
+                                           "reviewed_by": c.get("reviewed_by")}
                     print(f"{path.name}: {secs:.0f} s, {path.stat().st_size / 1e6:.1f} MB")
         browser.close()
     if not a.stills:
