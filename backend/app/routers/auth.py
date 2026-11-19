@@ -73,7 +73,8 @@ async def login(
     # all -- provision_teacher() never creates one -- so this branches
     # before the student-only "No learner profile linked" 404 below,
     # which would otherwise incorrectly fire for every teacher login.
-    if user.role == "teacher":
+    # UPDATED 19 Nov 2026 (ADR-038): parents have no Learner row either.
+    if user.role in ("teacher", "parent"):
         return LoginResponse(
             access_token=token,
             must_change_password=user.must_change_password,

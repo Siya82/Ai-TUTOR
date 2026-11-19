@@ -196,7 +196,7 @@ export default function LoginScreen({ onLogin, notice }) {
                 teacher's staff number too (see provision_teacher()'s
                 docstring) -- this label covers both without the login
                 form itself needing to know which role is signing in. */}
-            <span>Student / staff number</span>
+            <span>Student, staff or parent number</span>
             <input
               type="text"
               name="username"

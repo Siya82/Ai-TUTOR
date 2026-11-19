@@ -2319,3 +2319,27 @@ button.consent-badge {
   font-size: 0.78rem;
   cursor: pointer;
 }
+
+/* NEW 19 Nov 2026 (ADR-038): CONNECT parent view */
+.parent-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.parent-toolbar .admin-form__field {
+  min-width: 200px;
+}
+.parent-summary {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.parent-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.parent-notices__body {
+  white-space: pre-wrap;
+}

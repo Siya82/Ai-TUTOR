@@ -13,7 +13,8 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { IdCard, LayoutGrid } from "lucide-react";
+import { Bell, IdCard, LayoutGrid } from "lucide-react";
+import NoticesSection from "./NoticesSection";
 import { ICON_BUTTON } from "./icons";
 import {
   addClassMembers,
@@ -112,6 +113,7 @@ export default function SchoolPanel({ token, onLogout, me, students, onChanged }
         {[
           ["classes", "Classes", LayoutGrid],
           ["staff", "Staff", IdCard],
+          ["notices", "Notices", Bell], // ADR-038
         ].map(([id, label, Icon]) => (
           <button
             key={id}
@@ -130,6 +132,7 @@ export default function SchoolPanel({ token, onLogout, me, students, onChanged }
       {section === "classes" && (
         <ClassesSection token={token} classes={classes} students={students} run={run} />
       )}
+      {section === "notices" && <NoticesSection token={token} />}
       {section === "staff" && (
         <StaffSection
           token={token}

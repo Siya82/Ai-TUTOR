@@ -696,3 +696,40 @@ export async function deleteLearnerData(token, learnerId, confirmName) {
   }
   return response.json();
 }
+
+/*
+ * NEW 19 Nov 2026 (ADR-038): CONNECT -- parents, and school notices.
+ */
+export function fetchMyChildren(token) {
+  return getJson("/parent/children", token);
+}
+export function fetchChildOverview(token, learnerId) {
+  return getJson(`/parent/children/${learnerId}/overview`, token);
+}
+export function fetchChildSummary(token, learnerId, lang) {
+  return getJson(`/parent/children/${learnerId}/summary?lang=${encodeURIComponent(lang)}`, token);
+}
+export function fetchParentNotices(token) {
+  return getJson("/parent/notices", token);
+}
+export function acknowledgeNotice(token, noticeId) {
+  return postJson(`/parent/notices/${noticeId}/ack`, token, {});
+}
+export function fetchLearnerParents(token, learnerId) {
+  return getJson(`/school/learners/${learnerId}/parents`, token);
+}
+export function addLearnerParent(token, learnerId, body) {
+  return postJson(`/school/learners/${learnerId}/parents`, token, body);
+}
+export function removeLearnerParent(token, learnerId, parentUserId) {
+  return deleteJson(`/school/learners/${learnerId}/parents/${parentUserId}`, token);
+}
+export function fetchSchoolNotices(token) {
+  return getJson("/school/notices", token);
+}
+export function postSchoolNotice(token, body) {
+  return postJson("/school/notices", token, body);
+}
+export function deleteSchoolNotice(token, noticeId) {
+  return deleteJson(`/school/notices/${noticeId}`, token);
+}

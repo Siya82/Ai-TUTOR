@@ -618,3 +618,47 @@ class ConsentRecord(Base):
     recorded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# NEW 19 Nov 2026 (ADR-038, CONNECT -- parents; migration 0016).
+# A parent/guardian is a User with role="parent" in the child's school,
+# logging in with a school-issued number like staff do. They are linked to
+# one or more learners; they see those children's progress (never their
+# tutor conversations) and the school's notices, which they can acknowledge.
+# ---------------------------------------------------------------------------
+
+
+class ParentLink(Base):
+    __tablename__ = "parent_links"
+    __table_args__ = (UniqueConstraint("parent_user_id", "learner_id", name="uq_parent_link"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    parent_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"), nullable=False, index=True)
+    relationship_to_learner: Mapped[str] = mapped_column(String(50), nullable=False, default="Parent")
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+class SchoolNotice(Base):
+    __tablename__ = "school_notices"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    grade: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = whole school
+    requires_ack: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+class NoticeAck(Base):
+    __tablename__ = "notice_acks"
+    __table_args__ = (UniqueConstraint("notice_id", "user_id", name="uq_notice_ack"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    notice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("school_notices.id"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    acked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)

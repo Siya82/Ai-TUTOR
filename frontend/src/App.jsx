@@ -3,6 +3,7 @@ import ChatScreen from "./components/ChatScreen";
 import LoginScreen from "./components/LoginScreen";
 import TeacherAdminScreen from "./components/TeacherAdminScreen";
 import { fetchMe, setUnauthorizedHandler } from "./api";
+import ParentScreen from "./components/ParentScreen";
 import "./styles/product-tokens.css";
 import "./styles/chat.css";
 
@@ -90,6 +91,10 @@ function App() {
   // sees the student ChatScreen, and vice versa. Same login screen for
   // both (school + login identifier + password); the backend's `role`
   // on the login/me response is what branches here.
+  // NEW 19 Nov 2026 (ADR-038): parents get the CONNECT view
+  if (auth.role === "parent") {
+    return <ParentScreen auth={auth} onLogout={handleLogout} />;
+  }
   if (auth.role === "teacher") {
     return <TeacherAdminScreen auth={auth} onLogout={handleLogout} />;
   }

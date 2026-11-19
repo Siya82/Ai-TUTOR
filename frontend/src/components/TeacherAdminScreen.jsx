@@ -22,6 +22,7 @@ import ProgressPanel from "./ProgressPanel";
 import { BarChart3, ClipboardList, LogOut, School, Sun, Upload, UserPlus, Users } from "lucide-react";
 import TodayPanel from "./TodayPanel";
 import LearnerPrivacyPanel from "./LearnerPrivacyPanel";
+import ParentAccessPanel from "./ParentAccessPanel";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import SchoolPanel from "./SchoolPanel";
 import {
@@ -215,6 +216,7 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
   const [notice, setNotice] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [privacyFor, setPrivacyFor] = useState(null); // ADR-037
+  const [parentsFor, setParentsFor] = useState(null); // ADR-038
 
   const run = async (learner, action) => {
     setBusyId(learner.user_id);
@@ -283,6 +285,14 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
           onChanged={onChanged}
         />
       )}
+      {parentsFor && (
+        <ParentAccessPanel
+          key={parentsFor.learner_id}
+          token={token}
+          learner={parentsFor}
+          onClose={() => setParentsFor(null)}
+        />
+      )}
       {students.some((st) => st.is_active !== false && !st.has_consent) && (
         <p className="admin-screen__muted">
           Learners marked "Not yet" have no parent/guardian consent recorded. Click it to record a signed form.
@@ -331,6 +341,11 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
                     onClick={() => run(s, "reset")}
                   >
                     Reset password
+                  </button>
+                )}
+                {s.is_active !== false && (
+                  <button type="button" className="admin-screen__link-button" onClick={() => setParentsFor(s)}>
+                    Parents
                   </button>
                 )}
                 {canManage && (
