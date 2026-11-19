@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     # Days to keep each kind of record; 0 = keep until a period is agreed.
     # scripts/retention.py applies them (run it nightly).
     retention_conversation_days: int = 0
+    # ADR-049: where the topic overview videos live (served at /media/topic-videos)
+    topic_video_dir: str = "media/topic-videos"
     retention_upload_days: int = 0
     retention_audit_days: int = 0
     environment: str = "development"

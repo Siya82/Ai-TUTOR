@@ -2013,7 +2013,10 @@ body {
 
 .reader__epub .sv-note,
 .reader__epub .sv-definition {
-  background: var(--color-surface-2);
+  /* the book page is light (#fff, #1a1a1a text): a dark-theme surface here
+     made notes unreadable (contrast 1.4:1) -- light violet tint instead */
+  background: #f3f0ff;
+  color: #1a1a1a;
   border-left: 4px solid var(--product-teach);
   border-radius: 6px;
   padding: 0.5rem 0.9rem;
@@ -3130,3 +3133,75 @@ textarea {
   background: var(--color-warning-tint);
   color: var(--color-warning);
 }
+
+/* ADR-049: topic overview video */
+.topic-video-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 460px;
+  margin: 0 auto 16px;
+  padding: 14px 18px;
+  border: 1.5px solid var(--color-accent);
+  border-radius: 14px;
+  background: var(--color-accent-tint);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.topic-video-card svg { flex: none; color: var(--color-accent); }
+.topic-video-card strong { display: block; margin-bottom: 2px; }
+.topic-video-card span span { font-size: 0.9em; color: var(--color-text-muted); }
+.topic-video-card:hover, .topic-video-link:hover { filter: brightness(1.08); }
+.topic-video-card:focus-visible, .topic-video-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.topic-video-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 0 0 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.topic-video-link span { color: var(--color-text-muted); }
+.topic-video-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.7);
+}
+.topic-video-dialog {
+  width: min(960px, 100%);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0f1d3d;
+  color: #fff;
+}
+.topic-video-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+}
+.topic-video-dialog__head button {
+  display: inline-flex;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+}
+.topic-video-dialog video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #0f1d3d; }

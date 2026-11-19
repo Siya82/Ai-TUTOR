@@ -3222,3 +3222,28 @@ Checked:
 - axe clean on login, LEARN, TEACH and CONNECT;
 - live smoke run (health, headers, /docs).
 
+## 20 Nov 2026 — Topic overview videos, pilot (ADR-049)
+
+12 one-minute "What is this topic?" videos for Grade 10 Mathematics. Each
+covers what, why, where, who, when and how, ending with a worked example.
+720p, silent, about 0.5 MB each.
+
+How it works:
+- the text is in scripts/topic_videos/content.py;
+- render.py draws the scenes (Playwright + KaTeX + ffmpeg);
+- register.py links the videos to topics through video_resources (now used,
+  with duration_seconds added in migration 0023).
+
+In LEARN: a card on an empty chat, and a small link above a conversation.
+The video plays in a dialog.
+
+Found while testing: textbook "note" boxes had dark text on a dark background
+(contrast 1.4:1), so they now use a light tint. The CSP needed media-src for
+videos.
+
+Checked:
+- 334 backend tests, 22 frontend tests, build;
+- axe clean on the video card and dialog;
+- desktop and phone runs (plays, seeks, Esc closes);
+- the API serves byte ranges with public caching.
+

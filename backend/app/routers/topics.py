@@ -15,10 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_learner_or_teacher
-from app.models import Learner, Subject, Topic, User
+from app.models import Learner, Subject, Topic, User, VideoResource
 from app.schemas.topics import TopicResponse
 
 router = APIRouter(prefix="/topics", tags=["topics"])
+
+THUTORA_VIDEO_SOURCE = "THUTOra"  # ADR-049: our own topic overviews
 
 
 @router.get("/", response_model=list[TopicResponse])
@@ -26,7 +28,7 @@ async def list_topics(
     subject_id: uuid.UUID | None = Query(default=None),
     identity: tuple[User, Learner | None] = Depends(get_current_learner_or_teacher),
     db: AsyncSession = Depends(get_db),
-) -> list[Topic]:
+) -> list[TopicResponse]:
     """
     Topics at or below the current learner's own grade, ordered by
     their CAPS term order within each subject, optionally filtered to
@@ -77,5 +79,24 @@ async def list_topics(
     # get_current_learner_or_teacher's docstring for why.
     if subject_id is not None:
         stmt = stmt.where(Topic.subject_id == subject_id)
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    topics = list((await db.execute(stmt)).scalars().all())
+    # ADR-049: attach THUTOra's own overview video where one exists
+    videos = {}
+    if topics:
+        rows = (
+            await db.execute(
+                select(VideoResource).where(
+                    VideoResource.topic_id.in_([t.id for t in topics]),
+                    VideoResource.source == THUTORA_VIDEO_SOURCE,
+                )
+            )
+        ).scalars().all()
+        videos = {v.topic_id: v for v in rows}
+    out = []
+    for t in topics:
+        item = TopicResponse.model_validate(t)
+        if v := videos.get(t.id):
+            item.intro_video_url = v.url
+            item.intro_video_seconds = v.duration_seconds
+        out.append(item)
+    return out

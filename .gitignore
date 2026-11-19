@@ -31,3 +31,6 @@ _ARCHIVE_ai-caps-tutor-DO-NOT-USE/
 backend/content_sources/books/*.pdf
 backend/content_sources/books/*.epub
 backups/
+
+# ADR-049: rendered topic videos (big binaries; copy or re-render, don't commit)
+backend/media/

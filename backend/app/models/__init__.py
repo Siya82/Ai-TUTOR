@@ -331,22 +331,24 @@ class TutorMessage(Base):
 
 class VideoResource(Base):
     """
-    PLANNED, NOT YET USED (deep scan L3, 20 Nov 2026): kept deliberately for
-    ADR-005's curated-video and practicals features; the tables are empty.
+    A video linked to a topic.
 
-    Curated external video, linked to a topic — not hosted or generated
-    by this platform. See ADR-005: free CAPS-aligned video already exists
-    (Mindset Learn, Siyavula, Khan Academy); this table catalogues it.
+    ADR-049 (20 Nov 2026): first used for THUTOra's own one-minute "What is
+    this topic?" overviews (source "THUTOra", url /media/topic-videos/...),
+    registered by scripts/topic_videos/register.py. ADR-005's catalogue of
+    curated external video (Mindset Learn, Siyavula, Khan Academy) can use
+    the same table with its own source.
     """
 
     __tablename__ = "video_resources"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("topics.id"))
+    topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("topics.id"), index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     source: Mapped[str] = mapped_column(String(100))  # e.g. "Mindset Learn", "Siyavula"
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)  # ADR-049
 
 
 class Practical(Base):

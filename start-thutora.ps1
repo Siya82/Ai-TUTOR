@@ -60,9 +60,13 @@ Write-Host '==> Installing/updating backend dependencies (pypdf, python-docx, et
 python -m pip install -r requirements.txt --quiet
 if (`$LASTEXITCODE -ne 0) { Write-Warning 'Dependency install skipped (pip blocked or failed). The app still starts; only new packages would be missing.' }
 Write-Host '==> Applying any pending migrations (alembic upgrade head)...' -ForegroundColor Cyan
-alembic upgrade head
+# python -m, not alembic.exe / uvicorn.exe: Windows Application Control
+# can block the small .exe launchers (20 Nov 2026)
+python -m alembic upgrade head
+Write-Host '==> Linking topic overview videos (ADR-049)...' -ForegroundColor Cyan
+python -m scripts.topic_videos.register
 Write-Host '==> Starting uvicorn on http://localhost:8000 ...' -ForegroundColor Cyan
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 "@
 
 Write-Host "==> Opening backend window..." -ForegroundColor Cyan

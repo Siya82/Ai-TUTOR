@@ -67,6 +67,7 @@ import {
   X,
 } from "lucide-react";
 import MyProgress from "./MyProgress";
+import TopicIntroVideo from "./TopicIntroVideo";
 const TopicTextbook = lazy(() => import("./TopicTextbook")); // deep scan M6 (pulls in the PDF reader)
 import { MathPreview, MathText } from "./MathText";
 import { nextSlot, toTutorText } from "../utils/mathInput";
@@ -787,8 +788,12 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
 
       <div className="chat-screen__transcript" ref={transcriptRef}>
         {messages.length === 0 && !loadError && (
-          <div className="chat-screen__empty">Ask a question to get started.</div>
+          <div className="chat-screen__empty">
+            <TopicIntroVideo topic={topics.find((x) => x.id === topicId)} />
+            Ask a question to get started.
+          </div>
         )}
+        {messages.length > 0 && <TopicIntroVideo topic={topics.find((x) => x.id === topicId)} compact />}
         {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="chat-message chat-message--user">

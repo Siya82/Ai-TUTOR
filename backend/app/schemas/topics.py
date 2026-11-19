@@ -27,5 +27,8 @@ class TopicResponse(BaseModel):
     caps_reference: str | None
     prerequisite_id: uuid.UUID | None
     section: str | None = None  # ADR-046: e.g. "Chemistry (Paper 2)"
+    # ADR-049: THUTOra's own 1-minute "What is this topic?" video, if made
+    intro_video_url: str | None = None
+    intro_video_seconds: int | None = None
 
     model_config = ConfigDict(from_attributes=True)  # deep scan L5 (Pydantic 2 style)

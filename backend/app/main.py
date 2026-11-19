@@ -9,11 +9,13 @@ were added after this snapshot — not reflected below. See REBUILD_SPEC.md.
 import logging
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import anthropic
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -101,6 +103,8 @@ async def log_requests(request: Request, call_next):
     elapsed_ms = (time.perf_counter() - started) * 1000
     # deep scan H4: security headers on every API response; personal data
     # must never be stored by a shared proxy or the browser's disk cache
+    if request.url.path.startswith("/media/"):  # ADR-049: public, cacheable videos
+        response.headers["Cache-Control"] = "public, max-age=86400"
     for header, value in SECURITY_HEADERS.items():
         response.headers.setdefault(header, value)
     if IS_PRODUCTION:
@@ -127,7 +131,7 @@ async def claude_unavailable(request: Request, exc: anthropic.APIError) -> JSONR
 # deep scan M6: Cloud Run doesn't compress responses. The Progress and Today
 # lists are repetitive JSON, so gzip cuts them by roughly 90% -- most of a
 # teacher's wait on a slow school connection.
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.add_middleware(GZipMiddleware, minimum_size=1024)  # skips video/* and other compressed types
 
 app.add_middleware(
     CORSMiddleware,
@@ -166,6 +170,14 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
 
 app.include_router(dashboard_router.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(client_errors_router.router, tags=["ops"])
+
+# ADR-049: topic overview videos. Curriculum content, not personal data, so
+# no login is needed and browsers may cache them. Starlette serves byte
+# ranges, so the video player can seek. In production they move to a
+# Cloud Storage bucket (docs/RUNBOOK.md).
+_videos = Path(settings.topic_video_dir)
+_videos.mkdir(parents=True, exist_ok=True)
+app.mount("/media/topic-videos", StaticFiles(directory=_videos), name="topic-videos")
 
 
 async def _report_pending_registrations() -> None:

@@ -166,3 +166,20 @@ async def test_viewer_invite_redeem_once(client, world):
     assert r.status_code == 200, r.text
     assert (await _login(client, world.school.id, r.json()["login_number"], "GogoPass123!")).status_code == 200
     assert (await client.post("/connect/viewer/redeem", json=redeem)).status_code == 400
+
+
+# --- ADR-049: topic overview videos -------------------------------------------
+
+async def test_topic_list_carries_the_overview_video(client, world, sessionmaker):
+    from app.models import VideoResource
+
+    async with sessionmaker() as db:
+        db.add(VideoResource(topic_id=world.topic.id, title="x in a minute", url="/media/topic-videos/x.mp4",
+                             source="THUTOra", duration_seconds=65))
+        db.add(VideoResource(topic_id=world.topic.id, title="external", url="https://example.org/v",
+                             source="Siyavula"))  # someone else's video isn't the overview
+        await db.commit()
+    topics = (await client.get("/topics/", headers=world.h("a1"))).json()
+    mine = next(t for t in topics if t["id"] == str(world.topic.id))
+    assert mine["intro_video_url"] == "/media/topic-videos/x.mp4"
+    assert mine["intro_video_seconds"] == 65

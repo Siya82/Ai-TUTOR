@@ -9,6 +9,14 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## Topic overview videos (ADR-049)
+
+- [ ] Watch all 12 Grade 10 Maths videos: is every fact and worked example right? Note fixes against `backend/scripts/topic_videos/content.py`
+- [ ] As a learner, open a topic you haven't chatted in: the "New to ...?" card shows; it plays, seeks, and Esc closes it
+- [ ] In a topic with a conversation: the small "What's this topic about?" link is at the top
+- [ ] On your phone: the video goes full screen and the words are readable
+- [ ] Textbook panel, Exponents chapter: the note boxes are readable (light background)
+
 ## Deep scan fixes (ADR-048)
 
 - [ ] After `pip install -r requirements.txt`, `alembic upgrade head` (0022) and restart: log in as every role

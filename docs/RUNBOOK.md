@@ -17,6 +17,7 @@ goes wrong, once THUTOra is live on Google Cloud (ADR-033).*
 | Nightly clean-up scheduled | A Cloud Run job running `python -m scripts.retention`, triggered nightly by Cloud Scheduler. Try `--dry-run` first. |
 | AI budget per school | Set in ADMIN → School settings → Privacy and AI use. `python -m scripts.ai_costs` shows spend. |
 | Backups on | Section 3. |
+| Topic videos hosted | Upload `backend/media/topic-videos/*.mp4` to a public-read bucket folder, then `python -m scripts.topic_videos.register --base-url https://storage.googleapis.com/<bucket>/topic-videos` (ADR-049). |
 
 ## 2. Connection budget (Cloud SQL)
 

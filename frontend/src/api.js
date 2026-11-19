@@ -21,6 +21,11 @@ import { shrinkImageIfNeeded } from "./utils/shrinkImage";
 // to the Cloud Run address; local development keeps localhost.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 
+// ADR-049: media the API serves (topic videos) from a path it returns
+export function mediaUrl(path) {
+  return path?.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+}
+
 // FIX 13 Nov 2026 (ADR-016): FastAPI's `detail` is a plain string for a
 // raised HTTPException, but for a pydantic validation error (422) it's
 // a LIST of {loc, msg, type} objects -- `new Error(thatArray)` used to
