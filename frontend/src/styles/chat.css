@@ -2600,3 +2600,23 @@ textarea {
 .math-inline .katex {
   font-size: 1.1em;
 }
+
+/* NEW 19 Nov 2026 (ADR-043): family sign-up links, guardian contacts */
+.login-screen__family {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+  margin-top: 12px;
+}
+.guardian-contacts {
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.family-access {
+  margin-top: 16px;
+}
+.family-access .today-list {
+  margin: 12px 0;
+}

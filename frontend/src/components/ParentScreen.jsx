@@ -18,6 +18,7 @@ import {
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import PrivacyNotice from "./PrivacyNotice";
 import Wordmark from "./Wordmark";
+import FamilyAccess from "./FamilyAccess";
 
 const LANG_KEY = "thutora_parent_language";
 
@@ -265,6 +266,14 @@ export default function ParentScreen({ auth, onLogout }) {
                       )}
                     </section>
                   </div>
+                )}
+                {/* ADR-043 */}
+                {children.find((c) => c.learner_id === childId) && (
+                  <FamilyAccess
+                    token={auth.token}
+                    child={children.find((c) => c.learner_id === childId)}
+                    schoolName={auth.school?.name || "your child's school"}
+                  />
                 )}
               </>
             )}

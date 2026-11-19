@@ -27,7 +27,9 @@ from app.models import (
     ClassMember,
     ConsentRecord,
     Learner,
+    LearnerGuardian,
     ParentLink,
+    ViewerInvite,
     PracticalRun,
     Question,
     Topic,
@@ -163,6 +165,8 @@ async def delete_learner_data(db: AsyncSession, learner: Learner) -> tuple[dict,
     await db.execute(delete(PracticalRun).where(PracticalRun.learner_id == lid))
     await db.execute(delete(ConsentRecord).where(ConsentRecord.learner_id == lid))
     await db.execute(delete(ParentLink).where(ParentLink.learner_id == lid))  # ADR-038
+    await db.execute(delete(LearnerGuardian).where(LearnerGuardian.learner_id == lid))  # ADR-043
+    await db.execute(delete(ViewerInvite).where(ViewerInvite.learner_id == lid))  # ADR-043
     user_id = learner.user_id
     await db.delete(learner)
     await db.flush()

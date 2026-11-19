@@ -14,8 +14,9 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import School
+from app.models import LearnerGuardian, School
 from app.services.auth import provision_student
+from app.services.family import normalize_sa_cellphone
 
 REQUIRED_COLUMNS = {"display_name", "grade"}
 
@@ -26,6 +27,13 @@ class ParsedStudentRow:
     display_name: str
     grade: int
     student_number: str | None
+    # NEW 19 Nov 2026 (ADR-043): optional guardian contact columns --
+    # guardian_name, guardian_relationship, guardian_cellphone, guardian_email.
+    # The cellphone is what lets that parent sign themselves up later.
+    guardian_name: str | None = None
+    guardian_relationship: str | None = None
+    guardian_cellphone: str | None = None  # normalised +27...
+    guardian_email: str | None = None
 
 
 @dataclass
@@ -79,9 +87,29 @@ def parse_student_csv(content: str) -> ParsedCsvResult:
             errors.append((i, f"grade must be a whole number, got {grade_raw!r}"))
             continue
 
+        guardian_name = (raw_row.get("guardian_name") or "").strip() or None
+        guardian_cell_raw = (raw_row.get("guardian_cellphone") or "").strip()
+        guardian_cellphone = None
+        if guardian_cell_raw:
+            try:
+                guardian_cellphone = normalize_sa_cellphone(guardian_cell_raw)
+            except ValueError:
+                errors.append((i, f"guardian_cellphone {guardian_cell_raw!r} isn't a South African cellphone number"))
+                continue
+        if (guardian_cellphone or raw_row.get("guardian_email")) and not guardian_name:
+            errors.append((i, "guardian_name is required when a guardian cellphone or email is given"))
+            continue
+
         rows.append(
             ParsedStudentRow(
-                row_number=i, display_name=display_name, grade=grade, student_number=student_number
+                row_number=i,
+                display_name=display_name,
+                grade=grade,
+                student_number=student_number,
+                guardian_name=guardian_name,
+                guardian_relationship=(raw_row.get("guardian_relationship") or "").strip() or None,
+                guardian_cellphone=guardian_cellphone,
+                guardian_email=(raw_row.get("guardian_email") or "").strip() or None,
             )
         )
 
@@ -117,6 +145,16 @@ async def bulk_provision_students(
         except Exception as exc:  # noqa: BLE001 -- one bad row must not sink the whole batch
             row_errors.append((row.row_number, str(exc)))
             continue
+        if row.guardian_name:  # ADR-043
+            db.add(
+                LearnerGuardian(
+                    learner_id=learner.id,
+                    full_name=row.guardian_name,
+                    relationship_to_learner=row.guardian_relationship or "Parent",
+                    cellphone=row.guardian_cellphone,
+                    email=row.guardian_email,
+                )
+            )
         created.append(
             {
                 "user_id": user.id,

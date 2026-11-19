@@ -46,6 +46,7 @@ from app.models import (
     Circuit,
     District,
     OfficialAssignment,
+    LearnerGuardian,
     ParentLink,
     ClassMember,
     ContentChunk,
@@ -1628,6 +1629,7 @@ async def get_or_create_demo_teacher_account(session, school: School) -> User:
 
 DEV_OFFICIAL_NUMBER = "O00001"          # district official (Demo District Office)
 DEV_CIRCUIT_OFFICIAL_NUMBER = "C00001"  # circuit manager (Demo Circuit Office)
+DEV_GUARDIAN_CELLPHONE = "+27820000001"  # ADR-043: type 082 000 0001
 DEV_PARENT_NUMBER = "G00001"            # parent of the dev learner 100001 (Demo School)
 
 
@@ -1739,6 +1741,25 @@ async def ensure_dev_parent(session, school: School, learner: Learner) -> None:
     ).scalar_one_or_none()
     if link is None:
         session.add(ParentLink(parent_user_id=parent.id, learner_id=learner.id, relationship_to_learner="Parent"))
+
+    # ADR-043: a guardian contact "on the school's records" for 100001, so the
+    # cellphone sign-up can be tried. The SMS code appears in the backend log.
+    contact = (
+        await session.execute(
+            select(LearnerGuardian).where(
+                LearnerGuardian.learner_id == learner.id, LearnerGuardian.cellphone == DEV_GUARDIAN_CELLPHONE
+            )
+        )
+    ).scalar_one_or_none()
+    if contact is None:
+        session.add(
+            LearnerGuardian(
+                learner_id=learner.id,
+                full_name="Dev Guardian",
+                relationship_to_learner="Mother",
+                cellphone=DEV_GUARDIAN_CELLPHONE,
+            )
+        )
 
 
 async def ensure_dev_school_structure(session, school: School, teacher: User, learner: Learner) -> User:

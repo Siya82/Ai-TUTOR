@@ -645,6 +645,66 @@ class ParentLink(Base):
     relationship_to_learner: Mapped[str] = mapped_column(String(50), nullable=False, default="Parent")
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+    # NEW 19 Nov 2026 (ADR-043, migration 0018). "guardian" = a parent or
+    # guardian (verified by the school or by matching the school's record);
+    # "viewer" = someone a guardian invited (e.g. a grandparent): sees
+    # progress, not notices, and can be removed by the guardian or school.
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="guardian", server_default="guardian")
+    invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class LearnerGuardian(Base):
+    """
+    NEW 19 Nov 2026 (ADR-043). The parent/guardian contact details the
+    SCHOOL holds for a learner (captured at enrolment, or later from
+    SA-SAMS). They are the trust anchor for parent self-sign-up: a parent
+    can only connect to a learner if the cellphone number they verify by
+    SMS matches one recorded here. parent_user_id is set once they sign up.
+    """
+
+    __tablename__ = "learner_guardians"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"), nullable=False, index=True)
+    full_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    relationship_to_learner: Mapped[str] = mapped_column(String(50), nullable=False, default="Parent")
+    cellphone: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)  # +27XXXXXXXXX
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    parent_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+class SignupCode(Base):
+    """NEW 19 Nov 2026 (ADR-043). A one-time SMS code for parent self-sign-up (hashed, 10 minutes, 5 tries)."""
+
+    __tablename__ = "signup_codes"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
+    cellphone: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+class ViewerInvite(Base):
+    """NEW 19 Nov 2026 (ADR-043). A guardian's one-time invite for a viewer (e.g. a grandparent), 7 days."""
+
+    __tablename__ = "viewer_invites"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
+    learner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("learners.id"), nullable=False, index=True)
+    invited_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    viewer_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    relationship_to_learner: Mapped[str] = mapped_column(String(50), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 class SchoolNotice(Base):

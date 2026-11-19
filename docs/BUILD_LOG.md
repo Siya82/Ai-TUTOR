@@ -3141,3 +3141,13 @@ a⁄b / xⁿ / √ / next ▸ keys, Tab between boxes, live "THUTOra will read"
 preview, questions sent as $LaTeX$ and shown as maths; preview in assignment
 answers too. Checked: 12 new unit tests (18 total), lint, build, and a
 browser run typing "Simplify (x+1)/(x²)−4" with the keys and Tab.
+
+## 19 Nov 2026 — Verifying parents (ADR-043)
+
+Guardian contacts on learner records (staff panel and CSV columns);
+cellphone + SMS-code parent sign-up that links only when the number matches
+the school's record (console SMS in dev, off in production until a provider
+is chosen); guardian-approved viewer invites; viewers get no notices.
+Migration 0018. Checked: 264 backend tests (15 new), 21 HTTP checks
+(sign-up, wrong/reused codes, viewer invite/redeem/remove), lint, build,
+browser run of sign-up → parent view → invite code, staff panel screenshot.

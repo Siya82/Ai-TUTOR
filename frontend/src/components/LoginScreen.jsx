@@ -21,7 +21,8 @@
  */
 
 import { useEffect, useState } from "react";
-import { changePassword, fetchSchools, login } from "../api";
+import { changePassword, fetchSchools, fetchSignupAvailable, login } from "../api";
+import ParentSignup from "./ParentSignup";
 import PrivacyNotice from "./PrivacyNotice";
 import Wordmark from "./Wordmark";
 
@@ -34,6 +35,8 @@ export default function LoginScreen({ onLogin, notice }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [familyMode, setFamilyMode] = useState(null); // ADR-043: null | "signup" | "invite"
+  const [signupEnabled, setSignupEnabled] = useState(false);
 
   // Holds the just-logged-in session (token + learner + school) while
   // must_change_password is true, so the form below can complete the
@@ -46,6 +49,9 @@ export default function LoginScreen({ onLogin, notice }) {
   const [changeError, setChangeError] = useState(null);
 
   useEffect(() => {
+    fetchSignupAvailable()
+      .then((r) => setSignupEnabled(!!r.enabled))
+      .catch(() => setSignupEnabled(false));
     (async () => {
       try {
         const fetchedSchools = await fetchSchools();
@@ -171,6 +177,24 @@ export default function LoginScreen({ onLogin, notice }) {
     );
   }
 
+  if (familyMode) {
+    return (
+      <div className="login-screen">
+        <div className="login-screen__card">
+          {brand}
+          <ParentSignup
+            mode={familyMode}
+            schools={schools}
+            schoolId={schoolId}
+            setSchoolId={setSchoolId}
+            onLogin={onLogin}
+            onBack={() => setFamilyMode(null)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login-screen">
       <div className="login-screen__card">
@@ -227,6 +251,16 @@ export default function LoginScreen({ onLogin, notice }) {
             {loading ? "Logging in…" : "Log in"}
           </button>
         </form>
+        <div className="login-screen__family">
+          {signupEnabled && (
+            <button type="button" className="privacy-link" onClick={() => setFamilyMode("signup")}>
+              Parent? Sign up with your cellphone
+            </button>
+          )}
+          <button type="button" className="privacy-link" onClick={() => setFamilyMode("invite")}>
+            Have an invite code?
+          </button>
+        </div>
         <button type="button" className="privacy-link" onClick={() => setShowPrivacy(true)}>
           Privacy notice
         </button>

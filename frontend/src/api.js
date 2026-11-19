@@ -751,3 +751,67 @@ export function fetchInsightsSchool(token, schoolId) {
 export function fetchChaptersForTopic(token, topicId) {
   return getJson(`/books/for-topic/${topicId}`, token);
 }
+
+/*
+ * NEW 19 Nov 2026 (ADR-043): guardian contacts, parent self-sign-up by
+ * cellphone (only for numbers on the school's records), and viewers
+ * (e.g. a grandparent) invited by a parent/guardian.
+ */
+async function sendJson(method, path, token, body) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { method, headers, body: JSON.stringify(body) });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw httpError(
+      formatErrorDetail(errorBody.detail, `${method} ${path} failed with status ${response.status}`),
+      response.status,
+      { quiet: !token }
+    );
+  }
+  return response.status === 204 ? null : response.json();
+}
+export function fetchGuardians(token, learnerId) {
+  return getJson(`/school/learners/${learnerId}/guardians`, token);
+}
+export function addGuardian(token, learnerId, body) {
+  return sendJson("POST", `/school/learners/${learnerId}/guardians`, token, body);
+}
+export function updateGuardian(token, learnerId, guardianId, body) {
+  return sendJson("PUT", `/school/learners/${learnerId}/guardians/${guardianId}`, token, body);
+}
+export function removeGuardian(token, learnerId, guardianId) {
+  return deleteJson(`/school/learners/${learnerId}/guardians/${guardianId}`, token);
+}
+export async function fetchSignupAvailable() {
+  const response = await fetch(`${API_BASE_URL}/connect/signup/available`);
+  if (!response.ok) return { enabled: false };
+  return response.json();
+}
+export function startParentSignup(schoolId, cellphone) {
+  return sendJson("POST", "/connect/signup/start", null, { school_id: schoolId, cellphone });
+}
+export function verifyParentSignup({ schoolId, cellphone, code, password, fullName }) {
+  return sendJson("POST", "/connect/signup/verify", null, {
+    school_id: schoolId,
+    cellphone,
+    code,
+    password,
+    full_name: fullName || null,
+  });
+}
+export function redeemViewerInvite({ schoolId, code, password }) {
+  return sendJson("POST", "/connect/viewer/redeem", null, { school_id: schoolId, code, password });
+}
+export function fetchViewers(token, learnerId) {
+  return getJson(`/parent/children/${learnerId}/viewers`, token);
+}
+export function inviteViewer(token, learnerId, { viewerName, relationship }) {
+  return sendJson("POST", `/parent/children/${learnerId}/viewers/invite`, token, {
+    viewer_name: viewerName,
+    relationship,
+  });
+}
+export function removeViewer(token, learnerId, viewerUserId) {
+  return deleteJson(`/parent/children/${learnerId}/viewers/${viewerUserId}`, token);
+}

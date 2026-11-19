@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { addLearnerParent, fetchLearnerParents, removeLearnerParent } from "../api";
+import GuardianContacts from "./GuardianContacts";
 
 export default function ParentAccessPanel({ token, learner, onClose }) {
   const [parents, setParents] = useState(null);
@@ -60,6 +61,8 @@ export default function ParentAccessPanel({ token, learner, onClose }) {
         Parents see their child's practice, topics and released marks, and the school's notices — never the child's
         tutor conversations.
       </p>
+      <GuardianContacts token={token} learnerId={learner.learner_id} />
+      <p className="admin-result__title">Parent logins</p>
       {error && <div className="admin-screen__error">{error}</div>}
       {created?.temp_password && (
         <div className="admin-result">
@@ -80,6 +83,7 @@ export default function ParentAccessPanel({ token, learner, onClose }) {
           {parents.map((p) => (
             <li key={p.user_id}>
               <strong>{p.display_name || "Parent"}</strong> ({p.relationship}) · login {p.login_number}
+              {p.kind === "viewer" && <span className="consent-badge"> Viewer</span>}
               {!p.is_active && " · deactivated"}{" "}
               <button
                 type="button"

@@ -99,7 +99,7 @@ async def _my_child(db: AsyncSession, parent: User, learner_id: uuid.UUID) -> tu
 async def my_children(parent: User = Depends(get_current_parent), db: AsyncSession = Depends(get_db)) -> list[dict]:
     rows = (
         await db.execute(
-            select(Learner, ParentLink.relationship_to_learner)
+            select(Learner, ParentLink.relationship_to_learner, ParentLink.kind)
             .join(ParentLink, ParentLink.learner_id == Learner.id)
             .join(User, Learner.user_id == User.id)
             .where(ParentLink.parent_user_id == parent.id, User.is_active.is_(True))
@@ -107,8 +107,14 @@ async def my_children(parent: User = Depends(get_current_parent), db: AsyncSessi
         )
     ).all()
     return [
-        {"learner_id": str(l.id), "display_name": l.display_name, "grade": l.grade, "relationship": rel}
-        for l, rel in rows
+        {
+            "learner_id": str(l.id),
+            "display_name": l.display_name,
+            "grade": l.grade,
+            "relationship": rel,
+            "kind": kind,  # ADR-043: "guardian" or "viewer"
+        }
+        for l, rel, kind in rows
     ]
 
 
@@ -212,7 +218,8 @@ async def _parent_grades(db: AsyncSession, parent: User) -> set[int]:
             await db.execute(
                 select(Learner.grade)
                 .join(ParentLink, ParentLink.learner_id == Learner.id)
-                .where(ParentLink.parent_user_id == parent.id)
+                # ADR-043: notices go to parents/guardians, not invited viewers
+                .where(ParentLink.parent_user_id == parent.id, ParentLink.kind == "guardian")
             )
         ).scalars().all()
     )
@@ -221,6 +228,8 @@ async def _parent_grades(db: AsyncSession, parent: User) -> set[int]:
 @router.get("/parent/notices")
 async def parent_notices(parent: User = Depends(get_current_parent), db: AsyncSession = Depends(get_db)) -> list[dict]:
     grades = await _parent_grades(db, parent)
+    if not grades:
+        return []  # viewers only (ADR-043)
     notices = (
         await db.execute(
             select(SchoolNotice)
@@ -308,7 +317,7 @@ async def list_parents(
     learner = await _school_learner(db, learner_id, scope)
     rows = (
         await db.execute(
-            select(User, ParentLink.relationship_to_learner)
+            select(User, ParentLink.relationship_to_learner, ParentLink.kind)
             .join(ParentLink, ParentLink.parent_user_id == User.id)
             .where(ParentLink.learner_id == learner.id)
         )
@@ -319,9 +328,10 @@ async def list_parents(
             "display_name": u.display_name,
             "login_number": u.student_number,
             "relationship": rel,
+            "kind": kind,  # ADR-043
             "is_active": bool(u.is_active),
         }
-        for u, rel in rows
+        for u, rel, kind in rows
     ]
 
 
@@ -427,7 +437,7 @@ async def school_notices(
             select(ParentLink.parent_user_id, Learner.grade)
             .join(Learner, ParentLink.learner_id == Learner.id)
             .join(User, ParentLink.parent_user_id == User.id)
-            .where(User.school_id == scope.school_id, User.is_active.is_(True))
+            .where(User.school_id == scope.school_id, User.is_active.is_(True), ParentLink.kind == "guardian")
         )
     ).all()
     parents_all = {p for p, _ in rows}

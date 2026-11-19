@@ -9,6 +9,17 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## Verifying parents (ADR-043)
+
+- [ ] Restart with the start script (applies migration 0018 and re-seeds).
+- [ ] Log in as T00001 → Students → Parents on a learner → add a guardian contact with your own cellphone.
+- [ ] Log out → "Parent? Sign up with your cellphone" → THUTOra Demo School → 082 000 0001 (seeded for 100001). The code is in the backend window (`DEV SMS to +27820000001`).
+- [ ] Try a number that isn't on record: same message, and no code in the log.
+- [ ] Wrong code 5 times → it stops working; request a new one.
+- [ ] Signed in as the parent → Family access → invite "Gogo". Log out → "Have an invite code?" → redeem it → you see progress but no notices.
+- [ ] Back as the parent → Remove Gogo → Gogo's next refresh shows no child.
+- [ ] Teacher's Parents panel shows the contact "Signed up" and the viewer marked "Viewer".
+
 ## New features (19 Nov 2026, ADR-035 to ADR-039)
 
 Re-run the seed first so the demo logins exist: `python -m scripts.seed_dev_data`.

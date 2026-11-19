@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # MARKING_MODEL in backend/.env to a Haiku-class model to cut marking
     # cost, e.g. MARKING_MODEL=claude-haiku-5-5.
     marking_model: str = ""
+    # NEW 19 Nov 2026 (ADR-043). How parent sign-up codes are sent; see
+    # app/services/sms.py. Empty = off (in development: written to the log).
+    sms_provider: str = ""
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
 
