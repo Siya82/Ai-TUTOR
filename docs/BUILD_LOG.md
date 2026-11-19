@@ -3134,3 +3134,10 @@ Ask buttons drop the section or highlight into the chat. New endpoint
 `/books/for-topic/{id}`. Checked: lint, build, 249 backend tests, the
 endpoint for Grade 10/11/12 Maths topics, screenshots on desktop (chat +
 chapter side by side, Ask → book chip in the composer) and phone (overlay).
+
+## 19 Nov 2026 — Fractions in the question box (ADR-042)
+
+a⁄b / xⁿ / √ / next ▸ keys, Tab between boxes, live "THUTOra will read"
+preview, questions sent as $LaTeX$ and shown as maths; preview in assignment
+answers too. Checked: 12 new unit tests (18 total), lint, build, and a
+browser run typing "Simplify (x+1)/(x²)−4" with the keys and Tab.

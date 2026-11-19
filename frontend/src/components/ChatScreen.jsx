@@ -47,6 +47,8 @@ import LibraryView from "./LibraryView";
 import LearnerSettings from "./LearnerSettings"; // NEW 17 Nov 2026 (ADR-032, e-book library)
 import { BookOpen, BookOpenText, ClipboardList, LogOut, MessageCircle, Paperclip } from "lucide-react";
 import TopicTextbook from "./TopicTextbook";
+import { MathPreview, MathText } from "./MathText";
+import { nextSlot, toTutorText } from "../utils/mathInput";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import Wordmark from "./Wordmark";
 
@@ -323,7 +325,9 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   // after live testing showed a standard keyboard has no sin/cos/tan,
   // theta, root, pi, etc., and that the right symbol set depends on
   // the topic (see SymbolKeyboard.jsx).
-  const insertSymbol = (token) => {
+  // UPDATED 19 Nov 2026 (ADR-042): `cursor` places the caret inside what
+  // was inserted (e.g. in the top box of an empty fraction "()/()").
+  const insertSymbol = (token, cursor) => {
     const el = draftInputRef.current;
     if (!el) {
       setDraft((d) => d + token);
@@ -335,9 +339,24 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
     setDraft(next);
     requestAnimationFrame(() => {
       el.focus();
-      const pos = start + token.length;
+      const pos = start + (cursor ?? token.length);
       el.setSelectionRange(pos, pos);
     });
+  };
+
+  // ADR-042: "next box" / Tab -- from the top of a fraction to its bottom, etc.
+  // Returns false when there is no next box (so Tab keeps its normal job).
+  const jumpToNextBox = () => {
+    const el = draftInputRef.current;
+    if (!el) return false;
+    const pos = nextSlot(draft, el.selectionStart ?? 0);
+    el.focus();
+    if (pos == null) {
+      el.setSelectionRange(draft.length, draft.length);
+      return false;
+    }
+    el.setSelectionRange(pos, pos);
+    return true;
   };
 
   // NEW 13 Nov 2026 (ADR-016). Shared by the paperclip button's file
@@ -469,7 +488,9 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    const text = draft.trim();
+    const typed = draft.trim();
+    // ADR-042: fractions/powers/roots go to THUTOra as $LaTeX$; plain text is unchanged.
+    const text = toTutorText(typed);
     if ((!text && readyAttachments.length === 0 && !pendingBook) || !topicId || sending || attachmentsUploading) {
       return;
     }
@@ -528,7 +549,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
       // attachments / book selection) back, so the student can just press
       // Send again instead of retyping it.
       setMessages((prev) => prev.slice(0, -1));
-      setDraft((current) => current || text);
+      setDraft((current) => current || typed);
       setPendingAttachments((current) => (current.length ? current : readyAttachments));
       setPendingBook((current) => current || bookToRestore);
       setSendError(err.message);
@@ -650,7 +671,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
                 </div>
               )}
               {m.book && <BookChip book={m.book} onOpen={() => openBookPage(m.book.bookId, m.book.pageNumber)} />}
-              {m.text}
+              <MathText text={m.text} />
             </div>
           ) : (
             <AssistantMessage key={i} message={m} topics={topics} />
@@ -664,7 +685,9 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
       <SymbolKeyboard
         topicName={topics.find((t) => t.id === topicId)?.name}
         onInsert={insertSymbol}
+        onNextBox={jumpToNextBox}
       />
+      <MathPreview draft={draft} />
 
       {pendingBook && (
         <div className="attachment-chip-row">
@@ -715,6 +738,10 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onPaste={handleDraftPaste}
+          onKeyDown={(e) => {
+            // ADR-042: Tab moves to the next fraction/power box when there is one.
+            if (e.key === "Tab" && !e.shiftKey && draft.includes("(") && jumpToNextBox()) e.preventDefault();
+          }}
           maxLength={4000}
           placeholder={
             pendingBook

@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchMyAssignment, fetchMyAssignments, submitAssignmentAnswer } from "../api";
+import { MathPreview } from "./MathText";
 
 function statusLabel(status) {
   return { not_started: "Not started", in_progress: "In progress", completed: "Completed" }[status] || status;
@@ -257,9 +258,11 @@ function AssignmentQuestionCard({ auth, onLogout, assignmentId, question, closed
           className="assignment-question-card__textarea"
           value={response}
           onChange={(e) => setResponse(e.target.value)}
-          placeholder="Type your answer…"
+          placeholder="Type your answer… (fractions as (top)/(bottom), powers as x^(2))"
           maxLength={4000}
         />
+        {/* ADR-042: shows fractions/powers/roots as maths while typing */}
+        <MathPreview draft={response} />
         {error && <div className="admin-screen__error">{error}</div>}
         <button type="submit" disabled={submitting || !response.trim()}>
           {submitting ? "Submitting…" : question.answered ? "Re-submit answer" : "Submit answer"}

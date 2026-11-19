@@ -27,11 +27,20 @@
  * Electromagnetism -- needed their own new entries below.
  */
 
+// UPDATED 19 Nov 2026 (ADR-042): structure keys first. "a/b" inserts an
+// empty fraction with the cursor in the top box; "next box" (or Tab) jumps
+// to the bottom box. `cursor` = where the caret lands inside the inserted text.
+const STRUCTURE_KEYS = [
+  { label: "a⁄b", insert: "()/()", cursor: 1, title: "Fraction: type the top, then 'next box' for the bottom" },
+  { label: "xⁿ", insert: "^()", cursor: 2, title: "Power" },
+  { label: "√", insert: "√()", cursor: 2, title: "Square root" },
+  { label: "next ▸", action: "next", title: "Jump to the next box (or press Tab)" },
+];
+
 const COMMON_SYMBOLS = [
   { label: "(", insert: "(" },
   { label: ")", insert: ")" },
   { label: "²", insert: "²" },
-  { label: "√", insert: "√(" },
   { label: "=", insert: "=" },
 ];
 
@@ -360,11 +369,23 @@ const TOPIC_SYMBOLS = {
   ],
 };
 
-export default function SymbolKeyboard({ topicName, onInsert }) {
+export default function SymbolKeyboard({ topicName, onInsert, onNextBox }) {
   const topicButtons = TOPIC_SYMBOLS[topicName] || [];
 
   return (
     <div className="symbol-keyboard" role="toolbar" aria-label="Math symbol keyboard">
+      {STRUCTURE_KEYS.map((k) => (
+        <button
+          key={k.label}
+          type="button"
+          className="symbol-keyboard__structure"
+          title={k.title}
+          onClick={() => (k.action === "next" ? onNextBox?.() : onInsert(k.insert, k.cursor))}
+        >
+          {k.label}
+        </button>
+      ))}
+      <span className="symbol-keyboard__divider" aria-hidden="true" />
       {topicButtons.map((sym) => (
         <button key={sym.label} type="button" onClick={() => onInsert(sym.insert)}>
           {sym.label}

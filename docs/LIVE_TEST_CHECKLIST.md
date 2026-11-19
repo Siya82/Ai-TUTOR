@@ -17,6 +17,7 @@ Demo logins (password `DevPass123!` for all): parent **G00001** at THUTOra Demo 
 circuit manager **C00001** at Demo Circuit Office.
 
 - [ ] Learner `100001` → Tutor chat → Pure Mathematics → **Algebraic Expressions**: "Chapter 1: Algebraic expressions" opens beside the chat; "Ask THUTOra about this section" puts the section in the question box
+- [ ] Chat: tap **a⁄b**, type the top, press **Tab** (or **next ▸**), type the bottom: the preview shows a stacked fraction; send it and THUTOra answers about that fraction
 - [ ] Teacher `T00001` opens on **Today**; "Send practice" on a weak topic creates a practice assignment
 - [ ] Learner `100001` → Settings → Also explain in **isiZulu**; ask a question in isiZulu: explanation uses isiZulu but keeps English terms
 - [ ] Settings → Save data on: textbook figures show a "Show figure" button; equations still load

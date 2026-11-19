@@ -2571,3 +2571,32 @@ textarea {
   min-width: 0;
   flex: 1;
 }
+
+/* NEW 19 Nov 2026 (ADR-042): fraction/power keys and the live maths preview */
+.symbol-keyboard__structure {
+  font-weight: 600;
+  border-color: var(--color-accent) !important;
+  color: var(--color-accent) !important;
+  min-width: 2.6rem;
+}
+.math-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0 1rem 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px dashed var(--color-accent);
+  font-size: 1.05rem;
+  overflow-x: auto;
+}
+.math-preview__label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.math-inline .katex {
+  font-size: 1.1em;
+}
