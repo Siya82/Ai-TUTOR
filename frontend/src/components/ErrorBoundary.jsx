@@ -4,6 +4,7 @@
  * (Class component: React only catches render errors with one.)
  */
 import { Component } from "react";
+import { reportClientError } from "../api";
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -17,6 +18,7 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error("THUTOra screen error", error, info?.componentStack);
+    reportClientError(error, info?.componentStack);
   }
 
   render() {

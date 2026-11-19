@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.audit import record as audit  # code review 19 Nov #11
 from app.core.clock import utcnow_naive
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_db, release_connection
 from app.core.security import get_current_learner, get_current_staff_scope, get_current_user
 from app.models import (
     Assignment,
@@ -48,6 +48,8 @@ from app.models import (
 )
 from app.services.assignments import get_learner_completions
 from app.services.auth import _generate_unique_login_number, generate_temp_password, hash_password
+from app.services.ai_cost import usage_recorder  # deep scan H5
+from app.services.ai_gate import ai_blocked_reason  # deep scan H5
 from app.services.attempt_visibility import released_attempts_only
 from app.services.connect import (
     TOPIC_WINDOW_DAYS,
@@ -201,14 +203,23 @@ async def child_summary(
     text = summary_text(await _overview(db, learner))
     if lang not in HOME_LANGUAGES or lang == "English":
         return {"language": "English", "text": text}
-    key = (learner.id, lang, date.today(), text)
+    today = date.today()
+    key = (learner.id, lang, today, text)
     if key not in _translations:
+        # deep scan L2: drop earlier days so the cache can't grow forever
+        for old in [k for k in _translations if k[2] != today]:
+            _translations.pop(old, None)
+        if await ai_blocked_reason(db, parent.school_id, None):  # deep scan H5: budget used up
+            return {"language": "English", "text": text, "translation_failed": True}
+        await release_connection(db)  # deep scan H3: free the connection during the AI call
         try:
             _translations[key] = await _translator.ask(
                 TRANSLATE_SYSTEM_PROMPT.format(language=lang),
                 [{"role": "user", "content": text}],
                 max_tokens=600,
+                on_usage=usage_recorder(db, school_id=parent.school_id, user_id=parent.id, feature="translation"),
             )
+            await db.commit()  # save the usage row
         except Exception as exc:  # noqa: BLE001 -- fall back to English, never fail the page
             log.warning("Summary translation failed: %s", exc)
             return {"language": "English", "text": text, "translation_failed": True}

@@ -1,79 +1,67 @@
 """
-Login throttling (code review #6, 17 Nov 2026).
+Slows down password guessing without letting one learner lock out another.
 
-Student numbers are easy to guess, so without a limit a password could be
-guessed by trying many in a row. After MAX_FAILURES wrong passwords for
-the same login (school + number) within WINDOW, that login is locked for
-LOCKOUT; separately, one IP address gets at most MAX_IP_FAILURES failures
-per WINDOW across all logins (a whole class behind one school router
-shares an IP, hence the higher number). A successful login clears that
-login's count.
+REWRITTEN 20 Nov 2026 (deep scan M2, L6). Before, 5 wrong passwords locked a
+login for everyone for 15 minutes -- and learners know each other's student
+numbers, so a classmate could lock someone out on purpose. Now:
 
-Kept in memory: simple, no new dependency, and fine for one server. With
-several servers (e.g. Cloud Run scaling out) each keeps its own count, so
-the limits are per server -- move this to the database or Redis then.
+- PER DEVICE: 5 wrong passwords for a login from one device (the browser's
+  own random id) lock that login ON THAT DEVICE for 15 minutes. A classmate
+  on their own phone only locks their own phone.
+- PER LOGIN, ALL DEVICES: 30 wrong passwords in an hour lock the login
+  everywhere for 15 minutes. Far too few to guess an 8+ character password,
+  and too many for a prank; it's logged so the school can see it.
+- PER NETWORK: 300 failures in 15 minutes from one IP (a whole school can sit
+  behind one address, so this is deliberately high).
+
+Counted in the database (rate_limit.py), so it holds across servers.
 """
 
 import logging
-import time
-from collections import defaultdict, deque
 
-MAX_FAILURES = 5
-MAX_IP_FAILURES = 50
-WINDOW_SECONDS = 15 * 60
-LOCKOUT_SECONDS = 15 * 60
+from sqlalchemy.ext.asyncio import AsyncSession
 
-_failures: dict[str, deque[float]] = defaultdict(deque)
-_ip_failures: dict[str, deque[float]] = defaultdict(deque)
-_locked_until: dict[str, float] = {}
+from app.services import rate_limit
+
+DEVICE_MAX, DEVICE_WINDOW = 5, 15 * 60
+LOGIN_MAX, LOGIN_WINDOW = 30, 60 * 60
+IP_MAX, IP_WINDOW = 300, 15 * 60
+LOCK_SECONDS = 15 * 60
 log = logging.getLogger("thutora.login")
 
 
-def _key(school_id, number: str) -> str:
-    return f"{school_id}:{number.strip().lower()}"
+def _login(school_id, number: str) -> str:
+    return f"login:{school_id}:{number.strip().lower()}"
 
 
-def _prune(q: deque, now: float) -> None:
-    while q and now - q[0] > WINDOW_SECONDS:
-        q.popleft()
+async def retry_after_seconds(db: AsyncSession, school_id, number: str, device: str | None, ip: str | None) -> tuple[int, str]:
+    """(seconds to wait, which limit) -- (0, "") when the attempt may go ahead."""
+    from app.core.clock import utcnow_naive
 
-
-def retry_after_seconds(school_id, number: str, ip: str | None, now: float | None = None) -> int:
-    """Seconds until this attempt may be made, or 0 if it may go ahead."""
-    now = time.monotonic() if now is None else now
-    until = _locked_until.get(_key(school_id, number), 0)
-    if until > now:
-        return int(until - now) + 1
+    now = utcnow_naive()
+    checks = [
+        (f"{_login(school_id, number)}:dev:{device or ip or '-'}", DEVICE_MAX, DEVICE_WINDOW, "device"),
+        (_login(school_id, number), LOGIN_MAX, LOGIN_WINDOW, "login"),
+    ]
     if ip:
-        q = _ip_failures[ip]
-        _prune(q, now)
-        if len(q) >= MAX_IP_FAILURES:
-            return int(WINDOW_SECONDS - (now - q[0])) + 1
-    return 0
+        checks.append((f"loginip:{ip}", IP_MAX, IP_WINDOW, "network"))
+    for key, limit, window, kind in checks:
+        if await rate_limit.count(db, key, window) >= limit:
+            oldest = await rate_limit.oldest_in_window(db, key, window)
+            # locked until LOCK_SECONDS after the failure that hit the limit
+            wait = LOCK_SECONDS - int((now - oldest).total_seconds()) if oldest else LOCK_SECONDS
+            return max(wait, 30), kind
+    return 0, ""
 
 
-def record_failure(school_id, number: str, ip: str | None, now: float | None = None) -> None:
-    now = time.monotonic() if now is None else now
-    key = _key(school_id, number)
-    q = _failures[key]
-    _prune(q, now)
-    q.append(now)
-    if len(q) >= MAX_FAILURES:
-        _locked_until[key] = now + LOCKOUT_SECONDS
-        q.clear()
-        log.warning("Login locked for 15 min after repeated failures (school %s)", school_id)
+async def record_failure(db: AsyncSession, school_id, number: str, device: str | None, ip: str | None) -> None:
+    await rate_limit.hit(db, f"{_login(school_id, number)}:dev:{device or ip or '-'}")
+    await rate_limit.hit(db, _login(school_id, number))
     if ip:
-        _ip_failures[ip].append(now)
+        await rate_limit.hit(db, f"loginip:{ip}")
+    if await rate_limit.count(db, _login(school_id, number), LOGIN_WINDOW) + 1 >= LOGIN_MAX:
+        log.warning("Login %s locked on all devices after %d failures in an hour", school_id, LOGIN_MAX)
 
 
-def record_success(school_id, number: str) -> None:
-    key = _key(school_id, number)
-    _failures.pop(key, None)
-    _locked_until.pop(key, None)
-
-
-def reset() -> None:
-    """For tests."""
-    _failures.clear()
-    _ip_failures.clear()
-    _locked_until.clear()
+async def record_success(db: AsyncSession, school_id, number: str, device: str | None, ip: str | None) -> None:
+    await rate_limit.clear(db, f"{_login(school_id, number)}:dev:{device or ip or '-'}")

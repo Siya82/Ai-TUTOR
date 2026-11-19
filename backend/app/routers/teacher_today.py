@@ -140,6 +140,7 @@ async def create_practice(
             .where(
                 Question.topic_id == topic.id,
                 Question.created_by_user_id.is_(None) | (Question.created_by_user_id == teacher.id),
+                Question.is_hidden.is_(False),  # deep scan M8
             )
             .order_by(Question.id)
         )

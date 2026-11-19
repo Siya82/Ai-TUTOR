@@ -63,3 +63,16 @@ def test_practice_set_prefers_questions_not_yet_mastered():
     assert picked == q[2:7]
     topped_up = make_practice_question_ids(q[:3], recently_correct={q[0]}, size=5)
     assert topped_up == [q[1], q[2], q[0]]
+
+
+def test_long_lists_are_capped_but_counted():
+    """deep scan M6: a school of 1,200 doesn't send 1,200 names to Today."""
+    from datetime import datetime
+    from uuid import uuid4
+
+    from app.services.teacher_today import MAX_QUIET, summarise_today
+
+    learners = {uuid4(): f"L{i:04d}" for i in range(300)}
+    out = summarise_today(learners, [], {}, datetime(2026, 11, 20))
+    assert out["quiet_count"] == 300
+    assert len(out["quiet_learners"]) == MAX_QUIET

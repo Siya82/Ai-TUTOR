@@ -17,7 +17,7 @@ there was only ever one subject in the database.
 
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class TopicResponse(BaseModel):
@@ -28,5 +28,4 @@ class TopicResponse(BaseModel):
     prerequisite_id: uuid.UUID | None
     section: str | None = None  # ADR-046: e.g. "Chemistry (Paper 2)"
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)  # deep scan L5 (Pydantic 2 style)

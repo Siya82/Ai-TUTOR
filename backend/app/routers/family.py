@@ -20,9 +20,7 @@ Viewers (a guardian invites e.g. a grandparent):
 """
 
 import logging
-import time
 import uuid
-from collections import defaultdict, deque
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -48,6 +46,7 @@ from app.services.family import (
     otp_matches,
 )
 from app.services.school_scope import StaffScope
+from app.services import rate_limit
 from app.services.sms import SmsUnavailable, send_sms, sms_enabled
 
 router = APIRouter(tags=["family"])
@@ -58,21 +57,15 @@ GENERIC_START_REPLY = (
     "No SMS? Ask the school to check the cellphone number they have for you."
 )
 
-# Simple in-memory limits on sending codes (per number and per IP, per hour).
-_sent_by_number: dict[str, deque] = defaultdict(deque)
-_sent_by_ip: dict[str, deque] = defaultdict(deque)
-
-
-def _allow_send(key: str, ip: str | None) -> bool:
-    now = time.monotonic()
-    for bucket, k, limit in ((_sent_by_number, key, 3), (_sent_by_ip, ip or "-", 20)):
-        q = bucket[k]
-        while q and now - q[0] > 3600:
-            q.popleft()
-        if len(q) >= limit:
-            return False
-    _sent_by_number[key].append(now)
-    _sent_by_ip[ip or "-"].append(now)
+# Limits on sending codes: 3 per number and 20 per IP, per hour.
+# UPDATED 20 Nov 2026 (deep scan L6): counted in the database, not in memory.
+async def _allow_send(db: AsyncSession, key: str, ip: str | None) -> bool:
+    if await rate_limit.too_many(db, f"sms:num:{key}", 3, 3600) or await rate_limit.too_many(
+        db, f"sms:ip:{ip or '-'}", 20, 3600
+    ):
+        return False
+    await rate_limit.hit(db, f"sms:num:{key}")
+    await rate_limit.hit(db, f"sms:ip:{ip or '-'}")
     return True
 
 
@@ -260,7 +253,7 @@ async def signup_start(payload: SignupStart, request: Request, db: AsyncSession 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     ip = request.client.host if request.client else None
-    if not _allow_send(f"{payload.school_id}:{phone}", ip):
+    if not await _allow_send(db, f"{payload.school_id}:{phone}", ip):
         raise HTTPException(status_code=429, detail="Too many codes requested. Please try again in an hour.")
     if await _matching_guardians(db, payload.school_id, phone):
         code, code_hash = new_otp()
@@ -463,7 +456,16 @@ async def remove_viewer(
 
 
 @router.post("/connect/viewer/redeem")
-async def redeem_viewer_invite(payload: ViewerRedeem, db: AsyncSession = Depends(get_db)) -> dict:
+async def redeem_viewer_invite(payload: ViewerRedeem, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    # deep scan M3: 10 tries per IP an hour, 50 per school a day -- invite
+    # codes can't be guessed by trying many.
+    ip = request.client.host if request.client else "-"
+    ip_key, school_key = f"redeem:ip:{ip}", f"redeem:school:{payload.school_id}"
+    if await rate_limit.too_many(db, ip_key, 10, 3600) or await rate_limit.too_many(db, school_key, 50, 86400):
+        raise HTTPException(status_code=429, detail="Too many attempts. Please try again later.")
+    await rate_limit.hit(db, ip_key)
+    await rate_limit.hit(db, school_key)
+    await db.commit()  # count the try even if the code is wrong
     invite = (
         await db.execute(
             select(ViewerInvite).where(

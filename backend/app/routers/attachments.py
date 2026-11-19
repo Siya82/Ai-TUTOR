@@ -15,8 +15,14 @@ token via app/core/security.py's get_current_learner, same fix as
 app/routers/tutor.py.
 """
 
+import asyncio
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.clock import utcnow_naive
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -27,6 +33,7 @@ from app.services.attachments import (
     MAX_IMAGE_BYTES,
     MAX_UPLOAD_BYTES,
     classify_content_type,
+    content_matches_kind,
     extract_docx_text,
     extract_pdf_text,
     save_upload,
@@ -52,12 +59,31 @@ async def upload_attachment(
             ),
         )
 
-    data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)}MB).",
+    # deep scan M4: a daily quota per learner, so uploads can't fill the disk
+    recent = (
+        await db.execute(
+            select(func.count()).select_from(Attachment).where(
+                Attachment.learner_id == learner.id, Attachment.created_at >= utcnow_naive() - timedelta(days=1)
+            )
         )
+    ).scalar_one()
+    if recent >= settings.upload_daily_limit:
+        raise HTTPException(status_code=429, detail="You've uploaded a lot of files today. Please try again tomorrow.")
+
+    # Read in chunks and stop as soon as the file is too big, instead of
+    # reading a huge upload into memory first (deep scan M4).
+    chunks, size = [], 0
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)}MB).",
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if not content_matches_kind(data, kind):
+        raise HTTPException(status_code=415, detail="That file isn't really the type its name says. Please attach a real photo, PDF or Word file.")
     if kind == "image" and len(data) > MAX_IMAGE_BYTES:
         raise HTTPException(
             status_code=413,
@@ -68,10 +94,14 @@ async def upload_attachment(
 
     extracted_text: str | None = None
     extraction_warning: str | None = None
-    if kind == "pdf":
-        extracted_text, extraction_warning = extract_pdf_text(storage_path)
-    elif kind == "docx":
-        extracted_text, extraction_warning = extract_docx_text(storage_path)
+    # deep scan M4: parse in a worker thread with a time limit, so a hostile
+    # or broken file can't stall the server
+    extractor = extract_pdf_text if kind == "pdf" else extract_docx_text if kind == "docx" else None
+    if extractor is not None:
+        try:
+            extracted_text, extraction_warning = await asyncio.wait_for(asyncio.to_thread(extractor, storage_path), 20)
+        except asyncio.TimeoutError:
+            extracted_text, extraction_warning = "", "This file took too long to read. Try a photo of each page instead."
     # "image": no extraction -- sent to Claude as a vision block at
     # message time instead (see app/services/attachments.py).
 

@@ -5,12 +5,15 @@
  */
 import { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
-import { fetchLearnerAnswers, overrideMark } from "../api";
+import { fetchLearnerAnswers, overrideMark, reportQuestion } from "../api";
 import { ICON_BUTTON } from "./icons";
 import { MathText } from "./MathText";
 
 function QuestionReview({ token, assignmentId, q, canMark, onChanged }) {
   const [note, setNote] = useState(q.teacher_note || "");
+  const [reporting, setReporting] = useState(false); // deep scan M8
+  const [reason, setReason] = useState("");
+  const [reported, setReported] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -72,6 +75,37 @@ function QuestionReview({ token, assignmentId, q, canMark, onChanged }) {
       ) : (
         <p className="admin-screen__muted">Not answered yet.</p>
       )}
+      {reported ? (
+        <p className="admin-screen__muted">Thanks — this question has been reported for review.</p>
+      ) : reporting ? (
+        <div className="answer-review__actions">
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="What's wrong with this question or its model answer?"
+            maxLength={1000}
+          />
+          <button
+            type="button"
+            className="answer-review__btn"
+            disabled={reason.trim().length < 3}
+            onClick={async () => {
+              try {
+                await reportQuestion(token, q.question_id, reason.trim());
+                setReported(true);
+              } catch (err) {
+                setError(err.message);
+              }
+            }}
+          >
+            Send report
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="admin-screen__link-button" onClick={() => setReporting(true)}>
+          Report this question
+        </button>
+      )}
     </li>
   );
 }
@@ -100,6 +134,13 @@ export default function AnswerReview({ token, assignmentId, learnerId, onClose, 
         </button>
       </div>
       {error && <div className="admin-screen__error">{error}</div>}
+      {data?.tutor_asked_during_test > 0 && (
+        <p className="answer-review__integrity">
+          This learner asked THUTOra about {data.tutor_asked_during_test} question
+          {data.tutor_asked_during_test === 1 ? "" : "s"} from this test while it was open. The tutor coached the
+          idea with a different example and didn't give answers.
+        </p>
+      )}
       {data && (
         <ol className="answer-review__list">
           {data.questions.map((q) => (

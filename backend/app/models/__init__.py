@@ -36,7 +36,9 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -152,6 +154,11 @@ class School(Base):
     # ...and its settings. These switch real behaviour (ADR-043 flows).
     parent_signup_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     viewer_invites_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    # NEW 20 Nov 2026 (deep scan M1, H5; migration 0022), both off by default:
+    # require a recorded parent/guardian consent before a learner can use the
+    # AI tutor; and a monthly AI spend cap for the school (US dollars).
+    require_consent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    ai_budget_usd_month: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     users: Mapped[list["User"]] = relationship(back_populates="school")
 
@@ -262,6 +269,8 @@ class Question(Base):
     model_answer: Mapped[str] = mapped_column(Text, nullable=False)
     is_diagnostic: Mapped[bool] = mapped_column(Boolean, default=False)
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
+    # NEW 20 Nov 2026 (deep scan M8): taken out of the bank after a report
+    is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     # NEW 15 Nov 2026 (ADR-028, assignments). None for every seeded/
@@ -312,11 +321,19 @@ class TutorMessage(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
+    # NEW 20 Nov 2026 (deep scan M5): set on a learner's question when it
+    # matched a question in a test that was open for them -- the tutor then
+    # coaches without solving, and the teacher can see it happened.
+    test_assignment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("assignments.id"), nullable=True)
+
     session: Mapped["TutorSession"] = relationship(back_populates="messages")
 
 
 class VideoResource(Base):
     """
+    PLANNED, NOT YET USED (deep scan L3, 20 Nov 2026): kept deliberately for
+    ADR-005's curated-video and practicals features; the tables are empty.
+
     Curated external video, linked to a topic — not hosted or generated
     by this platform. See ADR-005: free CAPS-aligned video already exists
     (Mindset Learn, Siyavula, Khan Academy); this table catalogues it.
@@ -837,3 +854,60 @@ class AuditEvent(Base):
     target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)
+
+
+class RateEvent(Base):
+    """
+    NEW 20 Nov 2026 (deep scan L6). One row per rate-limited event (a failed
+    login, an SMS code, an invite attempt...). Counting rows in the database
+    -- not a dict in one server's memory -- keeps limits correct when THUTOra
+    runs on several servers. Old rows are removed by scripts/retention.py.
+    """
+
+    __tablename__ = "rate_events"
+    __table_args__ = (Index("ix_rate_events_key_created", "key", "created_at"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    key: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, nullable=False)
+
+
+class AiUsage(Base):
+    """
+    NEW 20 Nov 2026 (deep scan H5). One row per AI call: who for, what for,
+    which model and how many tokens -- never the text. Cost is worked out
+    from these with the current price list (app/services/ai_cost.py), so the
+    platform knows what each school costs to run.
+    """
+
+    __tablename__ = "ai_usage"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)
+    school_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("schools.id"), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    feature: Mapped[str] = mapped_column(String(30), nullable=False)  # tutor | marking | translation
+    model: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cache_read_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cache_write_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class QuestionReport(Base):
+    """
+    NEW 20 Nov 2026 (deep scan M8). A teacher flags a bank question as wrong
+    or unclear. Management (and Zynora) review it; a hidden question is no
+    longer offered for new assignments or practice.
+    """
+
+    __tablename__ = "question_reports"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id"), nullable=False, index=True)
+    reported_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    school_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("schools.id"), nullable=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open", server_default="open")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

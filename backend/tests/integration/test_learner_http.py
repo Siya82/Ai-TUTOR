@@ -5,7 +5,7 @@ import app.routers.tutor as tutor_router
 from app.core.config import settings
 
 
-async def _fake_ask(system_prompt, messages):
+async def _fake_ask(system_prompt, messages, **kwargs):
     return "Let's work through it: 3x."
 
 

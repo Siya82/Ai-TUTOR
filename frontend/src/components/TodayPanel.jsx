@@ -162,7 +162,7 @@ export default function TodayPanel({ token, onGoToAssignments }) {
                 .slice(0, 20)
                 .map((q) => q.learner_name)
                 .join(", ")}
-              {data.quiet_learners.length > 20 && ` and ${data.quiet_learners.length - 20} more`}
+              {data.quiet_count > 20 && ` and ${data.quiet_count - 20} more`}
             </p>
           )}
         </Card>

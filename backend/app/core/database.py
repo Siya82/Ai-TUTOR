@@ -25,8 +25,29 @@ if "pytest" in sys.modules:
     # event loop handling — NullPool sidesteps connection reuse across loops.
     _engine_kwargs["poolclass"] = NullPool
 
+# deep scan H3 (20 Nov 2026): sized explicitly. AI calls no longer hold a
+# connection (see release_connection), so 10 + 10 serves several classes
+# asking at once (see RUNBOOK.md for the Cloud SQL connection budget);
+# pre-ping drops connections the database closed.
+if "poolclass" not in _engine_kwargs:
+    _engine_kwargs.update(
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=30,
+        pool_pre_ping=True,
+    )
 engine = create_async_engine(settings.database_url, **_engine_kwargs)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def release_connection(db) -> None:
+    """
+    deep scan H3: end the current transaction so its connection goes back to
+    the pool BEFORE a slow call (Claude can take 10-60 s). Anything added so
+    far is committed. Objects stay usable (expire_on_commit=False); the next
+    query simply takes a connection again.
+    """
+    await db.commit()
 
 
 async def get_db():

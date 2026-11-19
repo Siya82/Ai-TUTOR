@@ -5,7 +5,7 @@
  * it read-only.
  */
 import { useEffect, useState } from "react";
-import { fetchSchoolProfile, saveSchoolProfile } from "../api";
+import { fetchAiUsage, fetchSchoolProfile, saveSchoolProfile } from "../api";
 
 const FIELDS = ["name", "emis_number", "province", "quintile", "phone", "email", "physical_address"];
 
@@ -15,6 +15,7 @@ export default function SchoolSettings({ token, onRenamed }) {
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [usage, setUsage] = useState(null); // deep scan H5
 
   useEffect(() => {
     let cancelled = false;
@@ -25,6 +26,9 @@ export default function SchoolSettings({ token, onRenamed }) {
         setForm(p);
       })
       .catch((err) => !cancelled && setError(err.message));
+    fetchAiUsage(token)
+      .then((u) => !cancelled && setUsage(u))
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -47,6 +51,9 @@ export default function SchoolSettings({ token, onRenamed }) {
       body.quintile = form.quintile ? Number(form.quintile) : null;
       body.parent_signup_enabled = form.parent_signup_enabled;
       body.viewer_invites_enabled = form.viewer_invites_enabled;
+      body.require_consent = !!form.require_consent;
+      body.ai_budget_usd_month =
+        form.ai_budget_usd_month === "" || form.ai_budget_usd_month == null ? null : Number(form.ai_budget_usd_month);
       const p = await saveSchoolProfile(token, body);
       setProfile(p);
       setForm(p);
@@ -148,6 +155,46 @@ export default function SchoolSettings({ token, onRenamed }) {
             </span>
           </span>
         </label>
+      </section>
+      <section className="today-card">
+        <h3 className="today-card__title">Privacy and AI use</h3>
+        <label className="school-settings__toggle">
+          <input type="checkbox" checked={!!form.require_consent} onChange={set("require_consent")} disabled={ro} />
+          <span>
+            <strong>Learners need a recorded parent/guardian consent to use the AI tutor</strong>
+            <span className="admin-screen__muted">
+              Without one, the tutor explains that a consent form is needed, and assignment answers are kept for the
+              teacher to mark. Record consent on the Learners tab.
+            </span>
+          </span>
+        </label>
+        <div className="school-settings__grid">
+          <label className="admin-form__field">
+            <span>Monthly AI budget (US$, empty = no limit)</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.ai_budget_usd_month ?? ""}
+              onChange={set("ai_budget_usd_month")}
+              disabled={ro}
+            />
+          </label>
+          {usage && (
+            <div className="admin-form__field">
+              <span>AI use this month</span>
+              <strong>
+                US${usage.cost_usd.toFixed(2)}
+                {usage.budget_usd != null && ` of US$${usage.budget_usd.toFixed(2)}`}
+              </strong>
+              <span className="admin-screen__muted">
+                {Object.entries(usage.by_feature)
+                  .map(([f, v]) => `${v.calls} ${f === "tutor" ? "tutor questions" : f}`)
+                  .join(" · ") || "No AI use yet this month"}
+              </span>
+            </div>
+          )}
+        </div>
       </section>
       {error && <div className="admin-screen__error">{error}</div>}
       {ro ? (

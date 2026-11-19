@@ -8,10 +8,12 @@ were added after this snapshot — not reflected below. See REBUILD_SPEC.md.
 
 import logging
 import time
+from contextlib import asynccontextmanager
 
 import anthropic
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,22 +39,55 @@ from app.routers import connect as connect_router  # NEW 19 Nov 2026 (ADR-038)
 from app.routers import insights as insights_router  # NEW 19 Nov 2026 (ADR-039)
 from app.routers import family as family_router  # NEW 19 Nov 2026 (ADR-043)
 from app.routers import school_admin as school_admin_router  # NEW 19 Nov 2026 (ADR-044)
+from app.routers import client_errors as client_errors_router  # NEW 20 Nov 2026 (deep scan H4)
+
+IS_PRODUCTION = settings.environment.lower() in ("production", "prod")
+
+# deep scan H4: refuse to start with unsafe production settings
+from app.core.production import check_production_settings  # noqa: E402
+
+check_production_settings(settings)
+
+@asynccontextmanager
+async def lifespan(_app):
+    # (FastAPI's lifespan replaces the deprecated @app.on_event("startup"))
+    await _report_pending_registrations()
+    yield
+
 
 app = FastAPI(
-    title="AI CAPS Tutor — Pilot API",
-    description="Grade 10 Mathematics AI tutor pilot",
-    version="0.1.0",
+    lifespan=lifespan,
+    title="THUTOra API",
+    description="THUTOra -- CAPS-aligned AI tutor and school platform",
+    version="1.0.0",
+    # deep scan H4: no public API explorer in production
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
+    openapi_url=None if IS_PRODUCTION else "/openapi.json",
 )
 
 # NEW 17 Nov 2026 (code review #10): the backend had no logging at all, so
 # a problem during a live test left no trace. One line per request (method,
 # path, status, time -- never bodies, which hold learners' messages) plus
 # full tracebacks for errors.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+if settings.log_format == "json":  # deep scan H4: Cloud Logging-friendly
+    from app.core.production import configure_json_logging
+
+    configure_json_logging()
+else:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 log = logging.getLogger("thutora")
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Cache-Control": "no-store",
+}
 
 
 @app.middleware("http")
@@ -64,6 +99,12 @@ async def log_requests(request: Request, call_next):
         log.exception("Unhandled error on %s %s", request.method, request.url.path)
         raise
     elapsed_ms = (time.perf_counter() - started) * 1000
+    # deep scan H4: security headers on every API response; personal data
+    # must never be stored by a shared proxy or the browser's disk cache
+    for header, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    if IS_PRODUCTION:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     level = logging.WARNING if response.status_code >= 500 else logging.INFO
     log.log(level, "%s %s -> %s (%.0f ms)", request.method, request.url.path, response.status_code, elapsed_ms)
     return response
@@ -82,6 +123,11 @@ async def claude_unavailable(request: Request, exc: anthropic.APIError) -> JSONR
         content={"detail": "THUTOra couldn't reach its AI tutor just now. Please try again in a moment."},
     )
 
+
+# deep scan M6: Cloud Run doesn't compress responses. The Progress and Today
+# lists are repetitive JSON, so gzip cuts them by roughly 90% -- most of a
+# teacher's wait on a slow school connection.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,
@@ -119,9 +165,9 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
     return {"status": "ok", "environment": settings.environment}
 
 app.include_router(dashboard_router.router, prefix="/api/v1", tags=["dashboard"])
+app.include_router(client_errors_router.router, tags=["ops"])
 
 
-@app.on_event("startup")
 async def _report_pending_registrations() -> None:
     """code review 19 Nov #16: say at every start-up if schools are waiting."""
     try:

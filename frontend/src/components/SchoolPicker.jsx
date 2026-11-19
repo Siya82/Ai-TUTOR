@@ -58,13 +58,14 @@ export default function SchoolPicker({ value, onChange, label = "School", disabl
         disabled={disabled}
       />
       {error && <div className="login-screen__error">{error}</div>}
-      <ul className="school-picker__results" role="listbox" aria-label="Schools">
+      {/* deep scan L1: a plain list of buttons (no listbox roles -- those need
+          arrow-key handling this list doesn't have, and failed axe) */}
+      <ul className="school-picker__results" aria-label="Schools">
         {results.map((s) => (
           <li key={s.id}>
             <button
               type="button"
-              role="option"
-              aria-selected={value?.id === s.id}
+              aria-pressed={value?.id === s.id}
               onClick={() => {
                 onChange({ id: s.id, name: s.name });
                 setOpen(false);

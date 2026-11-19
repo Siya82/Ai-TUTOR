@@ -42,7 +42,7 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements.txt
-      - run: pip install -r requirements.txt pyflakes
+      - run: pip install -r requirements.txt pyflakes pip-audit
       - name: Migrations (up, down one, up)
         run: |
           alembic upgrade head
@@ -52,6 +52,9 @@ jobs:
         run: python -m pyflakes app scripts tests
       - name: Tests
         run: python -m pytest -q
+      # deep scan H2: fail the build if a dependency has a known vulnerability
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt
 
   frontend:
     runs-on: ubuntu-latest
@@ -66,6 +69,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - name: Dependency audit (what ships to users)
+        run: npm audit --omit=dev --audit-level=moderate
       - run: npx eslint src
       - run: npm test
       - run: npx vite build

@@ -23,7 +23,7 @@ ValidationError, not a test failure.
 import time
 
 import pytest
-from jose import jwt
+import jwt  # PyJWT
 
 from app.core.config import settings
 from app.services.auth import (
@@ -127,7 +127,7 @@ def test_decode_access_token_rejects_a_token_signed_with_the_wrong_secret():
     # signature check (not just shape) must be what rejects it.
     forged = jwt.encode(
         {"sub": "someone", "role": "student", "exp": time.time() + 3600},
-        "a-different-secret-entirely",
+        "a-different-secret-entirely-and-long-enough-for-hs256",
         algorithm=settings.jwt_algorithm,
     )
     assert decode_access_token(forged) is None

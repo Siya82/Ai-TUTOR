@@ -34,7 +34,7 @@
  * just that one request -- is no longer valid.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   fetchSubjects,
   fetchTopics,
@@ -51,7 +51,8 @@ import MarkdownMessage from "./MarkdownMessage";
 import MathVerifiedBadge from "./MathVerifiedBadge";
 import SymbolKeyboard from "./SymbolKeyboard";
 import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
-import LibraryView from "./LibraryView";
+// deep scan M6: the e-book reader loads when the Library is first opened
+const LibraryView = lazy(() => import("./LibraryView"));
 import LearnerSettings from "./LearnerSettings"; // NEW 17 Nov 2026 (ADR-032, e-book library)
 import {
   BookOpen,
@@ -66,7 +67,7 @@ import {
   X,
 } from "lucide-react";
 import MyProgress from "./MyProgress";
-import TopicTextbook from "./TopicTextbook";
+const TopicTextbook = lazy(() => import("./TopicTextbook")); // deep scan M6 (pulls in the PDF reader)
 import { MathPreview, MathText } from "./MathText";
 import { nextSlot, toTutorText } from "../utils/mathInput";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
@@ -330,7 +331,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
           );
         }
       } catch (err) {
-        setLoadError(`Could not reach the backend at http://localhost:8000 (${err.message}). Is uvicorn running?`);
+        setLoadError(`Could not reach THUTOra (${err.message}). Check your connection and try again.`);
       }
     })();
   }, [auth.token]);
@@ -771,13 +772,15 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
           }}
         />
       ) : view === "library" ? (
-        <LibraryView
-          auth={auth}
-          onLogout={onLogout}
-          position={readerPosition}
-          onPositionChange={setReaderPosition}
-          onAsk={handleAskFromBook}
-        />
+        <Suspense fallback={<div className="chat-screen__empty">Opening the library…</div>}>
+          <LibraryView
+            auth={auth}
+            onLogout={onLogout}
+            position={readerPosition}
+            onPositionChange={setReaderPosition}
+            onAsk={handleAskFromBook}
+          />
+        </Suspense>
       ) : (
       <>
       {loadError && <div className="chat-screen__error">{loadError}</div>}
@@ -918,19 +921,21 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
       </div>
       {view === "chat" && bookPanelOpen && topicId && (
         <aside className="app-shell__book">
-          <TopicTextbook
-            auth={auth}
-            onLogout={onLogout}
-            topicId={topicId}
-            topicName={topics.find((t) => t.id === topicId)?.name || ""}
-            onAsk={(ctx) => {
-              handleAskFromBook(ctx);
-              // On a phone the panel covers the chat; close it so the question box shows.
-              if (window.innerWidth < 1100) setBookPanelOpen(false);
-            }}
-            onClose={() => toggleBookPanel(false)}
-            onOpenInLibrary={openBookPage}
-          />
+          <Suspense fallback={<div className="chat-screen__empty">Opening the textbook…</div>}>
+            <TopicTextbook
+              auth={auth}
+              onLogout={onLogout}
+              topicId={topicId}
+              topicName={topics.find((t) => t.id === topicId)?.name || ""}
+              onAsk={(ctx) => {
+                handleAskFromBook(ctx);
+                // On a phone the panel covers the chat; close it so the question box shows.
+                if (window.innerWidth < 1100) setBookPanelOpen(false);
+              }}
+              onClose={() => toggleBookPanel(false)}
+              onOpenInLibrary={openBookPage}
+            />
+          </Suspense>
         </aside>
       )}
     </div>

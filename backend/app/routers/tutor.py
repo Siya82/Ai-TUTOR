@@ -38,9 +38,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.services.usage import questions_today, remaining  # code review 19 Nov #3
-from app.core.database import get_db
+from app.services.ai_cost import usage_recorder  # deep scan H5
+from app.services.ai_gate import NO_CONSENT, ai_blocked_reason  # deep scan M1/H5
+from app.services.test_integrity import INTEGRITY_NOTE, open_test_match  # deep scan M5
+from app.core.database import get_db, release_connection
 from app.core.security import get_current_learner
-from app.models import Attachment, Attempt, Learner, Question, Topic, TutorMessage, TutorSession
+from app.models import Attachment, Attempt, Learner, Question, Topic, TutorMessage, TutorSession, User
 from app.core.config import settings
 from app.schemas.tutor import TutorMessageRequest, TutorMessageResponse
 from app.services.attachments import build_attachment_content_blocks, history_summary_for
@@ -192,6 +195,12 @@ async def send_tutor_message(
             detail="This topic is above your current grade.",
         )
 
+    # deep scan M1/H5: the school's consent and budget switches
+    learner_user = await db.get(User, learner.user_id)
+    blocked = await ai_blocked_reason(db, learner_user.school_id, learner.id)
+    if blocked:
+        raise HTTPException(status_code=403 if blocked == NO_CONSENT else 429, detail=blocked)
+
     # code review 19 Nov #3: a daily limit per learner, checked before any
     # work (or any Claude call) is done for this turn.
     used_today = await questions_today(db, learner.id)
@@ -326,10 +335,17 @@ async def send_tutor_message(
         user_content = message_text
     claude_messages.append({"role": "user", "content": user_content})
 
+    # deep scan M5: a question from a test that's open for this learner gets
+    # coaching only, and is tagged so the teacher can see it
+    test_match = await open_test_match(db, learner.id, payload.message)
+    system_prompt = prep.system_prompt + ("\n\n" + INTEGRITY_NOTE if test_match else "")
+
     persisted_content = history_summary_for(attachment_dicts, message_text)
     if book_summary:  # ADR-032: store a short note, not the whole page
         persisted_content = f"{book_summary} {persisted_content}"
-    user_message = TutorMessage(session_id=session.id, role="user", content=persisted_content)
+    user_message = TutorMessage(
+        session_id=session.id, role="user", content=persisted_content, test_assignment_id=test_match
+    )
     db.add(user_message)
     await db.flush()  # need user_message.id to backfill the attachments below
 
@@ -337,7 +353,26 @@ async def send_tutor_message(
         attachment.session_id = session.id
         attachment.message_id = user_message.id
 
-    reply_text = await _tutor_client.ask(prep.system_prompt, claude_messages)
+    # deep scan H3: save the question and give the connection back to the pool
+    # BEFORE waiting for Claude (10-60 s). Before this, a class of 40 asking at
+    # once queued behind 15 held connections.
+    await release_connection(db)
+    try:
+        reply_text = await _tutor_client.ask(
+            system_prompt,
+            claude_messages,
+            on_usage=usage_recorder(db, school_id=learner_user.school_id, user_id=learner_user.id, feature="tutor"),
+        )
+    except Exception:
+        # No answer: take the question back out, so history and the daily
+        # count don't show a question the learner never got help with.
+        for attachment in attachments:
+            attachment.session_id = None
+            attachment.message_id = None
+        await db.flush()  # unlink the attachments before the message goes
+        await db.delete(user_message)
+        await db.commit()
+        raise
 
     db.add(TutorMessage(session_id=session.id, role="assistant", content=reply_text))
 

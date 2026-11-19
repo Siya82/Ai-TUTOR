@@ -74,6 +74,11 @@ async def sessionmaker():
     _migrate()
     engine = create_async_engine(TEST_DB, poolclass=NullPool)
     maker = async_sessionmaker(engine, expire_on_commit=False)
+    async with maker() as s:  # rate limits must not carry over between tests
+        from sqlalchemy import text
+
+        await s.execute(text("DELETE FROM rate_events"))
+        await s.commit()
 
     async def _get_db():
         async with maker() as s:

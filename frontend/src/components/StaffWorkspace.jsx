@@ -4,11 +4,12 @@
  * the school. People who do both (e.g. a principal who teaches Maths) switch
  * with the TEACH | ADMIN control in the header.
  */
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { fetchSchoolMe } from "../api";
 import { defaultWorkspace, WORKSPACE_KEY } from "../utils/staff";
-import AdminScreen from "./AdminScreen";
-import TeacherAdminScreen from "./TeacherAdminScreen";
+// deep scan M6: a teacher who never opens ADMIN never downloads it
+const AdminScreen = lazy(() => import("./AdminScreen"));
+const TeacherAdminScreen = lazy(() => import("./TeacherAdminScreen"));
 
 function readStored() {
   try {
@@ -84,9 +85,13 @@ export default function StaffWorkspace({ auth, onLogout }) {
   const both = me.can_manage_school && me.has_academic_access;
   const switcher = both ? <WorkspaceSwitch value={workspace} onChange={choose} /> : null;
 
-  return workspace === "admin" ? (
-    <AdminScreen auth={auth} onLogout={onLogout} switcher={switcher} />
-  ) : (
-    <TeacherAdminScreen auth={auth} onLogout={onLogout} switcher={switcher} />
+  return (
+    <Suspense fallback={<div className="app-loading">Loading…</div>}>
+      {workspace === "admin" ? (
+        <AdminScreen auth={auth} onLogout={onLogout} switcher={switcher} />
+      ) : (
+        <TeacherAdminScreen auth={auth} onLogout={onLogout} switcher={switcher} />
+      )}
+    </Suspense>
   );
 }

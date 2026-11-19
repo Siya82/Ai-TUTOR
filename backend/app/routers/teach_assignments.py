@@ -416,7 +416,7 @@ from pydantic import BaseModel, Field  # noqa: E402
 from sqlalchemy import delete, func  # noqa: E402
 
 from app.core.clock import utcnow_naive  # noqa: E402
-from app.models import Attempt  # noqa: E402
+from app.models import Attempt, TutorMessage, TutorSession  # noqa: E402
 from app.services.audit import record as audit  # noqa: E402
 
 
@@ -474,9 +474,19 @@ async def learner_answers(
                 "answered_at": latest.created_at.isoformat() if latest else None,
             }
         )
+    # deep scan M5: how often this learner asked the tutor about this test
+    tutor_asks = (
+        await db.execute(
+            select(func.count())
+            .select_from(TutorMessage)
+            .join(TutorSession, TutorMessage.session_id == TutorSession.id)
+            .where(TutorMessage.test_assignment_id == assignment.id, TutorSession.learner_id == learner_id)
+        )
+    ).scalar_one()
     return {
         "learner_id": str(learner_id),
         "display_name": learner.display_name if learner else "",
+        "tutor_asked_during_test": tutor_asks,
         "can_mark": _can_release(scope, assignment),
         "questions": items,
     }
@@ -602,3 +612,31 @@ async def delete_assignment(
                 {"title": assignment.title})
     await db.commit()
 
+
+
+# --- deep scan M8: report a wrong or unclear bank question --------------------------------
+
+class QuestionReportIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+@router.post("/questions/{question_id}/report", status_code=201)
+async def report_question(
+    question_id: uuid.UUID,
+    payload: QuestionReportIn,
+    scope: StaffScope = Depends(get_current_staff_scope),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Any staff member can flag a question (wrong answer, unclear wording,
+    not CAPS). Zynora reviews reports (scripts/question_reports.py) and can
+    take a question out of the bank for every school."""
+    from app.models import QuestionReport
+
+    question = await db.get(Question, question_id)
+    if question is None:
+        raise HTTPException(status_code=404, detail="Question not found")
+    report = QuestionReport(question_id=question.id, reported_by_user_id=scope.user_id,
+                            school_id=scope.school_id, reason=payload.reason.strip())
+    db.add(report)
+    await db.commit()
+    return {"id": str(report.id), "status": report.status}

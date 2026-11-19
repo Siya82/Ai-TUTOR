@@ -27,6 +27,9 @@ from uuid import UUID
 WINDOW_DAYS = 7
 NEEDS_HELP_MIN_WRONG = 2
 MAX_WEAK_TOPICS = 5
+# deep scan M6: the page shows the first few; send counts, not 1,000 names
+MAX_NEEDS_HELP = 20
+MAX_QUIET = 20
 PRACTICE_SET_SIZE = 5
 
 
@@ -120,6 +123,8 @@ def summarise_today(
         "window_days": WINDOW_DAYS,
         "learner_count": len(learners),
         "active_count": len(active),
+        "needs_help_count": len(needs_help),
+        "quiet_count": len(quiet),
         "needs_help": [
             {
                 "learner_id": str(h.learner_id),
@@ -130,7 +135,7 @@ def summarise_today(
                 "wrong": h.wrong,
                 "answered": h.answered,
             }
-            for h in needs_help
+            for h in needs_help[:MAX_NEEDS_HELP]
         ],
         "weak_topics": [
             {
@@ -145,7 +150,7 @@ def summarise_today(
             }
             for w in weak
         ],
-        "quiet_learners": [{"learner_id": str(lid), "learner_name": learners[lid]} for lid in quiet],
+        "quiet_learners": [{"learner_id": str(lid), "learner_name": learners[lid]} for lid in quiet[:MAX_QUIET]],
     }
 
 

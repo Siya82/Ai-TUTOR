@@ -75,3 +75,20 @@ async def test_edit_close_duplicate_delete(client, world, sessionmaker):
     assert detail["title"].endswith("(copy)") and len(detail["questions"]) == 3 and not detail["closed"]
     assert (await client.delete(f"/teach/assignments/{copy['id']}", headers=h)).status_code == 204
     assert (await client.get(f"/teach/assignments/{copy['id']}", headers=h)).status_code == 404
+
+
+async def test_question_report_hides_from_bank_when_resolved(client, world, sessionmaker):
+    """deep scan M8."""
+    from app.models import Question
+
+    qid = world.questions[0].id
+    r = await client.post(f"/teach/questions/{qid}/report", headers=world.h("teacher_a"),
+                          json={"reason": "The model answer is wrong."})
+    assert r.status_code == 201
+    bank = (await client.get(f"/teach/questions?topic_id={world.topic.id}", headers=world.h("teacher_a"))).json()
+    assert any(q["id"] == str(qid) for q in bank)
+    async with sessionmaker() as db:  # what scripts/question_reports.py hide does
+        (await db.get(Question, qid)).is_hidden = True
+        await db.commit()
+    bank = (await client.get(f"/teach/questions?topic_id={world.topic.id}", headers=world.h("teacher_a"))).json()
+    assert all(q["id"] != str(qid) for q in bank)

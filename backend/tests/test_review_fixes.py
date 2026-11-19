@@ -54,7 +54,6 @@ def test_trim_history_drops_leading_assistant():
 
 # --- code review #6 / #17: login throttling, bcrypt without passlib ----------
 
-from app.services import login_throttle
 from app.services.auth import create_access_token, decode_access_token, hash_password, verify_password
 
 # A hash made by passlib (the old code path) -- existing users' passwords must
@@ -76,28 +75,3 @@ def test_new_hashes_round_trip_and_bad_hash_is_false():
 def test_token_carries_version():
     payload = decode_access_token(create_access_token("u1", "student", 3))
     assert payload["ver"] == 3
-
-
-def test_lockout_after_five_failures_then_clears_on_success():
-    login_throttle.reset()
-    for i in range(login_throttle.MAX_FAILURES - 1):
-        login_throttle.record_failure("s", "123", "1.2.3.4", now=100.0 + i)
-    assert login_throttle.retry_after_seconds("s", "123", "1.2.3.4", now=110.0) == 0
-    login_throttle.record_failure("s", "123", "1.2.3.4", now=111.0)
-    assert login_throttle.retry_after_seconds("s", "123", "1.2.3.4", now=112.0) > 0
-    # another learner on the same school wifi is unaffected
-    assert login_throttle.retry_after_seconds("s", "456", "1.2.3.4", now=112.0) == 0
-    # lock expires
-    later = 111.0 + login_throttle.LOCKOUT_SECONDS + 1
-    assert login_throttle.retry_after_seconds("s", "123", "1.2.3.4", now=later) == 0
-    login_throttle.record_success("s", "123")
-    login_throttle.reset()
-
-
-def test_old_failures_fall_out_of_the_window():
-    login_throttle.reset()
-    for i in range(login_throttle.MAX_FAILURES - 1):
-        login_throttle.record_failure("s", "9", None, now=float(i))
-    login_throttle.record_failure("s", "9", None, now=login_throttle.WINDOW_SECONDS + 100.0)
-    assert login_throttle.retry_after_seconds("s", "9", None, now=login_throttle.WINDOW_SECONDS + 101.0) == 0
-    login_throttle.reset()

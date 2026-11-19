@@ -30,6 +30,25 @@ class Settings(BaseSettings):
     # code review 19 Nov #3: tutor questions per learner per day (South
     # African day). Keeps the Claude bill predictable; 0 = no limit.
     tutor_daily_limit: int = 60
+    # deep scan H3: database connections (per server process)
+    # (pool + overflow) x max Cloud Run instances must stay below Cloud SQL's
+    # max_connections -- see docs/RUNBOOK.md
+    db_pool_size: int = 10
+    db_max_overflow: int = 10
+    # deep scan H4: "json" = one JSON object per log line (Cloud Logging
+    # reads severity and stack traces from it); "text" for local work
+    log_format: str = "text"
+    # deep scan M4: uploads per learner per 24 hours
+    upload_daily_limit: int = 30
+    # deep scan L7: tried once if the main model is overloaded (e.g.
+    # "claude-haiku-4-5"); empty = no fallback
+    fallback_model: str = ""
+    # deep scan M1 (POPIA s14: keep personal information no longer than needed).
+    # Days to keep each kind of record; 0 = keep until a period is agreed.
+    # scripts/retention.py applies them (run it nightly).
+    retention_conversation_days: int = 0
+    retention_upload_days: int = 0
+    retention_audit_days: int = 0
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
 

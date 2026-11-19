@@ -9,7 +9,7 @@ Authorization bearer token instead (app/core/security.py).
 
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class AttachmentUploadResponse(BaseModel):
@@ -22,5 +22,4 @@ class AttachmentUploadResponse(BaseModel):
     # silently sending an attachment the tutor can't actually read.
     extraction_warning: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)  # deep scan L5 (Pydantic 2 style)

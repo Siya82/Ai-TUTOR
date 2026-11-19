@@ -3123,3 +3123,10 @@ textarea {
     padding: 0.6rem 1rem;
   }
 }
+.answer-review__integrity {
+  margin: 8px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}

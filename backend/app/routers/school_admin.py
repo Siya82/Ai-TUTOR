@@ -13,9 +13,7 @@ this router adds what ADMIN needs on top:
 """
 
 import logging
-import time
 import uuid
-from collections import defaultdict, deque
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -38,6 +36,7 @@ from app.models import (
     TeachingAllocation,
     User,
 )
+from app.services import rate_limit
 from app.services.family import normalize_sa_cellphone
 from app.services.school_scope import StaffScope
 
@@ -74,6 +73,8 @@ class SchoolProfileIn(BaseModel):
     physical_address: str | None = Field(default=None, max_length=300)
     parent_signup_enabled: bool = True
     viewer_invites_enabled: bool = True
+    require_consent: bool = False  # deep scan M1
+    ai_budget_usd_month: float | None = Field(default=None, ge=0, le=100000)  # deep scan H5
 
 
 def _profile_out(s: School, scope: StaffScope) -> dict:
@@ -88,6 +89,8 @@ def _profile_out(s: School, scope: StaffScope) -> dict:
         "physical_address": s.physical_address,
         "parent_signup_enabled": s.parent_signup_enabled,
         "viewer_invites_enabled": s.viewer_invites_enabled,
+        "require_consent": s.require_consent,
+        "ai_budget_usd_month": float(s.ai_budget_usd_month) if s.ai_budget_usd_month is not None else None,
         "can_edit": scope.can_manage_school,
         "provinces": PROVINCES,
     }
@@ -122,7 +125,9 @@ async def update_profile(
     school.physical_address = _blank(payload.physical_address)
     school.parent_signup_enabled = payload.parent_signup_enabled
     school.viewer_invites_enabled = payload.viewer_invites_enabled
-    await audit(db, scope.user_id, scope.school_id, "school.settings", "school", school.id, {"parent_signup_enabled": school.parent_signup_enabled, "viewer_invites_enabled": school.viewer_invites_enabled})
+    school.require_consent = payload.require_consent
+    school.ai_budget_usd_month = payload.ai_budget_usd_month
+    await audit(db, scope.user_id, scope.school_id, "school.settings", "school", school.id, {"parent_signup_enabled": school.parent_signup_enabled, "viewer_invites_enabled": school.viewer_invites_enabled, "require_consent": school.require_consent, "ai_budget_usd_month": payload.ai_budget_usd_month})
     await db.commit()
     return _profile_out(school, scope)
 
@@ -237,7 +242,6 @@ async def overview(scope: StaffScope = Depends(get_current_staff_scope), db: Asy
 
 # --- public school registration ------------------------------------------------------
 
-_reg_by_ip: dict[str, deque] = defaultdict(deque)
 
 
 class RegistrationIn(BaseModel):
@@ -260,12 +264,9 @@ async def registration_options() -> dict:
 @router.post("/schools/registrations", status_code=201)
 async def register_school(payload: RegistrationIn, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     ip = request.client.host if request.client else "-"
-    q = _reg_by_ip[ip]
-    now = time.monotonic()
-    while q and now - q[0] > 3600:
-        q.popleft()
-    if len(q) >= 5:
+    if await rate_limit.too_many(db, f"register:ip:{ip}", 5, 3600):  # deep scan L6: in the database
         raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+    await rate_limit.hit(db, f"register:ip:{ip}")
     if payload.province not in PROVINCES:
         raise HTTPException(status_code=400, detail="Choose a province from the list")
     try:
@@ -275,7 +276,6 @@ async def register_school(payload: RegistrationIn, request: Request, db: AsyncSe
     emis = _blank(payload.emis_number)
     if emis and not emis.isdigit():
         raise HTTPException(status_code=400, detail="The EMIS number should be digits only")
-    q.append(now)
     reg = SchoolRegistration(
         id=uuid.uuid4(),
         school_name=payload.school_name.strip(),
@@ -365,3 +365,16 @@ async def school_audit(
             }
         )
     return {"events": out}
+
+
+
+@router.get("/school/ai-usage")
+async def school_ai_usage(scope: StaffScope = Depends(get_current_staff_scope), db: AsyncSession = Depends(get_db)) -> dict:
+    """deep scan H5: this month's AI use and cost for the school, and its budget."""
+    _require_manage(scope)
+    from app.services.ai_cost import school_month
+
+    data = await school_month(db, scope.school_id)
+    school = await db.get(School, scope.school_id)
+    data["budget_usd"] = float(school.ai_budget_usd_month) if school.ai_budget_usd_month is not None else None
+    return data

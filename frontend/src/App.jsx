@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import ChatScreen from "./components/ChatScreen";
 import LoginScreen from "./components/LoginScreen";
-import StaffWorkspace from "./components/StaffWorkspace";
 import { fetchMe, refreshToken, setTokenRenewedHandler, setUnauthorizedHandler } from "./api";
-import ParentScreen from "./components/ParentScreen";
-import InsightsScreen from "./components/InsightsScreen";
+// deep scan M6: each product loads only when someone of that role logs in,
+// so a learner on a phone never downloads TEACH, ADMIN, CONNECT or INSIGHTS.
+const StaffWorkspace = lazy(() => import("./components/StaffWorkspace"));
+const ParentScreen = lazy(() => import("./components/ParentScreen"));
+const InsightsScreen = lazy(() => import("./components/InsightsScreen"));
+const loading = <div className="app-loading">Loading…</div>;
 import "./styles/product-tokens.css";
 import "./styles/chat.css";
 
@@ -113,14 +116,26 @@ function App() {
   // NEW 19 Nov 2026 (ADR-038): parents get the CONNECT view
   // NEW 19 Nov 2026 (ADR-039): circuit/district officials get INSIGHTS
   if (auth.role === "official") {
-    return <InsightsScreen auth={auth} onLogout={handleLogout} />;
+    return (
+      <Suspense fallback={loading}>
+        <InsightsScreen auth={auth} onLogout={handleLogout} />
+      </Suspense>
+    );
   }
   if (auth.role === "parent") {
-    return <ParentScreen auth={auth} onLogout={handleLogout} />;
+    return (
+      <Suspense fallback={loading}>
+        <ParentScreen auth={auth} onLogout={handleLogout} />
+      </Suspense>
+    );
   }
   // NEW 19 Nov 2026 (ADR-044): staff get TEACH and/or ADMIN
   if (auth.role === "teacher") {
-    return <StaffWorkspace auth={auth} onLogout={handleLogout} />;
+    return (
+      <Suspense fallback={loading}>
+        <StaffWorkspace auth={auth} onLogout={handleLogout} />
+      </Suspense>
+    );
   }
 
   return (

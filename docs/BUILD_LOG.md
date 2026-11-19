@@ -3193,3 +3193,32 @@ before a topic could be chosen. Checked: lint, build, 22 frontend tests,
 phone run (drawer, topic change, chemistry symbols), desktop unchanged.
 Also produced 46 s intro videos (16:9 and 9:16) from real app screens --
 not in the repo.
+
+## 20 Nov 2026 — Deep scan fixes (ADR-048)
+
+Fixed every code item from DEEP_SCAN_2026-11-19.md:
+- H1 safeguarding prompt and fenced reference text;
+- H2 dependency upgrades (PyJWT replaces python-jose), with audits in CI;
+- H3 connection release during AI calls (40 learners: median 10.6 s -> under 5 s);
+- H4 production checks, headers, JSON logs, Dockerfile, firebase.json, RUNBOOK and backup script;
+- H5 AI usage and cost per school, budgets, consent gate, fallback model;
+- M1 retention script; M2–M4 database-backed limits and upload hardening;
+- M5 test integrity; M6 code splitting (LEARN 345 -> 220 KB gzip) and gzip;
+- M7 integration tests; M8 question reports;
+- L1–L8.
+
+Migration 0022.
+
+Found while fixing:
+- the frontend's API address was hard-coded to localhost;
+- Cloud Run would have hidden learners' addresses behind one proxy IP;
+- the backup script must copy the dump out of the container, because a
+  PowerShell pipe can corrupt binary output.
+
+Checked:
+- 330 backend tests, no warnings;
+- 22 frontend tests, lint and build;
+- pip-audit and npm audit clean;
+- axe clean on login, LEARN, TEACH and CONNECT;
+- live smoke run (health, headers, /docs).
+

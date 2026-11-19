@@ -95,6 +95,23 @@ def save_upload(data: bytes, original_filename: str, upload_root: str | Path) ->
     return str(path)
 
 
+# deep scan M4: never trust the browser's content type -- check what the
+# file actually is from its first bytes.
+_SIGNATURES = {
+    "pdf": (b"%PDF-",),
+    "docx": (b"PK\x03\x04",),
+    "image": (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a"),
+}
+MAX_PDF_PAGES = 40
+
+
+def content_matches_kind(data: bytes, kind: str) -> bool:
+    """True when the file's own bytes say it is `kind` (WEBP: RIFF....WEBP)."""
+    if kind == "image" and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return True
+    return any(data.startswith(sig) for sig in _SIGNATURES.get(kind, ()))
+
+
 def extract_pdf_text(path: str) -> tuple[str, str | None]:
     """
     Returns (extracted_text, warning). warning is set (text is "") when
@@ -104,7 +121,9 @@ def extract_pdf_text(path: str) -> tuple[str, str | None]:
     """
     try:
         reader = PdfReader(path)
-        pages_text = [page.extract_text() or "" for page in reader.pages]
+        # deep scan M4: a worksheet never needs more than this many pages, and
+        # a hostile PDF with thousands of pages shouldn't tie the server up
+        pages_text = [page.extract_text() or "" for page in list(reader.pages)[:MAX_PDF_PAGES]]
     except Exception as exc:
         return "", (
             f"Could not read this PDF ({exc.__class__.__name__}). Try attaching "

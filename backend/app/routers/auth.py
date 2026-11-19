@@ -44,12 +44,19 @@ async def login(
     # NEW 17 Nov 2026 (code review #6): refuse quickly while this login (or
     # this IP) is locked out after repeated wrong passwords.
     ip = request.client.host if request.client else None
-    wait = login_throttle.retry_after_seconds(payload.school_id, payload.student_number, ip)
+    # deep scan M2: the browser's own random device id, so a lock only
+    # affects the device the wrong passwords came from
+    device = (request.headers.get("x-device-id") or "")[:64] or None
+    wait, kind = await login_throttle.retry_after_seconds(db, payload.school_id, payload.student_number, device, ip)
     if wait:
         minutes = max(1, round(wait / 60))
+        where = "on this device " if kind == "device" else ""
         raise HTTPException(
             status_code=429,
-            detail=f"Too many wrong passwords. Try again in about {minutes} minute(s).",
+            detail=(
+                f"Too many wrong passwords {where}-- try again in about {minutes} minute(s). "
+                "Forgotten your password? Your teacher can reset it."
+            ),
             headers={"Retry-After": str(wait)},
         )
     stmt = select(User).where(
@@ -62,9 +69,11 @@ async def login(
     # practice, and doubly worth it here since school_id + student_number
     # together are a guessable identifier, not a secret.
     if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
-        login_throttle.record_failure(payload.school_id, payload.student_number, ip)
+        await login_throttle.record_failure(db, payload.school_id, payload.student_number, device, ip)
+        await db.commit()  # keep the failure even though the request ends in a 401
         raise HTTPException(status_code=401, detail="Incorrect student number or password")
-    login_throttle.record_success(payload.school_id, payload.student_number)
+    await login_throttle.record_success(db, payload.school_id, payload.student_number, device, ip)
+    await db.commit()
 
     school = await db.get(School, user.school_id)
     token = create_access_token(str(user.id), user.role, user.token_version)

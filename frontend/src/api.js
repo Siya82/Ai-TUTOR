@@ -17,7 +17,9 @@
 
 import { shrinkImageIfNeeded } from "./utils/shrinkImage";
 
-const API_BASE_URL = "http://localhost:8000";
+// deep scan H4: set VITE_API_BASE_URL at build time (frontend/.env.production)
+// to the Cloud Run address; local development keeps localhost.
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 
 // FIX 13 Nov 2026 (ADR-016): FastAPI's `detail` is a plain string for a
 // raised HTTPException, but for a pydantic validation error (422) it's
@@ -932,6 +934,30 @@ export function fetchMyProgress(token) {
 export function editPerson(token, userId, body) {
   return sendJson("PATCH", `/school/users/${userId}`, token, body);
 }
+export function reportQuestion(token, questionId, reason) {
+  return sendJson("POST", `/teach/questions/${questionId}/report`, token, { reason }); // deep scan M8
+}
+export function fetchAiUsage(token) {
+  return getJson("/school/ai-usage", token); // deep scan H5
+}
 export function fetchAuditTrail(token) {
   return getJson("/school/audit", token);
+}
+
+// deep scan H4: send a screen crash to the server log. Never throws.
+export function reportClientError(error, componentStack) {
+  try {
+    fetch(`${API_BASE_URL}/client-errors`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: String(error?.message || error).slice(0, 500),
+        stack: String(componentStack || error?.stack || "").slice(0, 4000),
+        path: window.location.pathname.slice(0, 200),
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* reporting must never cause a second crash */
+  }
 }

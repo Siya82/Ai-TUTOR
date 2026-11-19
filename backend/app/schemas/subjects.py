@@ -11,7 +11,7 @@ picker.
 
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SubjectResponse(BaseModel):
@@ -19,5 +19,4 @@ class SubjectResponse(BaseModel):
     name: str
     grade: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)  # deep scan L5 (Pydantic 2 style)

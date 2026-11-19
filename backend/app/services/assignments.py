@@ -28,6 +28,8 @@ from app.models import (
     Topic,
     User,
 )
+from app.services.ai_cost import usage_recorder  # deep scan H5
+from app.services.ai_gate import ai_blocked_reason  # deep scan M1/H5
 from app.services.answer_marking import MarkingResult, mark_answer
 from app.services.tutor import TutorClient
 
@@ -303,6 +305,7 @@ async def list_bank_questions_for_topic(
         .where(
             Question.topic_id == topic_id,
             (Question.created_by_user_id.is_(None)) | (Question.created_by_user_id == teacher.id),
+            Question.is_hidden.is_(False),  # deep scan M8: reported and taken out
         )
         .order_by(Question.created_at)
     )
@@ -368,12 +371,22 @@ async def submit_assignment_answer(
         # required FK -- but fail loudly rather than use None.text below.
         raise AssignmentError("Question not found")
 
-    result: MarkingResult = await mark_answer(
-        tutor_client,
-        question_text=question.text,
-        model_answer=question.model_answer,
-        learner_response=learner_response,
-    )
+    # deep scan M1/H5: no consent on record (where the school requires it), or
+    # the school's AI budget is used up -> the answer is saved for the teacher
+    # to mark, and nothing goes to the AI
+    blocked = await ai_blocked_reason(db, assignment.school_id, learner.id)
+    if blocked:
+        result = MarkingResult(is_correct=None, feedback="Saved. Your teacher will mark this one.")
+    else:
+        # deep scan H3: don't hold a database connection while the AI marks
+        await db.commit()
+        result = await mark_answer(
+            tutor_client,
+            question_text=question.text,
+            model_answer=question.model_answer,
+            learner_response=learner_response,
+            on_usage=usage_recorder(db, school_id=assignment.school_id, user_id=learner.user_id, feature="marking"),
+        )
 
     attempt = Attempt(
         learner_id=learner.id,
