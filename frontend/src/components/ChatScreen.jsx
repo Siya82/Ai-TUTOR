@@ -53,7 +53,18 @@ import SymbolKeyboard from "./SymbolKeyboard";
 import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
 import LibraryView from "./LibraryView";
 import LearnerSettings from "./LearnerSettings"; // NEW 17 Nov 2026 (ADR-032, e-book library)
-import { BookOpen, BookOpenText, ClipboardList, LogOut, MessageCircle, Paperclip, TrendingUp } from "lucide-react";
+import {
+  BookOpen,
+  BookOpenText,
+  ChevronDown,
+  ClipboardList,
+  LogOut,
+  MessageCircle,
+  Paperclip,
+  Sigma,
+  TrendingUp,
+  X,
+} from "lucide-react";
 import MyProgress from "./MyProgress";
 import TopicTextbook from "./TopicTextbook";
 import { MathPreview, MathText } from "./MathText";
@@ -272,6 +283,11 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   const [loadError, setLoadError] = useState(null);
   const [sendError, setSendError] = useState(null);
   const [questionsLeft, setQuestionsLeft] = useState(null); // code review 19 Nov #3
+  // NEW 19 Nov 2026 (ADR-047, phone layout): on a phone the topic list is a
+  // drawer and the symbol keyboard opens on demand, so the conversation gets
+  // the screen. Both are ignored on wider screens (CSS).
+  const [topicsOpen, setTopicsOpen] = useState(false);
+  const [symbolsOpen, setSymbolsOpen] = useState(false);
   // NEW 13 Nov 2026 (ADR-016): files attached to the question currently
   // being composed -- each entry starts as { tempId, original_filename,
   // uploading: true } and is filled in with the backend's { id, kind,
@@ -324,9 +340,10 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   // its first topic (same "jump to the first topic" behaviour the old
   // dropdown had on a subject change), clicking a topic selects that
   // topic within its subject.
-  const handleSelectTopic = (newSubjectId, newTopicId) => {
+  const handleSelectTopic = (newSubjectId, newTopicId, { keepOpen = false } = {}) => {
     setSubjectId(newSubjectId);
     setTopicId(newTopicId);
+    if (!keepOpen) setTopicsOpen(false); // ADR-047: a chosen topic closes the phone drawer
   };
 
   // NEW 19 Nov 2026 (code review 19 Nov #5): each topic has its own
@@ -617,7 +634,14 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
       data-product="learn"
     >
       {view === "chat" && (
-        <aside className="app-shell__sidebar">
+        <aside className={"app-shell__sidebar" + (topicsOpen ? " app-shell__sidebar--open" : "")}>
+          <div className="topic-drawer__header">
+            <span>Choose a topic</span>
+            <button type="button" className="chat-screen__logout" onClick={() => setTopicsOpen(false)}>
+              <X size={ICON_BUTTON} aria-hidden="true" />
+              Close
+            </button>
+          </div>
           <SubjectTopicSidebar
             subjects={subjects}
             topics={topics}
@@ -712,6 +736,28 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
         </div>
       </header>
 
+      {view === "chat" && (
+        // ADR-047: phones only -- what you're studying, tap to change
+        <button type="button" className="topic-bar" onClick={() => setTopicsOpen(true)}>
+          <span className="topic-bar__label">
+            {(() => {
+              const t = topics.find((x) => x.id === topicId);
+              const sub = subjects.find((x) => x.id === subjectId);
+              return t && sub ? (
+                <>
+                  <span className="topic-bar__subject">
+                    Gr {sub.grade} · {sub.name}
+                  </span>
+                  <strong>{t.name}</strong>
+                </>
+              ) : (
+                <strong>Choose a topic</strong>
+              );
+            })()}
+          </span>
+          <ChevronDown size={ICON_BUTTON} aria-hidden="true" />
+        </button>
+      )}
       {view === "assignments" ? (
         <AssignmentsView auth={auth} onLogout={onLogout} />
       ) : view === "progress" ? (
@@ -769,12 +815,14 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
         </div>
       )}
 
+      <div className={"symbol-keyboard-wrap" + (symbolsOpen ? " symbol-keyboard-wrap--open" : "")}>
       <SymbolKeyboard
         topicName={topics.find((t) => t.id === topicId)?.name}
         section={topics.find((t) => t.id === topicId)?.section}
         onInsert={insertSymbol}
         onNextBox={jumpToNextBox}
       />
+      </div>
       <MathPreview draft={draft} />
 
       {pendingBook && (
@@ -819,6 +867,17 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
           aria-label="Attach a file"
         >
           <Paperclip size={ICON_BUTTON} aria-hidden="true" />
+        </button>
+        {/* ADR-047: phones only -- show/hide the maths and science symbols */}
+        <button
+          type="button"
+          className={"chat-screen__symbols-button" + (symbolsOpen ? " chat-screen__symbols-button--active" : "")}
+          onClick={() => setSymbolsOpen((v) => !v)}
+          aria-pressed={symbolsOpen}
+          title="Symbols: fractions, powers, roots"
+          aria-label="Show symbols"
+        >
+          <Sigma size={ICON_BUTTON} aria-hidden="true" />
         </button>
         <input
           ref={draftInputRef}

@@ -3183,3 +3183,13 @@ tutor notation rule so reaction equations aren't checked as algebra.
 Migration 0021. Checked: 294 backend tests, lint, build, seed + book import
 (22/16/13 chapter ranges, no warnings), browser run of Grade 10 → The Atom
 with its chapter and the chemistry keys, MathGuard on a mixed reply.
+
+## 19 Nov 2026 — LEARN on phones (ADR-047) + intro videos
+
+Topic drawer with a "what you're studying" bar, icon-only compact header, Σ
+button for the symbol keyboard, 100dvh. Conversation area on a 390x844 phone:
+~70px -> ~565px. Fixed during testing: tapping a subject closed the drawer
+before a topic could be chosen. Checked: lint, build, 22 frontend tests,
+phone run (drawer, topic change, chemistry symbols), desktop unchanged.
+Also produced 46 s intro videos (16:9 and 9:16) from real app screens --
+not in the repo.

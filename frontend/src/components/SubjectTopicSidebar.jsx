@@ -78,7 +78,8 @@ export default function SubjectTopicSidebar({
     }
     setExpandedSubjectId(subjectId);
     if (subjectId !== selectedSubjectId) {
-      onSelectTopic(subjectId, firstTopicId);
+      // ADR-047: opening a subject isn't choosing a topic -- keep the phone drawer open
+      onSelectTopic(subjectId, firstTopicId, { keepOpen: true });
     }
   };
 

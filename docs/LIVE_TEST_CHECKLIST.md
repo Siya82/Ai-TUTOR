@@ -9,6 +9,12 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## LEARN on a phone (ADR-047)
+
+- [ ] On your phone (or browser dev tools at 390px), log in as a learner: the conversation fills most of the screen.
+- [ ] Tap the topic bar: the drawer opens; tap a subject (drawer stays open), then a topic (drawer closes, bar updates).
+- [ ] Tap Σ: the fraction/power/root keys appear; tap again to hide.
+
 ## Chemistry (ADR-046)
 
 - [ ] Restart (migration 0021 + re-seed), then re-import books: `python -m scripts.ingest_books`.
