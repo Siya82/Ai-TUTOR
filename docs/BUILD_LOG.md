@@ -3151,3 +3151,15 @@ is chosen); guardian-approved viewer invites; viewers get no notices.
 Migration 0018. Checked: 264 backend tests (15 new), 21 HTTP checks
 (sign-up, wrong/reused codes, viewer invite/redeem/remove), lint, build,
 browser run of sign-up → parent view → invite code, staff panel screenshot.
+
+## 19 Nov 2026 — THUTOra ADMIN (ADR-044)
+
+New teal ADMIN workspace on the same platform: Overview (totals, grades,
+to-dos), Learners (list/add/bulk), Classes, Staff, Notices, School settings
+(profile + parent sign-up / family invite switches, enforced server-side).
+TEACH | ADMIN switch for principals who teach; TEACH no longer carries
+add/bulk/School. Public "Register your school" request + approval CLI
+`scripts/manage_registrations.py`. Migration 0019. Also fixed unstyled submit
+buttons in the consent/parent/guardian forms. Checked: 267 backend tests,
+22 frontend tests, 13 HTTP checks, approval CLI run, lint, build,
+screenshots of login, register, overview, settings, staff and the switch.

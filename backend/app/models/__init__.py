@@ -137,6 +137,17 @@ class School(Base):
     # school sits in at most one circuit.
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="school", server_default="school")
     circuit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("circuits.id"), nullable=True, index=True)
+    # NEW 19 Nov 2026 (ADR-044, ADMIN; migration 0019): the school's profile,
+    # kept by the school itself in ADMIN -> School settings.
+    emis_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    province: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    quintile: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-5 (no-fee schools are 1-3)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    physical_address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # ...and its settings. These switch real behaviour (ADR-043 flows).
+    parent_signup_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    viewer_invites_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
 
     users: Mapped[list["User"]] = relationship(back_populates="school")
 
@@ -767,3 +778,29 @@ class OfficialAssignment(Base):
     district_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("districts.id"), nullable=True, index=True)
     circuit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("circuits.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+class SchoolRegistration(Base):
+    """
+    NEW 19 Nov 2026 (ADR-044). A school asking to join THUTOra, from the
+    public "Register your school" form. Zynora reviews it, and approving it
+    (scripts/manage_registrations.py) creates the school and its principal --
+    the same onboarding step as scripts/provision_school.py.
+    """
+
+    __tablename__ = "school_registrations"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    school_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    emis_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    province: Mapped[str] = mapped_column(String(40), nullable=False)
+    contact_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    contact_role: Mapped[str] = mapped_column(String(50), nullable=False)
+    contact_cellphone: Mapped[str] = mapped_column(String(20), nullable=False)
+    contact_email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    learner_estimate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    school_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("schools.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

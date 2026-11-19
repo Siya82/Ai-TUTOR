@@ -9,6 +9,7 @@ const MARKS = {
   teach: "/thutora-teach-logo.png",
   connect: "/thutora-connect-logo.png",
   insights: "/thutora-insights-logo.png",
+  admin: "/thutora-admin-logo.png", // ADR-044
 };
 
 export default function Wordmark({ product, showProduct = true, size = "md" }) {

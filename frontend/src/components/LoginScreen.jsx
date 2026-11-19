@@ -21,8 +21,14 @@
  */
 
 import { useEffect, useState } from "react";
-import { changePassword, fetchSchools, fetchSignupAvailable, login } from "../api";
+import {
+  changePassword,
+  fetchSchools,
+  fetchSignupAvailable,
+  login,
+} from "../api";
 import ParentSignup from "./ParentSignup";
+import RegisterSchool from "./RegisterSchool";
 import PrivacyNotice from "./PrivacyNotice";
 import Wordmark from "./Wordmark";
 
@@ -35,7 +41,7 @@ export default function LoginScreen({ onLogin, notice }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loadError, setLoadError] = useState(null);
-  const [familyMode, setFamilyMode] = useState(null); // ADR-043: null | "signup" | "invite"
+  const [familyMode, setFamilyMode] = useState(null); // ADR-043: null | "signup" | "invite" | "register" (ADR-044)
   const [signupEnabled, setSignupEnabled] = useState(false);
 
   // Holds the just-logged-in session (token + learner + school) while
@@ -48,18 +54,32 @@ export default function LoginScreen({ onLogin, notice }) {
   const [changing, setChanging] = useState(false);
   const [changeError, setChangeError] = useState(null);
 
+  // ADR-044: the cellphone sign-up link follows the chosen school's setting
   useEffect(() => {
-    fetchSignupAvailable()
-      .then((r) => setSignupEnabled(!!r.enabled))
-      .catch(() => setSignupEnabled(false));
+    if (!schoolId) return;
+    let cancelled = false;
+    fetchSignupAvailable(schoolId)
+      .then((r) => !cancelled && setSignupEnabled(!!r.enabled))
+      .catch(() => !cancelled && setSignupEnabled(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [schoolId]);
+
+  useEffect(() => {
     (async () => {
       try {
         const fetchedSchools = await fetchSchools();
         setSchools(fetchedSchools);
         if (fetchedSchools.length > 0) setSchoolId(fetchedSchools[0].id);
-        else setLoadError("No schools are set up yet. Run backend/scripts/seed_dev_data.py, or ask THUTOra to add one.");
+        else
+          setLoadError(
+            "No schools are set up yet. Run backend/scripts/seed_dev_data.py, or ask THUTOra to add one.",
+          );
       } catch (err) {
-        setLoadError(`Could not reach the backend at http://localhost:8000 (${err.message}). Is uvicorn running?`);
+        setLoadError(
+          `Could not reach the backend at http://localhost:8000 (${err.message}). Is uvicorn running?`,
+        );
       }
     })();
   }, []);
@@ -70,7 +90,11 @@ export default function LoginScreen({ onLogin, notice }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await login({ schoolId, studentNumber: studentNumber.trim(), password });
+      const response = await login({
+        schoolId,
+        studentNumber: studentNumber.trim(),
+        password,
+      });
       if (response.must_change_password) {
         setPendingSession(response);
       } else {
@@ -125,8 +149,13 @@ export default function LoginScreen({ onLogin, notice }) {
       {/* ADR-040: one login for every product, so all four marks */}
       <Wordmark product="learn" showProduct={false} size="lg" />
       <div className="login-screen__products" aria-hidden="true">
-        {["learn", "teach", "connect", "insights"].map((p) => (
-          <img key={p} src={`/thutora-${p}-logo.png`} alt="" title={p.toUpperCase()} />
+        {["learn", "teach", "connect", "admin", "insights"].map((p) => (
+          <img
+            key={p}
+            src={`/thutora-${p}-logo.png`}
+            alt=""
+            title={p.toUpperCase()}
+          />
         ))}
       </div>
     </div>
@@ -139,9 +168,14 @@ export default function LoginScreen({ onLogin, notice }) {
           {brand}
           <h1 className="login-screen__title">Choose a new password</h1>
           <p className="login-screen__subtitle">
-            You logged in with a temporary password — set your own before continuing.
+            You logged in with a temporary password — set your own before
+            continuing.
           </p>
-          <form className="login-screen__form" onSubmit={handleChangePassword} autoComplete="on">
+          <form
+            className="login-screen__form"
+            onSubmit={handleChangePassword}
+            autoComplete="on"
+          >
             <label className="login-screen__field">
               <span>New password</span>
               <input
@@ -167,7 +201,9 @@ export default function LoginScreen({ onLogin, notice }) {
                 required
               />
             </label>
-            {changeError && <div className="login-screen__error">{changeError}</div>}
+            {changeError && (
+              <div className="login-screen__error">{changeError}</div>
+            )}
             <button type="submit" disabled={changing}>
               {changing ? "Saving…" : "Set password and continue"}
             </button>
@@ -182,14 +218,18 @@ export default function LoginScreen({ onLogin, notice }) {
       <div className="login-screen">
         <div className="login-screen__card">
           {brand}
-          <ParentSignup
-            mode={familyMode}
-            schools={schools}
-            schoolId={schoolId}
-            setSchoolId={setSchoolId}
-            onLogin={onLogin}
-            onBack={() => setFamilyMode(null)}
-          />
+          {familyMode === "register" ? (
+            <RegisterSchool onBack={() => setFamilyMode(null)} />
+          ) : (
+            <ParentSignup
+              mode={familyMode}
+              schools={schools}
+              schoolId={schoolId}
+              setSchoolId={setSchoolId}
+              onLogin={onLogin}
+              onBack={() => setFamilyMode(null)}
+            />
+          )}
         </div>
       </div>
     );
@@ -202,7 +242,11 @@ export default function LoginScreen({ onLogin, notice }) {
         <h1 className="login-screen__title">Log in</h1>
         {notice && <div className="login-screen__notice">{notice}</div>}
         {loadError && <div className="login-screen__error">{loadError}</div>}
-        <form className="login-screen__form" onSubmit={handleSubmit} autoComplete="on">
+        <form
+          className="login-screen__form"
+          onSubmit={handleSubmit}
+          autoComplete="on"
+        >
           <label className="login-screen__field">
             <span>School</span>
             <select
@@ -253,17 +297,38 @@ export default function LoginScreen({ onLogin, notice }) {
         </form>
         <div className="login-screen__family">
           {signupEnabled && (
-            <button type="button" className="privacy-link" onClick={() => setFamilyMode("signup")}>
+            <button
+              type="button"
+              className="privacy-link"
+              onClick={() => setFamilyMode("signup")}
+            >
               Parent? Sign up with your cellphone
             </button>
           )}
-          <button type="button" className="privacy-link" onClick={() => setFamilyMode("invite")}>
+          <button
+            type="button"
+            className="privacy-link"
+            onClick={() => setFamilyMode("invite")}
+          >
             Have an invite code?
           </button>
         </div>
-        <button type="button" className="privacy-link" onClick={() => setShowPrivacy(true)}>
-          Privacy notice
-        </button>
+        <div className="login-screen__family">
+          <button
+            type="button"
+            className="privacy-link"
+            onClick={() => setFamilyMode("register")}
+          >
+            New to THUTOra? Register your school
+          </button>
+          <button
+            type="button"
+            className="privacy-link"
+            onClick={() => setShowPrivacy(true)}
+          >
+            Privacy notice
+          </button>
+        </div>
       </div>
       {showPrivacy && <PrivacyNotice onClose={() => setShowPrivacy(false)} />}
     </div>

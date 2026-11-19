@@ -19,13 +19,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import ProgressPanel from "./ProgressPanel";
-import { BarChart3, ClipboardList, LogOut, School, Sun, Upload, UserPlus, Users } from "lucide-react";
+import { BarChart3, ClipboardList, LogOut, Sun, Users } from "lucide-react";
 import TodayPanel from "./TodayPanel";
 import LearnerPrivacyPanel from "./LearnerPrivacyPanel";
 import ParentAccessPanel from "./ParentAccessPanel";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
-import SchoolPanel from "./SchoolPanel";
 import Wordmark from "./Wordmark";
+import { roleSummary } from "../utils/staff";
 import {
   bulkCreateStudents,
   createAssignment,
@@ -51,21 +51,13 @@ const TABS = [
   // NEW 19 Nov 2026 (ADR-036): the daily overview comes first for teachers
   { id: "today", label: "Today", icon: Sun, when: (me) => me.has_academic_access },
   { id: "roster", label: "Students", icon: Users, when: () => true },
-  { id: "add", label: "Add student", icon: UserPlus, when: (me) => me.can_manage_school },
-  { id: "bulk", label: "Bulk upload", icon: Upload, when: (me) => me.can_manage_school },
   { id: "assignments", label: "Assignments", icon: ClipboardList, when: (me) => me.has_academic_access },
   { id: "progress", label: "Progress", icon: BarChart3, product: "insights", when: (me) => me.has_academic_access }, // ADR-030
-  { id: "school", label: "School", icon: School, product: "insights", when: (me) => me.can_manage_school }, // ADR-031
+  // ADR-044: adding learners, bulk upload and School (classes, staff, notices)
+  // moved to the ADMIN workspace (AdminScreen.jsx).
 ];
 
-function roleSummary(me) {
-  if (!me) return "Staff";
-  const labels = [...new Set(me.roles.map((r) => r.label))];
-  if (me.allocations.length > 0) labels.push("Teacher");
-  return labels.length ? labels.join(", ") : "Staff (no classes yet)";
-}
-
-export default function TeacherAdminScreen({ auth, onLogout }) {
+export default function TeacherAdminScreen({ auth, onLogout, switcher }) {
   const [tab, setTab] = useState("roster");
   const [students, setStudents] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(true);
@@ -118,16 +110,13 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
   }, []);
 
   const visibleTabs = me ? TABS.filter((t) => t.when(me)) : TABS.filter((t) => t.id === "roster");
-  const refreshAll = () => {
-    loadRoster();
-    loadMe();
-  };
 
   return (
     <div className="admin-screen" data-product="teach">
       <header className="chat-screen__header">
         <Wordmark product="teach" />
         <div className="chat-screen__header-right">
+          {switcher}
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">
               {me?.display_name ? `${me.display_name} · ` : ""}
@@ -161,7 +150,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
 
       <main
         className={`admin-screen__body${
-          tab === "progress" || tab === "school" || tab === "today" ? " admin-screen__body--wide" : ""
+          tab === "progress" || tab === "today" ? " admin-screen__body--wide" : ""
         }`}
       >
         {meError && <div className="admin-screen__error">{meError}</div>}
@@ -176,26 +165,11 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
             me={me}
           />
         )}
-        {tab === "add" && (
-          <AddStudentPanel token={auth.token} onLogout={onLogout} onCreated={loadRoster} />
-        )}
-        {tab === "bulk" && (
-          <BulkUploadPanel token={auth.token} onLogout={onLogout} onCreated={loadRoster} />
-        )}
         {tab === "today" && <TodayPanel token={auth.token} onGoToAssignments={() => setTab("assignments")} />}
         {tab === "progress" && (
           <div data-product="insights">
             <ProgressPanel token={auth.token} onLogout={onLogout} />
           </div>
-        )}
-        {tab === "school" && me && (
-          <SchoolPanel
-            token={auth.token}
-            onLogout={onLogout}
-            me={me}
-            students={students}
-            onChanged={refreshAll}
-          />
         )}
         {tab === "assignments" && (
           <AssignmentsPanel token={auth.token} onLogout={onLogout} students={students} me={me} />
@@ -205,7 +179,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
   );
 }
 
-function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }) {
+export function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }) {
   // NEW 17 Nov 2026 (code review #13): reset a forgotten password (any
   // teacher, for learners on their roster) and deactivate/reactivate a
   // learner who left (school management only).
@@ -250,7 +224,7 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
       <p className="admin-screen__muted">
         {me && !me.can_manage_school
           ? "No learners to show yet. You'll see learners here once the principal or school admin allocates you a class."
-          : "No students yet — add one, or upload a CSV, using the tabs above."}
+          : "No learners yet — add them in ADMIN → Learners."}
       </p>
     );
   }
@@ -372,7 +346,7 @@ function RosterPanel({ token, onChanged, students, loading, error, onRetry, me }
   );
 }
 
-function AddStudentPanel({ token, onLogout, onCreated }) {
+export function AddStudentPanel({ token, onLogout, onCreated }) {
   const [displayName, setDisplayName] = useState("");
   const [grade, setGrade] = useState(10);
   const [studentNumber, setStudentNumber] = useState("");
@@ -461,7 +435,7 @@ function AddStudentPanel({ token, onLogout, onCreated }) {
   );
 }
 
-function BulkUploadPanel({ token, onLogout, onCreated }) {
+export function BulkUploadPanel({ token, onLogout, onCreated }) {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);

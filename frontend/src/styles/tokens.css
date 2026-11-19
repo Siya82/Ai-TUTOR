@@ -8,7 +8,7 @@
   read on navy use the Light shade (Primary for CONNECT).
 
   Components reference the --color-* aliases. A product's area sets
-  data-product="learn|teach|insights|connect" on its root element, which
+  data-product="learn|teach|insights|connect|admin" on its root element, which
   re-points --color-accent / --color-accent-tint for everything inside.
 */
 
@@ -31,6 +31,11 @@
   --insights-primary: #2B78DB; /* RGB(40, 120, 219) */
   --insights-light: #60A5FA;   /* RGB(96, 165, 250) */
   --insights-dark: #1D4EDB;    /* RGB(29, 78, 216) */
+  /* ADR-044: THUTOra ADMIN (school management) */
+  --admin-primary: #0F766E;    /* RGB(15, 118, 110) */
+  --admin-light: #14B8A6;      /* RGB(20, 184, 166) */
+  --admin-dark: #0D5F59;       /* RGB(13, 95, 89) */
+  --admin-pale: #CCFBF1;       /* RGB(204, 251, 241) */
 
   /* How each product colour is used on the navy app background.
      Text, icon strokes and fills use a shade that reads on navy (the
@@ -48,6 +53,9 @@
   --product-connect: var(--connect-primary);
   --product-connect-hover: var(--connect-light);
   --product-connect-tint: rgba(249, 115, 22, 0.18);
+  --product-admin: var(--admin-light);
+  --product-admin-hover: #2DD4BF;
+  --product-admin-tint: rgba(20, 184, 166, 0.18);
 
   /* Semantic aliases: navy app surfaces built from the brand navy */
   --color-background: var(--thutora-navy);
@@ -95,6 +103,11 @@
   --color-accent: var(--product-insights);
   --color-accent-hover: var(--product-insights-hover);
   --color-accent-tint: var(--product-insights-tint);
+}
+[data-product="admin"] {
+  --color-accent: var(--product-admin);
+  --color-accent-hover: var(--product-admin-hover);
+  --color-accent-tint: var(--product-admin-tint);
 }
 [data-product="connect"] {
   --color-accent: var(--product-connect);

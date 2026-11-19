@@ -9,6 +9,16 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## THUTOra ADMIN (ADR-044)
+
+- [ ] Restart (migration 0019). Log in as P00001 → opens in ADMIN (teal), with a TEACH | ADMIN switch.
+- [ ] Overview: totals and to-dos match the school; each to-do's link opens the right tab.
+- [ ] Learners → Add a learner / Bulk upload still work; Classes, Staff, Notices as before.
+- [ ] School settings: fill in EMIS, province, quintile → Save → reload: kept. A letter in the EMIS number is refused.
+- [ ] Switch off parent sign-up → on the login page, with THUTOra Demo School picked, the "Parent? Sign up" link disappears.
+- [ ] T00001: TEACH only (Today, Students, Assignments, Progress), no switch.
+- [ ] Login page → "Register your school" → submit → note the reference → `python -m scripts.manage_registrations list`, then `approve <ref>` → log in to the new school with the printed number.
+
 ## Verifying parents (ADR-043)
 
 - [ ] Restart with the start script (applies migration 0018 and re-seeds).

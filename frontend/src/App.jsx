@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import ChatScreen from "./components/ChatScreen";
 import LoginScreen from "./components/LoginScreen";
-import TeacherAdminScreen from "./components/TeacherAdminScreen";
+import StaffWorkspace from "./components/StaffWorkspace";
 import { fetchMe, setUnauthorizedHandler } from "./api";
 import ParentScreen from "./components/ParentScreen";
 import InsightsScreen from "./components/InsightsScreen";
@@ -100,8 +100,9 @@ function App() {
   if (auth.role === "parent") {
     return <ParentScreen auth={auth} onLogout={handleLogout} />;
   }
+  // NEW 19 Nov 2026 (ADR-044): staff get TEACH and/or ADMIN
   if (auth.role === "teacher") {
-    return <TeacherAdminScreen auth={auth} onLogout={handleLogout} />;
+    return <StaffWorkspace auth={auth} onLogout={handleLogout} />;
   }
 
   return (

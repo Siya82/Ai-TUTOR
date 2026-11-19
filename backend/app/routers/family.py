@@ -234,14 +234,27 @@ async def _matching_guardians(db: AsyncSession, school_id: uuid.UUID, cellphone:
 
 
 @router.get("/connect/signup/available")
-async def signup_available() -> dict:
-    return {"enabled": sms_enabled()}
+async def signup_available(school_id: uuid.UUID | None = None, db: AsyncSession = Depends(get_db)) -> dict:
+    enabled = sms_enabled()
+    if enabled and school_id is not None:  # ADR-044: each school can switch it off
+        school = await db.get(School, school_id)
+        enabled = bool(school and school.kind == "school" and school.parent_signup_enabled)
+    return {"enabled": enabled}
+
+
+async def _require_signup_allowed(db: AsyncSession, school_id: uuid.UUID) -> None:
+    school = await db.get(School, school_id)
+    if school is None or school.kind != "school" or not school.parent_signup_enabled:
+        raise HTTPException(
+            status_code=403, detail="This school gives parents their logins directly. Please contact the school."
+        )
 
 
 @router.post("/connect/signup/start")
 async def signup_start(payload: SignupStart, request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     if not sms_enabled():
         raise HTTPException(status_code=503, detail="Parent sign-up by SMS isn't available yet. Ask the school for a login.")
+    await _require_signup_allowed(db, payload.school_id)
     try:
         phone = normalize_sa_cellphone(payload.cellphone)
     except ValueError as exc:
@@ -270,6 +283,7 @@ async def signup_start(payload: SignupStart, request: Request, db: AsyncSession 
 
 @router.post("/connect/signup/verify")
 async def signup_verify(payload: SignupVerify, db: AsyncSession = Depends(get_db)) -> dict:
+    await _require_signup_allowed(db, payload.school_id)
     try:
         phone = normalize_sa_cellphone(payload.cellphone)
     except ValueError as exc:
@@ -412,6 +426,8 @@ async def invite_viewer(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     await _guardian_link(db, parent, learner_id)
+    if not (await db.get(School, parent.school_id)).viewer_invites_enabled:  # ADR-044
+        raise HTTPException(status_code=403, detail="Your child's school has switched off family invites.")
     code, code_hash = new_invite_code()
     db.add(
         ViewerInvite(
@@ -460,6 +476,8 @@ async def redeem_viewer_invite(payload: ViewerRedeem, db: AsyncSession = Depends
     if invite is None or invite.expires_at < utcnow_naive():
         raise HTTPException(status_code=400, detail="That invite code is wrong, used or expired. Ask for a new one.")
     school = await db.get(School, payload.school_id)
+    if not school.viewer_invites_enabled:  # ADR-044
+        raise HTTPException(status_code=403, detail="This school has switched off family invites.")
     viewer = User(
         role="parent",
         school_id=payload.school_id,

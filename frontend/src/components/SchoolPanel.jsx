@@ -53,8 +53,18 @@ function useLatest(fn) {
   return ref;
 }
 
-export default function SchoolPanel({ token, onLogout, me, students, onChanged }) {
-  const [section, setSection] = useState("classes");
+// ADR-044: ADMIN shows Classes, Staff and Notices as their own tabs, so it
+// passes `only` to render one section without the chip bar.
+export default function SchoolPanel({
+  token,
+  onLogout,
+  me,
+  students,
+  onChanged,
+  only,
+}) {
+  const [chosen, setSection] = useState("classes");
+  const section = only || chosen;
   const [classes, setClasses] = useState([]);
   const [staff, setStaff] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -109,28 +119,39 @@ export default function SchoolPanel({ token, onLogout, me, students, onChanged }
 
   return (
     <div className="admin-panel">
-      <div className="progress-filter" role="tablist" aria-label="School setup sections">
-        {[
-          ["classes", "Classes", LayoutGrid],
-          ["staff", "Staff", IdCard],
-          ["notices", "Notices", Bell], // ADR-038
-        ].map(([id, label, Icon]) => (
-          <button
-            key={id}
-            type="button"
-            className={`progress-filter__chip${section === id ? " progress-filter__chip--active" : ""}`}
-            onClick={() => setSection(id)}
-          >
-            <Icon size={ICON_BUTTON} aria-hidden="true" />
-            {label}
-          </button>
-        ))}
-      </div>
+      {!only && (
+        <div
+          className="progress-filter"
+          role="tablist"
+          aria-label="School setup sections"
+        >
+          {[
+            ["classes", "Classes", LayoutGrid],
+            ["staff", "Staff", IdCard],
+            ["notices", "Notices", Bell], // ADR-038
+          ].map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              className={`progress-filter__chip${section === id ? " progress-filter__chip--active" : ""}`}
+              onClick={() => setSection(id)}
+            >
+              <Icon size={ICON_BUTTON} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <div className="admin-screen__error">{error}</div>}
 
       {section === "classes" && (
-        <ClassesSection token={token} classes={classes} students={students} run={run} />
+        <ClassesSection
+          token={token}
+          classes={classes}
+          students={students}
+          run={run}
+        />
       )}
       {section === "notices" && <NoticesSection token={token} />}
       {section === "staff" && (
@@ -157,7 +178,9 @@ function ClassesSection({ token, classes, students, run }) {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const created = await run(() => createClass(token, { name: name.trim(), grade }));
+    const created = await run(() =>
+      createClass(token, { name: name.trim(), grade }),
+    );
     if (created) {
       setName("");
       setOpenClassId(created.id);
@@ -169,11 +192,18 @@ function ClassesSection({ token, classes, students, run }) {
       <form className="admin-form admin-form--inline" onSubmit={handleCreate}>
         <label className="admin-form__field">
           <span>New class name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 10A" />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. 10A"
+          />
         </label>
         <label className="admin-form__field">
           <span>Grade</span>
-          <select value={grade} onChange={(e) => setGrade(Number(e.target.value))}>
+          <select
+            value={grade}
+            onChange={(e) => setGrade(Number(e.target.value))}
+          >
             {GRADES.map((g) => (
               <option key={g} value={g}>
                 {g}
@@ -187,7 +217,9 @@ function ClassesSection({ token, classes, students, run }) {
       </form>
 
       {classes.length === 0 ? (
-        <p className="admin-screen__muted">No classes yet. Create one above, then add its learners.</p>
+        <p className="admin-screen__muted">
+          No classes yet. Create one above, then add its learners.
+        </p>
       ) : (
         <table className="admin-table">
           <thead>
@@ -207,12 +239,19 @@ function ClassesSection({ token, classes, students, run }) {
                 <td>{c.member_count}</td>
                 <td>
                   {c.allocations.length === 0 ? (
-                    <span className="admin-screen__muted">No teacher allocated</span>
+                    <span className="admin-screen__muted">
+                      No teacher allocated
+                    </span>
                   ) : (
                     c.allocations.map((a) => (
                       <div key={a.id}>
                         {a.subject_name} — {a.teacher_name}
-                        {!a.class_id && <span className="admin-screen__muted"> (whole grade)</span>}
+                        {!a.class_id && (
+                          <span className="admin-screen__muted">
+                            {" "}
+                            (whole grade)
+                          </span>
+                        )}
                       </div>
                     ))
                   )}
@@ -221,7 +260,9 @@ function ClassesSection({ token, classes, students, run }) {
                   <button
                     type="button"
                     className="admin-screen__link-button"
-                    onClick={() => setOpenClassId(openClassId === c.id ? null : c.id)}
+                    onClick={() =>
+                      setOpenClassId(openClassId === c.id ? null : c.id)
+                    }
                   >
                     {openClassId === c.id ? "Close" : "Manage learners"}
                   </button>
@@ -230,7 +271,10 @@ function ClassesSection({ token, classes, students, run }) {
                     type="button"
                     className="admin-screen__link-button"
                     onClick={() => {
-                      const next = window.prompt(`New name for ${c.name}`, c.name);
+                      const next = window.prompt(
+                        `New name for ${c.name}`,
+                        c.name,
+                      );
                       if (next && next.trim() && next.trim() !== c.name) {
                         run(() => renameClass(token, c.id, next.trim()));
                       }
@@ -244,7 +288,7 @@ function ClassesSection({ token, classes, students, run }) {
                     onClick={() => {
                       if (
                         window.confirm(
-                          `Delete class ${c.name}? Its learner list and subject allocations go; the learners and their work stay.`
+                          `Delete class ${c.name}? Its learner list and subject allocations go; the learners and their work stay.`,
                         )
                       ) {
                         if (openClassId === c.id) setOpenClassId(null);
@@ -284,7 +328,7 @@ function YearEndPromotion({ token, run }) {
   const handlePromote = async () => {
     if (
       !window.confirm(
-        `Move every active Grade ${grade} learner to Grade ${grade + 1}? They'll be taken out of their Grade ${grade} classes.`
+        `Move every active Grade ${grade} learner to Grade ${grade + 1}? They'll be taken out of their Grade ${grade} classes.`,
       )
     )
       return;
@@ -296,8 +340,9 @@ function YearEndPromotion({ token, run }) {
     <div className="admin-result">
       <p className="admin-result__title">Year end: move learners up a grade</p>
       <p className="admin-screen__muted">
-        Do this once at the end of the year, starting with Grade 11 (so Grade 10s don't end up in Grade 12). Deactivate
-        Grade 12 leavers on the Students tab.
+        Do this once at the end of the year, starting with Grade 11 (so Grade
+        10s don't end up in Grade 12). Deactivate Grade 12 leavers on the
+        Students tab.
       </p>
       <form
         className="admin-form admin-form--inline"
@@ -308,7 +353,10 @@ function YearEndPromotion({ token, run }) {
       >
         <label className="admin-form__field">
           <span>Grade</span>
-          <select value={grade} onChange={(e) => setGrade(Number(e.target.value))}>
+          <select
+            value={grade}
+            onChange={(e) => setGrade(Number(e.target.value))}
+          >
             {GRADES.filter((g) => g < 12).map((g) => (
               <option key={g} value={g}>
                 {g} → {g + 1}
@@ -320,8 +368,9 @@ function YearEndPromotion({ token, run }) {
       </form>
       {result && (
         <p className="admin-screen__muted">
-          Moved {result.promoted} learner(s) from Grade {result.grade} to Grade {result.grade + 1}; removed{" "}
-          {result.removed_from_classes} class place(s).
+          Moved {result.promoted} learner(s) from Grade {result.grade} to Grade{" "}
+          {result.grade + 1}; removed {result.removed_from_classes} class
+          place(s).
         </p>
       )}
     </div>
@@ -352,10 +401,14 @@ function ClassMembersEditor({ token, classId, students, run }) {
   if (!detail) return <p className="admin-screen__muted">Loading class…</p>;
 
   const memberIds = new Set(detail.members.map((m) => m.learner_id));
-  const candidates = students.filter((s) => s.grade === detail.grade && !memberIds.has(s.learner_id));
+  const candidates = students.filter(
+    (s) => s.grade === detail.grade && !memberIds.has(s.learner_id),
+  );
 
   const toggle = (id) =>
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
 
   const handleAdd = async () => {
     const result = await run(() => addClassMembers(token, classId, selected));
@@ -366,14 +419,17 @@ function ClassMembersEditor({ token, classId, students, run }) {
   };
 
   const handleRemove = async (learnerId) => {
-    const result = await run(() => removeClassMember(token, classId, learnerId));
+    const result = await run(() =>
+      removeClassMember(token, classId, learnerId),
+    );
     if (result) setVersion((v) => v + 1);
   };
 
   return (
     <div className="admin-form">
       <h3 className="admin-screen__subheading">
-        {detail.name} · Grade {detail.grade} · {detail.members.length} learner(s)
+        {detail.name} · Grade {detail.grade} · {detail.members.length}{" "}
+        learner(s)
       </h3>
       {detail.members.length === 0 ? (
         <p className="admin-screen__muted">No learners in this class yet.</p>
@@ -382,7 +438,10 @@ function ClassMembersEditor({ token, classId, students, run }) {
           {detail.members.map((m) => (
             <li key={m.learner_id} className="school-list__item">
               <span>
-                {m.display_name} <span className="admin-screen__muted">({m.student_number})</span>
+                {m.display_name}{" "}
+                <span className="admin-screen__muted">
+                  ({m.student_number})
+                </span>
               </span>
               <button
                 type="button"
@@ -400,7 +459,8 @@ function ClassMembersEditor({ token, classId, students, run }) {
         <legend>Add Grade {detail.grade} learners</legend>
         {candidates.length === 0 ? (
           <p className="admin-screen__muted">
-            Every Grade {detail.grade} learner is already in this class, or there are none yet.
+            Every Grade {detail.grade} learner is already in this class, or
+            there are none yet.
           </p>
         ) : (
           candidates.map((s) => (
@@ -412,7 +472,10 @@ function ClassMembersEditor({ token, classId, students, run }) {
               />
               {s.display_name}
               {s.classes?.length > 0 && (
-                <span className="admin-screen__muted"> — in {s.classes.join(", ")}</span>
+                <span className="admin-screen__muted">
+                  {" "}
+                  — in {s.classes.join(", ")}
+                </span>
               )}
             </label>
           ))
@@ -441,7 +504,10 @@ function StaffSection({ token, me, staff, classes, subjects, run }) {
     e.preventDefault();
     if (!name.trim()) return;
     const result = await run(() =>
-      createStaff(token, { displayName: name.trim(), staffNumber: staffNumber.trim() || undefined })
+      createStaff(token, {
+        displayName: name.trim(),
+        staffNumber: staffNumber.trim() || undefined,
+      }),
     );
     if (result) {
       setCreated(result);
@@ -455,7 +521,11 @@ function StaffSection({ token, me, staff, classes, subjects, run }) {
       <form className="admin-form admin-form--inline" onSubmit={handleCreate}>
         <label className="admin-form__field">
           <span>New staff member's name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ms N. Mkhize" />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Ms N. Mkhize"
+          />
         </label>
         <label className="admin-form__field">
           <span>Staff number (optional)</span>
@@ -473,9 +543,10 @@ function StaffSection({ token, me, staff, classes, subjects, run }) {
       {created && (
         <div className="admin-result">
           <p className="admin-result__title">
-            Login created for {created.display_name}. Share these details with them; the password is
-            shown only once and must be changed at first login. They can't see any learners until you
-            allocate them a class or give them a role below.
+            Login created for {created.display_name}. Share these details with
+            them; the password is shown only once and must be changed at first
+            login. They can't see any learners until you allocate them a class
+            or give them a role below.
           </p>
           <dl className="admin-result__details">
             <dt>Staff number</dt>
@@ -514,7 +585,8 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
       <div className="staff-card__header">
         <div>
           <div className="progress-table__name">
-            {member.display_name || "(no name)"} {isMe && <span className="admin-screen__muted">(you)</span>}
+            {member.display_name || "(no name)"}{" "}
+            {isMe && <span className="admin-screen__muted">(you)</span>}
           </div>
           <div className="admin-screen__muted">
             Staff number {member.staff_number}
@@ -529,8 +601,13 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
                 type="button"
                 className="admin-screen__link-button"
                 onClick={async () => {
-                  const r = await run(() => resetUserPassword(token, member.user_id));
-                  if (r) setNotice(`New one-time password for ${member.display_name || member.staff_number}: ${r.temp_password}`);
+                  const r = await run(() =>
+                    resetUserPassword(token, member.user_id),
+                  );
+                  if (r)
+                    setNotice(
+                      `New one-time password for ${member.display_name || member.staff_number}: ${r.temp_password}`,
+                    );
                 }}
               >
                 Reset password
@@ -541,7 +618,12 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
               className="admin-screen__link-button"
               onClick={() => {
                 const leaving = member.is_active !== false;
-                if (leaving && !window.confirm(`Deactivate ${member.display_name || member.staff_number}? They won't be able to log in.`))
+                if (
+                  leaving &&
+                  !window.confirm(
+                    `Deactivate ${member.display_name || member.staff_number}? They won't be able to log in.`,
+                  )
+                )
                   return;
                 run(() => setUserActive(token, member.user_id, !leaving));
               }}
@@ -555,7 +637,9 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
       <div className="staff-card__row">
         <span className="staff-card__label">Roles</span>
         <div className="staff-card__chips">
-          {member.roles.length === 0 && <span className="admin-screen__muted">Teacher only</span>}
+          {member.roles.length === 0 && (
+            <span className="admin-screen__muted">Teacher only</span>
+          )}
           {member.roles.map((r) => (
             <span key={r.id} className="chip">
               {r.label}
@@ -579,10 +663,13 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
       <div className="staff-card__row">
         <span className="staff-card__label">Teaches</span>
         <div className="staff-card__chips">
-          {member.allocations.length === 0 && <span className="admin-screen__muted">No classes</span>}
+          {member.allocations.length === 0 && (
+            <span className="admin-screen__muted">No classes</span>
+          )}
           {member.allocations.map((a) => (
             <span key={a.id} className="chip">
-              {a.subject_name} · {a.class_name || `Grade ${a.grade} (whole grade)`}
+              {a.subject_name} ·{" "}
+              {a.class_name || `Grade ${a.grade} (whole grade)`}
               <button
                 type="button"
                 className="chip__remove"
@@ -622,11 +709,15 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
           classes={classes}
           subjects={subjects}
           onSubmit={async (items) => {
-            const result = await run(() => createAllocationsBulk(token, member.user_id, items));
+            const result = await run(() =>
+              createAllocationsBulk(token, member.user_id, items),
+            );
             if (result) {
               setNotice(
                 `Added ${result.created.length} allocation${result.created.length === 1 ? "" : "s"}.` +
-                  (result.skipped.length ? ` Skipped: ${result.skipped.join("; ")}.` : "")
+                  (result.skipped.length
+                    ? ` Skipped: ${result.skipped.join("; ")}.`
+                    : ""),
               );
               if (result.created.length) setMode(null);
             }
@@ -638,7 +729,9 @@ function StaffCard({ token, me, member, classes, subjects, run }) {
           grantable={me.grantable_roles}
           subjects={subjects}
           onSubmit={async (payload) => {
-            const ok = await run(() => grantStaffRole(token, member.user_id, payload));
+            const ok = await run(() =>
+              grantStaffRole(token, member.user_id, payload),
+            );
             if (ok) setMode(null);
           }}
         />
@@ -658,12 +751,16 @@ function AllocateForm({ classes, subjects, onSubmit }) {
 
   const allNames = [...new Set(subjects.map((s) => s.name))].sort();
   const gradesForNames = [
-    ...new Set(subjects.filter((s) => subjectNames.includes(s.name)).map((s) => s.grade)),
+    ...new Set(
+      subjects.filter((s) => subjectNames.includes(s.name)).map((s) => s.grade),
+    ),
   ].sort((a, b) => a - b);
   const classesForGrades = classes.filter((c) => grades.includes(c.grade));
 
   const toggle = (list, setList, value) =>
-    setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+    setList(
+      list.includes(value) ? list.filter((v) => v !== value) : [...list, value],
+    );
 
   // Every (subject row, class|whole grade) pair the choices add up to.
   const items = [];
@@ -676,10 +773,20 @@ function AllocateForm({ classes, subjects, onSubmit }) {
         continue;
       }
       if (target === "grade") {
-        items.push({ subjectId: subject.id, classId: null, label: `${name} · Grade ${g} (whole grade)` });
+        items.push({
+          subjectId: subject.id,
+          classId: null,
+          label: `${name} · Grade ${g} (whole grade)`,
+        });
       } else {
-        for (const c of classesForGrades.filter((cl) => cl.grade === g && classIds.includes(cl.id))) {
-          items.push({ subjectId: subject.id, classId: c.id, label: `${name} · ${c.name}` });
+        for (const c of classesForGrades.filter(
+          (cl) => cl.grade === g && classIds.includes(cl.id),
+        )) {
+          items.push({
+            subjectId: subject.id,
+            classId: c.id,
+            label: `${name} · ${c.name}`,
+          });
         }
       }
     }
@@ -691,7 +798,11 @@ function AllocateForm({ classes, subjects, onSubmit }) {
         <legend>Subjects</legend>
         {allNames.map((n) => (
           <label key={n} className="admin-form__checkbox-row">
-            <input type="checkbox" checked={subjectNames.includes(n)} onChange={() => toggle(subjectNames, setSubjectNames, n)} />
+            <input
+              type="checkbox"
+              checked={subjectNames.includes(n)}
+              onChange={() => toggle(subjectNames, setSubjectNames, n)}
+            />
             {n}
           </label>
         ))}
@@ -700,11 +811,17 @@ function AllocateForm({ classes, subjects, onSubmit }) {
       <fieldset className="admin-form__fieldset">
         <legend>Grades</legend>
         {subjectNames.length === 0 ? (
-          <p className="admin-screen__muted">Pick at least one subject first.</p>
+          <p className="admin-screen__muted">
+            Pick at least one subject first.
+          </p>
         ) : (
           gradesForNames.map((g) => (
             <label key={g} className="admin-form__checkbox-row">
-              <input type="checkbox" checked={grades.includes(g)} onChange={() => toggle(grades, setGrades, g)} />
+              <input
+                type="checkbox"
+                checked={grades.includes(g)}
+                onChange={() => toggle(grades, setGrades, g)}
+              />
               Grade {g}
             </label>
           ))
@@ -714,22 +831,41 @@ function AllocateForm({ classes, subjects, onSubmit }) {
       <fieldset className="admin-form__fieldset">
         <legend>Teach to</legend>
         <label className="admin-form__checkbox-row">
-          <input type="radio" name="alloc-target" checked={target === "grade"} onChange={() => setTarget("grade")} />
+          <input
+            type="radio"
+            name="alloc-target"
+            checked={target === "grade"}
+            onChange={() => setTarget("grade")}
+          />
           The whole grade (every learner in it)
         </label>
         <label className="admin-form__checkbox-row">
-          <input type="radio" name="alloc-target" checked={target === "classes"} onChange={() => setTarget("classes")} />
+          <input
+            type="radio"
+            name="alloc-target"
+            checked={target === "classes"}
+            onChange={() => setTarget("classes")}
+          />
           Specific classes
         </label>
         {target === "classes" &&
           (classesForGrades.length === 0 ? (
             <p className="admin-screen__muted">
-              {grades.length ? "No classes in those grades yet — create them in the Classes section." : "Pick grades first."}
+              {grades.length
+                ? "No classes in those grades yet — create them in the Classes section."
+                : "Pick grades first."}
             </p>
           ) : (
             classesForGrades.map((c) => (
-              <label key={c.id} className="admin-form__checkbox-row allocate-form__class">
-                <input type="checkbox" checked={classIds.includes(c.id)} onChange={() => toggle(classIds, setClassIds, c.id)} />
+              <label
+                key={c.id}
+                className="admin-form__checkbox-row allocate-form__class"
+              >
+                <input
+                  type="checkbox"
+                  checked={classIds.includes(c.id)}
+                  onChange={() => toggle(classIds, setClassIds, c.id)}
+                />
                 {c.name} (Grade {c.grade})
               </label>
             ))
@@ -738,7 +874,9 @@ function AllocateForm({ classes, subjects, onSubmit }) {
 
       {(items.length > 0 || missing.length > 0) && (
         <div className="admin-screen__muted">
-          {items.length > 0 && <>Will add: {items.map((i) => i.label).join(", ")}.</>}
+          {items.length > 0 && (
+            <>Will add: {items.map((i) => i.label).join(", ")}.</>
+          )}
           {missing.length > 0 && <> Not possible: {missing.join("; ")}.</>}
         </div>
       )}
@@ -799,7 +937,11 @@ function RoleForm({ grantable, subjects, onSubmit }) {
           </label>
           <label className="admin-form__field">
             <span>Grade</span>
-            <select value={grade} onChange={(e) => setGrade(e.target.value)} disabled={!subjectName}>
+            <select
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
+              disabled={!subjectName}
+            >
               <option value="">All grades</option>
               {gradesForSubject.map((g) => (
                 <option key={g} value={g}>
@@ -815,15 +957,19 @@ function RoleForm({ grantable, subjects, onSubmit }) {
         className="admin-form__primary-button"
         disabled={!role || (needsSubject && !subjectName)}
         onClick={() =>
-          onSubmit({ role, subjectName: needsSubject ? subjectName : undefined, grade: needsSubject ? grade : undefined })
+          onSubmit({
+            role,
+            subjectName: needsSubject ? subjectName : undefined,
+            grade: needsSubject ? grade : undefined,
+          })
         }
       >
         Give role
       </button>
       {needsSubject && (
         <p className="admin-screen__muted">
-          For a department covering several subjects (e.g. Mathematics and Physical Sciences), give
-          this role once per subject.
+          For a department covering several subjects (e.g. Mathematics and
+          Physical Sciences), give this role once per subject.
         </p>
       )}
     </div>

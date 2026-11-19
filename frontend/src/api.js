@@ -783,8 +783,9 @@ export function updateGuardian(token, learnerId, guardianId, body) {
 export function removeGuardian(token, learnerId, guardianId) {
   return deleteJson(`/school/learners/${learnerId}/guardians/${guardianId}`, token);
 }
-export async function fetchSignupAvailable() {
-  const response = await fetch(`${API_BASE_URL}/connect/signup/available`);
+export async function fetchSignupAvailable(schoolId) {
+  const q = schoolId ? `?school_id=${encodeURIComponent(schoolId)}` : "";
+  const response = await fetch(`${API_BASE_URL}/connect/signup/available${q}`);
   if (!response.ok) return { enabled: false };
   return response.json();
 }
@@ -814,4 +815,25 @@ export function inviteViewer(token, learnerId, { viewerName, relationship }) {
 }
 export function removeViewer(token, learnerId, viewerUserId) {
   return deleteJson(`/parent/children/${learnerId}/viewers/${viewerUserId}`, token);
+}
+
+/*
+ * NEW 19 Nov 2026 (ADR-044): THUTOra ADMIN -- school overview, profile and
+ * settings, and the public "Register your school" request.
+ */
+export function fetchSchoolOverview(token) {
+  return getJson("/school/overview", token);
+}
+export function fetchSchoolProfile(token) {
+  return getJson("/school/profile", token);
+}
+export function saveSchoolProfile(token, body) {
+  return sendJson("PUT", "/school/profile", token, body);
+}
+export async function fetchRegistrationOptions() {
+  const response = await fetch(`${API_BASE_URL}/schools/registrations/options`);
+  return response.ok ? response.json() : { provinces: [], roles: [] };
+}
+export function registerSchool(body) {
+  return sendJson("POST", "/schools/registrations", null, body);
 }
