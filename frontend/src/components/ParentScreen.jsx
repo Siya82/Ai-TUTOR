@@ -17,6 +17,7 @@ import {
 } from "../api";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import PrivacyNotice from "./PrivacyNotice";
+import Wordmark from "./Wordmark";
 
 const LANG_KEY = "thutora_parent_language";
 
@@ -123,11 +124,7 @@ export default function ParentScreen({ auth, onLogout }) {
   return (
     <div className="admin-screen" data-product="connect">
       <header className="chat-screen__header">
-        <div className="chat-screen__brand">
-          <img src="/thutora-connect-logo.png" alt="" className="chat-screen__brand-logo" />
-          THUTOra
-          <span className="product-badge">CONNECT</span>
-        </div>
+        <Wordmark product="connect" />
         <div className="chat-screen__header-right">
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">{auth.school?.name}</span>

@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource/poppins": "^5.3.0",
     "katex": "^0.18.4",
     "lucide-react": "^1.74.0",
     "pdfjs-dist": "^4.10.38",

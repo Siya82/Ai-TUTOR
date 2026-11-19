@@ -12,7 +12,7 @@ body {
   margin: 0;
   background: var(--color-background);
   color: var(--color-text);
-  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--thutora-font);
 }
 
 /* NEW 14 Nov 2026: subject/topic sidebar layout, replacing the old
@@ -1940,7 +1940,7 @@ body {
 .reader__epub h1,
 .reader__epub h2,
 .reader__epub h3 {
-  color: #0d1b2a;
+  color: var(--thutora-navy);
   margin-top: 0;
 }
 
@@ -2420,4 +2420,67 @@ button.consent-badge {
   .insights-schools {
     grid-column: auto;
   }
+}
+
+/* NEW 19 Nov 2026 (ADR-040): THUTOra wordmark -- THUTO in white on navy,
+   "ra" in the product colour, Poppins Bold/SemiBold per the brand specs */
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.wordmark__mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: block;
+  flex-shrink: 0;
+}
+.wordmark__text {
+  font-size: 1.45rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.wordmark__thuto {
+  font-weight: 700;
+  color: var(--color-text);
+}
+.wordmark__ra {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.wordmark--lg .wordmark__mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+}
+.wordmark--lg .wordmark__text {
+  font-size: 1.9rem;
+}
+.product-badge {
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+.login-screen__brand {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.login-screen__products {
+  display: flex;
+  gap: 0.5rem;
+}
+.login-screen__products img {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  opacity: 0.9;
+}
+
+/* ADR-040: form controls don't inherit the page font by default */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }

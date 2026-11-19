@@ -47,6 +47,7 @@ import LibraryView from "./LibraryView";
 import LearnerSettings from "./LearnerSettings"; // NEW 17 Nov 2026 (ADR-032, e-book library)
 import { BookOpen, ClipboardList, LogOut, MessageCircle, Paperclip } from "lucide-react";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
+import Wordmark from "./Wordmark";
 
 function topicNameById(topics, id) {
   const topic = topics.find((t) => t.id === id);
@@ -533,11 +534,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
 
       <div className="chat-screen">
       <header className="chat-screen__header">
-        <div className="chat-screen__brand">
-          <img src="/thutora-learn-logo.png" alt="" className="chat-screen__brand-logo" />
-          THUTOra
-          <span className="product-badge">LEARN</span>
-        </div>
+        <Wordmark product="learn" />
         <div className="chat-screen__header-right">
           <nav className="chat-screen__view-toggle">
             <button

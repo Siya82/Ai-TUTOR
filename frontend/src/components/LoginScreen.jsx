@@ -23,6 +23,7 @@
 import { useEffect, useState } from "react";
 import { changePassword, fetchSchools, login } from "../api";
 import PrivacyNotice from "./PrivacyNotice";
+import Wordmark from "./Wordmark";
 
 export default function LoginScreen({ onLogin, notice }) {
   const [schools, setSchools] = useState([]);
@@ -115,10 +116,13 @@ export default function LoginScreen({ onLogin, notice }) {
 
   const brand = (
     <div className="login-screen__brand">
-      <img src="/thutora-logo.png" alt="" className="login-screen__brand-logo" />
-      <span>
-        THUTOra<span className="login-screen__brand-dot">.</span>
-      </span>
+      {/* ADR-040: one login for every product, so all four marks */}
+      <Wordmark product="learn" showProduct={false} size="lg" />
+      <div className="login-screen__products" aria-hidden="true">
+        {["learn", "teach", "connect", "insights"].map((p) => (
+          <img key={p} src={`/thutora-${p}-logo.png`} alt="" title={p.toUpperCase()} />
+        ))}
+      </div>
     </div>
   );
 

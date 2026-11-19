@@ -11,6 +11,7 @@ import { ArrowLeft, LogOut, MapPinned, School as SchoolIcon, TrendingDown } from
 import { fetchInsightsOverview, fetchInsightsSchool, fetchInsightsScope } from "../api";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import PrivacyNotice from "./PrivacyNotice";
+import Wordmark from "./Wordmark";
 
 // "Umgungundlovu" -> "Umgungundlovu District", but "Demo District" stays as is
 const withSuffix = (name, word) => (name.toLowerCase().endsWith(word.toLowerCase()) ? name : `${name} ${word}`);
@@ -118,11 +119,7 @@ export default function InsightsScreen({ auth, onLogout }) {
   return (
     <div className="admin-screen" data-product="insights">
       <header className="chat-screen__header">
-        <div className="chat-screen__brand">
-          <img src="/thutora-insights-logo.png" alt="" className="chat-screen__brand-logo" />
-          THUTOra
-          <span className="product-badge">INSIGHTS</span>
-        </div>
+        <Wordmark product="insights" />
         <div className="chat-screen__header-right">
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">

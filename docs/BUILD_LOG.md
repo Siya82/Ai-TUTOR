@@ -3118,3 +3118,11 @@ Checked: 249 backend tests, 6 frontend tests, eslint, build, migrations, HTTP
 runs for each phase, screenshots of Today, Students, Settings, parent view,
 notices and INSIGHTS. Live Claude translation and prompt caching need a real
 API key to confirm (the sandbox has none; translation fell back to English).
+
+## 19 Nov 2026 — Brand specs applied (ADR-040)
+
+Exact palette tokens for all four products and navy #0F1D3D; Poppins bundled;
+new product marks and app icons cut from the brand sheet; THUTO/ra wordmark
+component on every header and the login screen. **Needs `npm install` in
+`frontend/`** (@fontsource/poppins). Checked: lint, build, 6 frontend tests,
+screenshots of login, LEARN, TEACH, CONNECT and INSIGHTS headers.

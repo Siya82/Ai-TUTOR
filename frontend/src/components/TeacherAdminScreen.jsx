@@ -25,6 +25,7 @@ import LearnerPrivacyPanel from "./LearnerPrivacyPanel";
 import ParentAccessPanel from "./ParentAccessPanel";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import SchoolPanel from "./SchoolPanel";
+import Wordmark from "./Wordmark";
 import {
   bulkCreateStudents,
   createAssignment,
@@ -125,11 +126,7 @@ export default function TeacherAdminScreen({ auth, onLogout }) {
   return (
     <div className="admin-screen" data-product="teach">
       <header className="chat-screen__header">
-        <div className="chat-screen__brand">
-          <img src="/thutora-teach-logo.png" alt="" className="chat-screen__brand-logo" />
-          THUTOra
-          <span className="product-badge">TEACH</span>
-        </div>
+        <Wordmark product="teach" />
         <div className="chat-screen__header-right">
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">

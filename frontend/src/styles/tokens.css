@@ -1,19 +1,11 @@
 /*
   THUTOra design tokens.
 
-  UPDATED 17 Nov 2026 (ADR-034): one accent colour per product on the
-  original dark navy background (Siya kept the dark background after
-  trying the light one). Each product's colour is used for icon strokes
-  on a soft tint, product badges, the active-tab underline and primary
-  buttons, not for large areas.
-
-    LEARN    green   #22C55E  (students)
-    TEACH    purple  #A78BFA  (teachers, school admin)
-    INSIGHTS blue    #60A5FA  (analytics: the Progress tab today)
-    CONNECT  orange  #FB923C  (parents, future)
-
-  These are the lighter shades of the mockup's colours, so strokes and
-  text read on navy; fills carry dark text (--color-text-on-accent).
+  UPDATED 19 Nov 2026 (ADR-040): the official THUTOra brand specs --
+  navy #0F1D3D, Poppins, and a primary/light/dark palette per product:
+    LEARN green, TEACH purple, CONNECT orange, INSIGHTS blue.
+  The app keeps its dark navy background (ADR-034), so colours that must
+  read on navy use the Light shade (Primary for CONNECT).
 
   Components reference the --color-* aliases. A product's area sets
   data-product="learn|teach|insights|connect" on its root element, which
@@ -21,33 +13,50 @@
 */
 
 :root {
-  /* Raw brand tokens */
-  --thutora-navy: #0D1B2A;
-  --thutora-offwhite: #F4F6FA;
+  /* Global brand colours (THUTOra brand specs, 19 Nov 2026) */
+  --thutora-navy: #0F1D3D; /* RGB(15, 29, 61) -- primary */
+  --thutora-white: #FFFFFF;
+  --thutora-font: "Poppins", -apple-system, "Segoe UI", Roboto, sans-serif;
 
-  /* Product colours, tuned for the dark navy background: bright enough
-     to read as icon strokes and text on navy, with dark text on fills. */
-  --product-learn: #22C55E;
+  /* Product palettes, exactly as specified: primary / light / dark */
+  --learn-primary: #16A34A;    /* RGB(22, 163, 74) */
+  --learn-light: #22C55E;      /* RGB(34, 197, 94) */
+  --learn-dark: #15803D;       /* RGB(21, 128, 61) */
+  --teach-primary: #7C3AED;    /* RGB(124, 58, 237) */
+  --teach-light: #A78BFA;      /* RGB(167, 139, 250) */
+  --teach-dark: #5B21B6;       /* RGB(91, 33, 182) */
+  --connect-primary: #F97316;  /* RGB(249, 115, 22) */
+  --connect-light: #FDBA74;    /* RGB(253, 186, 116) */
+  --connect-dark: #EA580C;     /* RGB(234, 88, 12) */
+  --insights-primary: #2B78DB; /* RGB(40, 120, 219) */
+  --insights-light: #60A5FA;   /* RGB(96, 165, 250) */
+  --insights-dark: #1D4EDB;    /* RGB(29, 78, 216) */
+
+  /* How each product colour is used on the navy app background.
+     Text, icon strokes and fills use a shade that reads on navy (the
+     Light shade, or Primary for CONNECT, whose Light is too pale for
+     text); fills carry navy text. */
+  --product-learn: var(--learn-light);
   --product-learn-hover: #4ADE80;
   --product-learn-tint: rgba(34, 197, 94, 0.16);
-  --product-teach: #A78BFA;
+  --product-teach: var(--teach-light);
   --product-teach-hover: #C4B5FD;
   --product-teach-tint: rgba(167, 139, 250, 0.18);
-  --product-insights: #60A5FA;
+  --product-insights: var(--insights-light);
   --product-insights-hover: #93C5FD;
   --product-insights-tint: rgba(96, 165, 250, 0.18);
-  --product-connect: #FB923C;
-  --product-connect-hover: #FDBA74;
-  --product-connect-tint: rgba(251, 146, 60, 0.18);
+  --product-connect: var(--connect-primary);
+  --product-connect-hover: var(--connect-light);
+  --product-connect-tint: rgba(249, 115, 22, 0.18);
 
-  /* Semantic aliases: the original dark navy surfaces (ADR-012) */
+  /* Semantic aliases: navy app surfaces built from the brand navy */
   --color-background: var(--thutora-navy);
-  --color-surface: #11223A;
-  --color-surface-2: #16304F;
-  --color-border: #1E3350;
-  --color-text: var(--thutora-offwhite);
-  --color-text-muted: #9FB0C3;
-  --color-text-on-accent: #04140F;
+  --color-surface: #16274D;
+  --color-surface-2: #1C315E;
+  --color-border: #263D6E;
+  --color-text: #F4F6FA;
+  --color-text-muted: #A3B1C6;
+  --color-text-on-accent: var(--thutora-navy);
 
   /* Default accent = LEARN (also used on the login screen) */
   --color-accent: var(--product-learn);
@@ -58,8 +67,8 @@
   /* Status colours, always shipped with a word label */
   --color-success: #4ADE80;
   --color-success-tint: rgba(74, 222, 128, 0.15);
-  --color-warning: #FF9F1C;
-  --color-warning-tint: rgba(255, 159, 28, 0.15);
+  --color-warning: #FBBF24;
+  --color-warning-tint: rgba(251, 191, 36, 0.15);
   --color-danger: #F87171;
   --color-danger-tint: rgba(248, 113, 113, 0.15);
 
