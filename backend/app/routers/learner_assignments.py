@@ -37,6 +37,7 @@ from app.services.assignments import (
     get_learner_completions,
     submit_assignment_answer,
 )
+from app.core.config import settings
 from app.services.tutor import TutorClient
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
@@ -44,7 +45,9 @@ router = APIRouter(prefix="/assignments", tags=["assignments"])
 # Same module-level singleton pattern app/routers/tutor.py already uses
 # for its own TutorClient -- one AsyncAnthropic client reused across
 # requests rather than constructed per call.
-_tutor_client = TutorClient()
+# UPDATED 19 Nov 2026 (ADR-035): marking may use a cheaper model
+# (MARKING_MODEL in .env); empty falls back to ANTHROPIC_MODEL.
+_tutor_client = TutorClient(model=settings.marking_model or None)
 
 
 def _withholds_feedback(assignment: Assignment) -> bool:

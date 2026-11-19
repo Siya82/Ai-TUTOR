@@ -618,3 +618,25 @@ export function renameClass(token, classId, name) {
 export function deleteClass(token, classId) {
   return deleteJson(`/school/classes/${classId}`, token);
 }
+
+/*
+ * NEW 19 Nov 2026 (ADR-035): learner home-language setting.
+ */
+export async function fetchHomeLanguages() {
+  const response = await fetch(`${API_BASE_URL}/auth/home-languages`);
+  if (!response.ok) throw httpError("Couldn't load languages", response.status, { quiet: true });
+  return response.json();
+}
+
+export async function setHomeLanguage(token, homeLanguage) {
+  const response = await fetch(`${API_BASE_URL}/auth/me/home-language`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ home_language: homeLanguage }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw httpError(formatErrorDetail(body.detail, "Couldn't save your language"), response.status);
+  }
+  return response.json();
+}

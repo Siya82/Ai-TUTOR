@@ -186,7 +186,7 @@ class TutorClient:
         )
         self._model = model or settings.anthropic_model
 
-    async def ask(self, system_prompt: str, messages: list[dict]) -> str:
+    async def ask(self, system_prompt: str, messages: list[dict], max_tokens: int | None = None) -> str:
         """
         messages: a list of {"role": "user" | "assistant", "content": ...}
         dicts, in order -- NOT including the system prompt. Anthropic's
@@ -201,10 +201,15 @@ class TutorClient:
         attachments). No change needed here either way: this method
         just forwards `messages` through unmodified.
         """
+        # UPDATED 19 Nov 2026 (ADR-035, AI cost): the system prompt is sent
+        # as a cacheable block. Within a few minutes, a learner's next turn
+        # on the same topic reuses it at a fraction of the input price;
+        # prompts below the model's minimum cacheable length are simply
+        # not cached (no error), so this is safe for short prompts too.
         response = await self._client.messages.create(
             model=self._model,
-            max_tokens=MAX_TOKENS,
-            system=system_prompt,
+            max_tokens=max_tokens or MAX_TOKENS,
+            system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
             messages=messages,
         )
         return response.content[0].text

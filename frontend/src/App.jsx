@@ -94,7 +94,14 @@ function App() {
     return <TeacherAdminScreen auth={auth} onLogout={handleLogout} />;
   }
 
-  return <ChatScreen auth={auth} onLogout={handleLogout} />;
+  return (
+    <ChatScreen
+      auth={auth}
+      onLogout={handleLogout}
+      // ADR-035: the learner's own settings (home language) update in place
+      onLearnerChange={(learner) => setAuth((a) => ({ ...a, learner }))}
+    />
+  );
 }
 
 export default App;

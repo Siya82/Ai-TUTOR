@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     database_url: str
     anthropic_api_key: str
     anthropic_model: str = "claude-sonnet-4-6"
+    # NEW 19 Nov 2026 (ADR-035, AI cost). Model for marking assignment
+    # answers -- a short, structured judgement that a smaller, cheaper model
+    # does well. Empty = use anthropic_model (unchanged behaviour). Set
+    # MARKING_MODEL in backend/.env to a Haiku-class model to cut marking
+    # cost, e.g. MARKING_MODEL=claude-haiku-5-5.
+    marking_model: str = ""
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
 

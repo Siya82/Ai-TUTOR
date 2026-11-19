@@ -31,6 +31,7 @@ from app.services.diagnosis import DiagnosisResult, diagnose_root_gap
 from app.services.personalization import (
     DEFAULT_MODALITY,
     VALID_MODALITIES,
+    build_language_instructions,
     build_personalization_instructions,
     compute_pace_tier,
 )
@@ -98,6 +99,8 @@ def prepare_tutor_turn(
 
     pace_tier = compute_pace_tier(attempts_by_topic.get(recommended_topic.id, []))
     personalization_block = build_personalization_instructions(modality, pace_tier)
+    # NEW 19 Nov 2026 (ADR-035): optional home-language bridging.
+    personalization_block += build_language_instructions(getattr(learner, "home_language", None))
 
     diagnosis_note = None
     if diagnosis.redirected:

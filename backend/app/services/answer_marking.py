@@ -77,8 +77,10 @@ async def mark_answer(
         learner_response=learner_response,
     )
     try:
+        # max_tokens 600 (ADR-035): a verdict plus a few sentences of
+        # feedback never needs the tutor's 2048.
         raw = await tutor_client.ask(
-            system_prompt, [{"role": "user", "content": "Mark this answer."}]
+            system_prompt, [{"role": "user", "content": "Mark this answer."}], max_tokens=600
         )
     except Exception as exc:  # noqa: BLE001 -- any API failure degrades to unmarked
         return MarkingResult(

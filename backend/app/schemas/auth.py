@@ -19,6 +19,12 @@ class LearnerProfile(BaseModel):
     display_name: str
     grade: int
     preferred_modality: str
+    home_language: str | None = None  # ADR-035
+
+
+class HomeLanguageUpdate(BaseModel):
+    """NEW 19 Nov 2026 (ADR-035). None or "English" switches bridging off."""
+    home_language: str | None = Field(default=None, max_length=30)
 
 
 class SchoolProfile(BaseModel):

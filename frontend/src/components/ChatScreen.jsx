@@ -43,7 +43,8 @@ import MarkdownMessage from "./MarkdownMessage";
 import MathVerifiedBadge from "./MathVerifiedBadge";
 import SymbolKeyboard from "./SymbolKeyboard";
 import AssignmentsView from "./AssignmentsView"; // NEW 15 Nov 2026 (ADR-028, assignments)
-import LibraryView from "./LibraryView"; // NEW 17 Nov 2026 (ADR-032, e-book library)
+import LibraryView from "./LibraryView";
+import LearnerSettings from "./LearnerSettings"; // NEW 17 Nov 2026 (ADR-032, e-book library)
 import { BookOpen, ClipboardList, LogOut, MessageCircle, Paperclip } from "lucide-react";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 
@@ -214,7 +215,7 @@ function AttachmentChip({ attachment, onRemove }) {
   );
 }
 
-export default function ChatScreen({ auth, onLogout }) {
+export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
   // NEW 15 Nov 2026 (ADR-028, assignments). A lightweight in-screen
   // toggle rather than a real route -- matches how TeacherAdminScreen.jsx
   // switches its own tabs with local state, not a router.
@@ -579,6 +580,7 @@ export default function ChatScreen({ auth, onLogout }) {
               sidebar before real login existed. */}
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">{auth.learner.display_name}</span>
+            <LearnerSettings token={auth.token} learner={auth.learner} onLearnerChange={onLearnerChange} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />
               Log out

@@ -102,6 +102,42 @@ def compute_pace_tier(attempts: list[Attempt], now: datetime | None = None) -> s
     return "on_pace"
 
 
+# NEW 19 Nov 2026 (ADR-035). South Africa's official languages, as offered in
+# the learner's "home language" setting. Exams are written in English or
+# Afrikaans, so explanations stay in the language of instruction by default.
+HOME_LANGUAGES = (
+    "English",
+    "Afrikaans",
+    "isiNdebele",
+    "isiXhosa",
+    "isiZulu",
+    "Sepedi",
+    "Sesotho",
+    "Setswana",
+    "siSwati",
+    "Tshivenda",
+    "Xitsonga",
+)
+
+
+def build_language_instructions(home_language: str | None) -> str:
+    """
+    NEW 19 Nov 2026 (ADR-035). Lets the tutor bridge into the learner's home
+    language without leaving the exam language behind. Empty for English
+    (or unset), so nothing changes for those learners.
+    """
+    if not home_language or home_language not in HOME_LANGUAGES or home_language == "English":
+        return ""
+    return (
+        f"\n\nLANGUAGE: this learner's home language is {home_language}. Teach in English by "
+        f"default (their exams are in English). If they write to you in {home_language}, ask "
+        f"for it, or are clearly stuck, explain the idea in simple {home_language} as well -- "
+        "but always keep the exact English subject terms (e.g. 'gradient', 'factorise', "
+        "'acceleration') in the explanation, so they recognise them in an exam. Never "
+        "translate formulas, symbols or numbers."
+    )
+
+
 def build_personalization_instructions(modality: str, pace_tier: str) -> str:
     """
     Turns a (validated) modality + pace tier into a standalone

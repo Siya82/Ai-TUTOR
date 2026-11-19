@@ -201,6 +201,11 @@ class Learner(Base):
     # prepare_tutor_turn() for where this is actually read.
     skip_diagnosis: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # NEW 19 Nov 2026 (ADR-035, migration 0014). Learner-chosen; the tutor
+    # may also explain in this language (see personalization.py). NULL or
+    # "English" = no change.
+    home_language: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
     attempts: Mapped[list["Attempt"]] = relationship(back_populates="learner")
 
     # NEW 14 Nov 2026 (ADR-017, student login). Nullable so existing dev

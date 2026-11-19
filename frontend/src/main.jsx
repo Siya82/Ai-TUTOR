@@ -10,3 +10,14 @@ createRoot(document.getElementById("root")).render(
     <App />
   </StrictMode>
 );
+
+// NEW 19 Nov 2026 (ADR-035): installable app + cached app shell (public/sw.js).
+// Production builds only -- in development the service worker would serve
+// stale code while you edit.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* not fatal: the app works without it */
+    });
+  });
+}

@@ -22,6 +22,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { fetchBook, fetchBookAsset, fetchBookPage, fetchBookPagePdf, fetchBooks } from "../api";
 import { Sparkles } from "lucide-react";
+import { isLowData } from "../utils/lowData";
 import { ICON_BUTTON } from "./icons";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -403,7 +404,7 @@ function EpubSection({ token, bookId, html, onSelect }) {
     if (!root) return undefined;
     let cancelled = false;
     const urls = [];
-    root.querySelectorAll("img[data-asset]").forEach((img) => {
+    const load = (img) =>
       fetchBookAsset(token, bookId, img.getAttribute("data-asset"))
         .then((blob) => {
           if (cancelled) return;
@@ -414,6 +415,23 @@ function EpubSection({ token, bookId, html, onSelect }) {
         .catch(() => {
           img.replaceWith(document.createTextNode(img.alt ? `[Figure: ${img.alt}]` : "[Figure]"));
         });
+    const saveData = isLowData();
+    root.querySelectorAll("img[data-asset]").forEach((img) => {
+      // NEW 19 Nov 2026 (ADR-035): in Save-data mode a figure waits for a
+      // tap; equations (data-eq) always load.
+      if (saveData && !img.hasAttribute("data-eq")) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "reader__show-figure";
+        button.textContent = img.alt ? `Show figure: ${img.alt}` : "Show figure";
+        button.addEventListener("click", () => {
+          button.replaceWith(img);
+          load(img);
+        });
+        img.replaceWith(button);
+        return;
+      }
+      load(img);
     });
     // New section: back to the top of the reader (not the whole page, which
     // would scroll the toolbar away).

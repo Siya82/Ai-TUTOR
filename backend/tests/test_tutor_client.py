@@ -26,6 +26,7 @@ async def test_ask_passes_system_param_and_extracts_response_text():
     client._client.messages.create.assert_awaited_once_with(
         model="claude-sonnet-4-6",
         max_tokens=MAX_TOKENS,
-        system="SYSTEM PROMPT HERE",
+        # ADR-035: sent as a cacheable text block
+        system=[{"type": "text", "text": "SYSTEM PROMPT HERE", "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": "hi"}],
     )

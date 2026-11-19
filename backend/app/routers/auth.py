@@ -12,13 +12,16 @@ from app.core.security import get_current_user_allow_password_change
 from app.models import Learner, School, User
 from app.schemas.auth import (
     ChangePasswordRequest,
+    HomeLanguageUpdate,
     LearnerProfile,
     LoginRequest,
     LoginResponse,
     MeResponse,
     SchoolProfile,
 )
+from app.core.security import get_current_learner
 from app.services import login_throttle
+from app.services.personalization import HOME_LANGUAGES
 from app.services.auth import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,6 +33,7 @@ def _learner_profile(learner: Learner) -> LearnerProfile:
         display_name=learner.display_name,
         grade=learner.grade,
         preferred_modality=learner.preferred_modality,
+        home_language=learner.home_language,
     )
 
 
@@ -144,3 +148,28 @@ async def change_password(
         "status": "ok",
         "access_token": create_access_token(str(user.id), user.role, user.token_version),
     }
+
+
+@router.get("/home-languages", response_model=list[str])
+async def list_home_languages() -> list[str]:
+    """NEW 19 Nov 2026 (ADR-035): the options for the learner's language setting."""
+    return list(HOME_LANGUAGES)
+
+
+@router.put("/me/home-language", response_model=LearnerProfile)
+async def set_home_language(
+    payload: HomeLanguageUpdate,
+    learner: Learner = Depends(get_current_learner),
+    db: AsyncSession = Depends(get_db),
+) -> LearnerProfile:
+    """
+    NEW 19 Nov 2026 (ADR-035). The learner picks the language the tutor may
+    also explain in. Teaching stays in English by default; see
+    personalization.build_language_instructions.
+    """
+    value = payload.home_language
+    if value and value not in HOME_LANGUAGES:
+        raise HTTPException(status_code=400, detail="Unknown language")
+    learner.home_language = None if value in (None, "", "English") else value
+    await db.commit()
+    return _learner_profile(learner)
