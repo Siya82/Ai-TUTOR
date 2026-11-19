@@ -4,6 +4,7 @@ import LoginScreen from "./components/LoginScreen";
 import TeacherAdminScreen from "./components/TeacherAdminScreen";
 import { fetchMe, setUnauthorizedHandler } from "./api";
 import ParentScreen from "./components/ParentScreen";
+import InsightsScreen from "./components/InsightsScreen";
 import "./styles/product-tokens.css";
 import "./styles/chat.css";
 
@@ -92,6 +93,10 @@ function App() {
   // both (school + login identifier + password); the backend's `role`
   // on the login/me response is what branches here.
   // NEW 19 Nov 2026 (ADR-038): parents get the CONNECT view
+  // NEW 19 Nov 2026 (ADR-039): circuit/district officials get INSIGHTS
+  if (auth.role === "official") {
+    return <InsightsScreen auth={auth} onLogout={handleLogout} />;
+  }
   if (auth.role === "parent") {
     return <ParentScreen auth={auth} onLogout={handleLogout} />;
   }

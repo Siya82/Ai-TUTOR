@@ -131,6 +131,12 @@ class School(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+    # NEW 19 Nov 2026 (ADR-039, INSIGHTS; migration 0017). kind="office" is
+    # a circuit/district office: its users are education officials, who log
+    # in by picking their office like a teacher picks their school. A real
+    # school sits in at most one circuit.
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="school", server_default="school")
+    circuit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("circuits.id"), nullable=True, index=True)
 
     users: Mapped[list["User"]] = relationship(back_populates="school")
 
@@ -662,3 +668,42 @@ class NoticeAck(Base):
     notice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("school_notices.id"), nullable=False, index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     acked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+# ---------------------------------------------------------------------------
+# NEW 19 Nov 2026 (ADR-039, INSIGHTS; migration 0017). The department's
+# structure above schools: district -> circuit -> school. An official (User
+# role "official", belonging to an office School) is assigned to a district
+# or a circuit and sees aggregated outcomes for every school under it --
+# never individual learners' names or work.
+# ---------------------------------------------------------------------------
+
+
+class District(Base):
+    __tablename__ = "districts"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    province: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+class Circuit(Base):
+    __tablename__ = "circuits"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    district_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("districts.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
+
+
+class OfficialAssignment(Base):
+    """Exactly one of district_id / circuit_id is set."""
+
+    __tablename__ = "official_assignments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    district_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("districts.id"), nullable=True, index=True)
+    circuit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("circuits.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)

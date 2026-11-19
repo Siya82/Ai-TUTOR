@@ -733,3 +733,16 @@ export function postSchoolNotice(token, body) {
 export function deleteSchoolNotice(token, noticeId) {
   return deleteJson(`/school/notices/${noticeId}`, token);
 }
+
+/*
+ * NEW 19 Nov 2026 (ADR-039): INSIGHTS for circuit/district officials.
+ */
+export function fetchInsightsScope(token) {
+  return getJson("/insights/scope", token);
+}
+export function fetchInsightsOverview(token, circuitId) {
+  return getJson(`/insights/overview${circuitId ? `?circuit_id=${circuitId}` : ""}`, token);
+}
+export function fetchInsightsSchool(token, schoolId) {
+  return getJson(`/insights/schools/${schoolId}`, token);
+}

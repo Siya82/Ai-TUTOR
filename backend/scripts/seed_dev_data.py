@@ -43,6 +43,9 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models import (
+    Circuit,
+    District,
+    OfficialAssignment,
     ClassMember,
     ContentChunk,
     Learner,
@@ -1622,6 +1625,59 @@ async def get_or_create_demo_teacher_account(session, school: School) -> User:
     return user
 
 
+DEV_OFFICIAL_NUMBER = "O00001"
+
+
+async def ensure_dev_insights(session, school: School) -> None:
+    """
+    NEW 19 Nov 2026 (ADR-039). A demo district with one circuit holding the
+    demo school, a "Demo Circuit Office" to log in through, and a
+    district-level official O00001 (password DevPass123!). Idempotent.
+    """
+    district = (await session.execute(select(District).where(District.name == "Demo District"))).scalar_one_or_none()
+    if district is None:
+        district = District(name="Demo District", province="KwaZulu-Natal")
+        session.add(district)
+        await session.flush()
+    circuit = (
+        await session.execute(select(Circuit).where(Circuit.name == "Demo Circuit", Circuit.district_id == district.id))
+    ).scalar_one_or_none()
+    if circuit is None:
+        circuit = Circuit(district_id=district.id, name="Demo Circuit")
+        session.add(circuit)
+        await session.flush()
+    school.circuit_id = circuit.id
+    office = (
+        await session.execute(select(School).where(School.name == "Demo District Office", School.kind == "office"))
+    ).scalar_one_or_none()
+    if office is None:
+        office = School(name="Demo District Office", kind="office")
+        session.add(office)
+        await session.flush()
+    official = (
+        await session.execute(
+            select(User).where(User.school_id == office.id, User.student_number == DEV_OFFICIAL_NUMBER)
+        )
+    ).scalar_one_or_none()
+    if official is None:
+        official = User(role="official", school_id=office.id, student_number=DEV_OFFICIAL_NUMBER)
+        session.add(official)
+    official.display_name = "Dev Official"
+    official.password_hash = hash_password(DEV_STUDENT_PASSWORD)
+    official.must_change_password = False
+    official.is_active = True
+    await session.flush()
+    exists = (
+        await session.execute(
+            select(OfficialAssignment).where(
+                OfficialAssignment.user_id == official.id, OfficialAssignment.district_id == district.id
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        session.add(OfficialAssignment(user_id=official.id, district_id=district.id))
+
+
 async def ensure_dev_school_structure(session, school: School, teacher: User, learner: Learner) -> User:
     """
     NEW 17 Nov 2026 (ADR-031). Idempotent, and refreshes existing rows on
@@ -1801,6 +1857,7 @@ async def main() -> None:
         demo_user = await get_or_create_demo_student_account(session, demo_school, learner)
         demo_teacher = await get_or_create_demo_teacher_account(session, demo_school)
         demo_principal = await ensure_dev_school_structure(session, demo_school, demo_teacher, learner)
+        await ensure_dev_insights(session, demo_school)  # ADR-039
 
         await session.commit()
 
