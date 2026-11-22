@@ -118,6 +118,24 @@ a month, and all 135 videos come to about 145,000.
 - **On-screen text stays.** It still works muted in class, and for learners
   who are hard of hearing.
 
+## Stand-in voice: Windows built-in (22 Nov 2026)
+
+Azure sign-up was blocked, so `voice.py --engine windows` uses the voice
+built into Windows, until Azure or Polly is available. It needs no account.
+- **How it runs.** It uses `System.Speech` in Windows PowerShell 5.1
+  (`powershell.exe`); PowerShell 7 lacks that library. The script is passed
+  with `-EncodedCommand`, so no `.ps1` file needs to be trusted. It runs once
+  per topic.
+- **Which voice.** It picks a female English voice: South African if
+  installed, then British, then any. `--windows-voice Zira` chooses one
+  explicitly.
+- **Output.** 22 kHz mono WAV, in `voice/windows/<slug>/`. `render.py`
+  accepts `.wav` as well as `.mp3`.
+- **The brand name.** Spelled as said ("Too-toh-rah"), because this route
+  has no SSML alias.
+- **Quality.** Clearly synthetic. Re-voicing with Azure or Polly later is
+  one command plus a re-render.
+
 ## Voice on / off (22 Nov 2026)
 
 A learner can switch the voice-over off.

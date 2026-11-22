@@ -292,8 +292,8 @@ def render(subject: str, grade: int, topic: str, c: dict, browser, stills: bool,
             clip = work / f"{i:02d}.mp4"
             audio = None
             if audio_dir is not None:
-                mp3 = audio_dir / f"{i:02d}.mp3"
-                if mp3.exists():
+                mp3 = next((p for p in (audio_dir / f"{i:02d}.mp3", audio_dir / f"{i:02d}.wav") if p.exists()), None)
+                if mp3 is not None:
                     audio = mp3
                     # the scene lasts as long as the narrator needs, never less than reading time
                     secs = round(max(secs, VOICE_LEAD + audio_seconds(mp3) + VOICE_TAIL), 2)
