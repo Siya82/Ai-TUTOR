@@ -98,5 +98,6 @@ async def list_topics(
         if v := videos.get(t.id):
             item.intro_video_url = v.url
             item.intro_video_seconds = v.duration_seconds
+            item.intro_video_narrated = v.has_narration
         out.append(item)
     return out

@@ -118,6 +118,20 @@ a month, and all 135 videos come to about 145,000.
 - **On-screen text stays.** It still works muted in class, and for learners
   who are hard of hearing.
 
+## Voice on / off (22 Nov 2026)
+
+A learner can switch the voice-over off.
+- **The switch.** "Voice on / Voice off" in the video window
+  (`aria-pressed`).
+- **It's remembered** on the device, in localStorage, so a learner who prefers
+  quiet doesn't mute every video. If storage is blocked, the switch still
+  works for the video that's playing.
+- **The player's own mute button** counts as the same choice.
+- **Shown only where there's a voice.** `video_resources.has_narration`
+  (migration 0024) is set by `register.py` from the manifest's `voice`, and
+  `GET /topics/` returns it as `intro_video_narrated`.
+- **Nothing is lost when muted:** every spoken line is also on screen.
+
 ## Rollout
 
 1. Pilot: Grade 10 Mathematics, 12 videos (done, 62–70 s each). Siya reviews the

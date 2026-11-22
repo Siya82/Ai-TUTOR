@@ -6,8 +6,28 @@
  * full card is shown on an empty chat, where a new learner lands.
  */
 import { useEffect, useRef, useState } from "react";
-import { PlayCircle, X } from "lucide-react";
+import { PlayCircle, Volume2, VolumeX, X } from "lucide-react";
 import { mediaUrl } from "../api";
+
+// The learner's voice-over choice, remembered on this device (22 Nov 2026).
+// Muting loses nothing: every word is also on screen.
+const VOICE_KEY = "thutora.topicVideoVoice";
+
+function voicePreferredOff() {
+  try {
+    return window.localStorage.getItem(VOICE_KEY) === "off";
+  } catch {
+    return false; // storage blocked: default to voice on
+  }
+}
+
+function rememberVoice(off) {
+  try {
+    window.localStorage.setItem(VOICE_KEY, off ? "off" : "on");
+  } catch {
+    /* not remembered, but this video still follows the switch */
+  }
+}
 
 function length(seconds) {
   if (!seconds) return "";
@@ -16,7 +36,20 @@ function length(seconds) {
 
 export default function TopicIntroVideo({ topic, compact = false }) {
   const [open, setOpen] = useState(false);
+  const [muted, setMuted] = useState(voicePreferredOff);
   const closeRef = useRef(null);
+  const videoRef = useRef(null);
+
+  // keep the player in step with the switch (the muted attribute alone
+  // isn't reliable after the video has loaded)
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted, open]);
+
+  function setVoice(off) {
+    setMuted(off);
+    rememberVoice(off);
+  }
 
   useEffect(() => {
     if (!open) return undefined;
@@ -59,12 +92,36 @@ export default function TopicIntroVideo({ topic, compact = false }) {
           >
             <div className="topic-video-dialog__head">
               <strong>{label}</strong>
+              {topic.intro_video_narrated && (
+                <button
+                  type="button"
+                  className="topic-video-dialog__voice"
+                  aria-pressed={!muted}
+                  onClick={() => setVoice(!muted)}
+                  title={muted ? "Turn the voice-over on" : "Turn the voice-over off (the words stay on screen)"}
+                >
+                  {muted ? <VolumeX size={18} aria-hidden="true" /> : <Volume2 size={18} aria-hidden="true" />}
+                  {muted ? "Voice off" : "Voice on"}
+                </button>
+              )}
               <button ref={closeRef} type="button" onClick={() => setOpen(false)} aria-label="Close video">
                 <X size={20} aria-hidden="true" />
               </button>
             </div>
-            {/* No sound track: the words are on screen (ADR-049) */}
-            <video src={mediaUrl(topic.intro_video_url)} controls autoPlay playsInline preload="metadata">
+            {/* The words are always on screen, so the voice-over is optional (ADR-049) */}
+            <video
+              ref={videoRef}
+              src={mediaUrl(topic.intro_video_url)}
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              muted={muted}
+              // the player's own mute button counts as the learner's choice too
+              onVolumeChange={(e) => {
+                if (topic.intro_video_narrated && e.currentTarget.muted !== muted) setVoice(e.currentTarget.muted);
+              }}
+            >
               Your browser can't play this video.
             </video>
           </div>

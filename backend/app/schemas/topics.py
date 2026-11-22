@@ -30,5 +30,6 @@ class TopicResponse(BaseModel):
     # ADR-049: THUTOra's own 1-minute "What is this topic?" video, if made
     intro_video_url: str | None = None
     intro_video_seconds: int | None = None
+    intro_video_narrated: bool = False  # LEARN shows the voice on/off switch only then
 
     model_config = ConfigDict(from_attributes=True)  # deep scan L5 (Pydantic 2 style)

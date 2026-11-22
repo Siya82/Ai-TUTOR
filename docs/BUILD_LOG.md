@@ -3263,3 +3263,16 @@ The 12 Grade 10 Maths videos are re-rendered: 77–94 s, about 0.6 MB each.
 The narration script follows the new scenes. In LEARN the card says
 "Starting <topic>?" and the link says "Topic induction".
 
+## 22 Nov 2026 — Voice on/off for topic videos (ADR-049)
+
+The video window has a "Voice on / Voice off" switch, remembered on the
+device. The player's own mute button counts as the same choice. It's shown
+only for videos with narration: `has_narration`, migration 0024.
+
+Browser checks:
+- the switch is hidden on a silent video;
+- it mutes the video;
+- the choice is remembered on reopen and after a reload;
+- the player's own unmute updates it;
+- axe is clean.
+

@@ -68,6 +68,7 @@ async def register(base_url: str = "") -> None:
             row.title = f"{m['topic']}: topic induction"
             row.url = f"{base_url.rstrip('/')}/{filename}" if base_url else f"/media/topic-videos/{filename}"
             row.duration_seconds = m["seconds"]
+            row.has_narration = bool(m.get("voice"))  # rendered with --voice
             row.duration_minutes = max(1, round(m["seconds"] / 60))
         await db.commit()
     print(f"Topic videos: {added} added, {updated} updated, {missing} skipped.")

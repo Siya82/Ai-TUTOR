@@ -349,6 +349,7 @@ class VideoResource(Base):
     source: Mapped[str] = mapped_column(String(100))  # e.g. "Mindset Learn", "Siyavula"
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
     duration_seconds: Mapped[int | None] = mapped_column(Integer)  # ADR-049
+    has_narration: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")  # ADR-049 voice
 
 
 class Practical(Base):

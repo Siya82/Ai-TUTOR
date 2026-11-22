@@ -175,7 +175,7 @@ async def test_topic_list_carries_the_overview_video(client, world, sessionmaker
 
     async with sessionmaker() as db:
         db.add(VideoResource(topic_id=world.topic.id, title="x in a minute", url="/media/topic-videos/x.mp4",
-                             source="THUTOra", duration_seconds=65))
+                             source="THUTOra", duration_seconds=65, has_narration=True))
         db.add(VideoResource(topic_id=world.topic.id, title="external", url="https://example.org/v",
                              source="Siyavula"))  # someone else's video isn't the overview
         await db.commit()
@@ -183,3 +183,4 @@ async def test_topic_list_carries_the_overview_video(client, world, sessionmaker
     mine = next(t for t in topics if t["id"] == str(world.topic.id))
     assert mine["intro_video_url"] == "/media/topic-videos/x.mp4"
     assert mine["intro_video_seconds"] == 65
+    assert mine["intro_video_narrated"] is True  # LEARN shows the voice on/off switch
