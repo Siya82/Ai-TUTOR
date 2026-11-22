@@ -7,6 +7,7 @@ million characters a month -- all 135 videos are about 120,000).
 
     python -m scripts.topic_videos.voice --voice en-ZA-LeahNeural --only "Exponents"
     python -m scripts.topic_videos.voice --voice en-ZA-LukeNeural        # every topic
+    python -m scripts.topic_videos.voice --engine polly                  # Amazon Polly, Ayanda (en-ZA)
     python -m scripts.topic_videos.voice --engine windows                # built-in Windows voice,
                                                                          # no account (robotic)
 
@@ -120,15 +121,58 @@ def synth_windows(jobs: list[tuple[str, Path]], voice_name: str | None) -> str:
     return r.stdout.strip().splitlines()[-1] if r.stdout.strip() else "?"
 
 
+# --- Amazon Polly (22 Nov 2026) ----------------------------------------------
+# Ayanda: South African English, neural engine (free tier: 1 million
+# characters a month for the first 12 months). Uses boto3, which only this
+# script needs: python -m pip install boto3
+POLLY_RATE = "94%"  # a touch slower than normal, like the Azure setting
+
+
+def polly_ssml(text: str) -> str:
+    body = escape(text).replace("THUTOra", f'<sub alias="{BRAND_ALIAS}">THUTOra</sub>')
+    return f'<speak><prosody rate="{POLLY_RATE}">{body}</prosody></speak>'
+
+
+def polly_client():
+    try:
+        import boto3
+    except ImportError:
+        raise SystemExit("Polly needs boto3 on this machine: python -m pip install boto3")
+    if not settings.aws_access_key_id or not settings.aws_secret_access_key:
+        raise SystemExit("Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in backend/.env first (see docs/ADR-049).")
+    return boto3.client(
+        "polly",
+        region_name=settings.aws_region or "us-east-1",
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+    )
+
+
+def synth_polly(client, text: str, voice: str) -> bytes:
+    try:
+        r = client.synthesize_speech(Engine="neural", OutputFormat="mp3", SampleRate="24000",
+                                     TextType="ssml", Text=polly_ssml(text), VoiceId=voice)
+    except Exception as e:  # botocore errors: show the useful part, not a traceback
+        msg = str(e)
+        if "UnrecognizedClient" in msg or "InvalidSignature" in msg or "SignatureDoesNotMatch" in msg:
+            raise SystemExit("AWS refused the key. Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in backend/.env.")
+        if "AccessDenied" in msg:
+            raise SystemExit("The AWS user isn't allowed to use Polly: attach AmazonPollyReadOnlyAccess to it.")
+        raise SystemExit(f"Polly failed: {msg}")
+    return r["AudioStream"].read()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--engine", choices=["azure", "windows"], default="azure",
-                    help="azure (natural, needs a key) or windows (built-in, robotic, no account)")
+    ap.add_argument("--engine", choices=["azure", "polly", "windows"], default="azure",
+                    help="azure or polly (natural, need a key) or windows (built-in, robotic, no account)")
     ap.add_argument("--voice", help="Azure voice name, or a folder name for the Windows voice (default: windows)")
     ap.add_argument("--windows-voice", help="part of a Windows voice name to use, e.g. Zira or Hazel")
     ap.add_argument("--only", help="just this topic name")
     a = ap.parse_args()
-    voice = a.voice or ("windows" if a.engine == "windows" else "en-ZA-LeahNeural")
+    voice = a.voice or {"windows": "windows", "polly": "Ayanda"}.get(a.engine, "en-ZA-LeahNeural")
+    folder_name = f"polly-{voice}" if a.engine == "polly" else voice
+    polly = polly_client() if a.engine == "polly" else None
     if a.engine == "azure" and (not settings.azure_speech_key or not settings.azure_speech_region):
         raise SystemExit("Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in backend/.env first (see docs/ADR-049),"
                          " or use --engine windows.")
@@ -140,7 +184,7 @@ def main() -> None:
             for topic, c in topics.items():
                 if a.only and topic != a.only:
                     continue
-                folder = OUT / "voice" / voice / video_slug(subject, grade, topic)
+                folder = OUT / "voice" / folder_name / video_slug(subject, grade, topic)
                 folder.mkdir(parents=True, exist_ok=True)
                 todo = []
                 for i, line in enumerate(narration(subject, grade, topic, c)):
@@ -154,13 +198,16 @@ def main() -> None:
                 for line, audio, txt in todo:
                     if a.engine == "azure":
                         audio.write_bytes(synth(client, line, voice))
+                    elif a.engine == "polly":
+                        audio.write_bytes(synth_polly(polly, line, voice))
                     txt.write_text(line, encoding="utf-8")
                     made += 1
                     chars += len(line)
                 print(f"  {topic}: done")
     if used:
         print(f"Windows voice used: {used}")
-    print(f"{made} lines voiced ({chars:,} characters), {kept} unchanged. Audio in {OUT / 'voice' / voice}")
+    print(f"{made} lines voiced ({chars:,} characters), {kept} unchanged. Audio in {OUT / 'voice' / folder_name}")
+    print(f"Next: python -m scripts.topic_videos.render --voice {folder_name}")
 
 
 if __name__ == "__main__":

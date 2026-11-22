@@ -136,6 +136,21 @@ built into Windows, until Azure or Polly is available. It needs no account.
 - **Quality.** Clearly synthetic. Re-voicing with Azure or Polly later is
   one command plus a re-render.
 
+## Amazon Polly (22 Nov 2026)
+
+`voice.py --engine polly` uses **Ayanda**, the South African English neural
+voice.
+- **Cost.** The free tier covers 1 million neural characters a month for the
+  first 12 months, and the 12 pilot videos are about 19,000.
+- **Region.** `us-east-1` by default. Africa (Cape Town), `af-south-1`, also
+  supports neural voices, but it's an opt-in region.
+- **Setup.** It uses boto3, which is installed only on the developer machine
+  (`python -m pip install boto3`); it's not in `requirements.txt`, because the
+  API never calls Polly. The key belongs to an IAM user with only
+  `AmazonPollyReadOnlyAccess`, which includes `SynthesizeSpeech`.
+- **Output.** Audio goes to `voice/polly-Ayanda/`. The brand alias is applied
+  through SSML `<sub>`.
+
 ## Voice on / off (22 Nov 2026)
 
 A learner can switch the voice-over off.

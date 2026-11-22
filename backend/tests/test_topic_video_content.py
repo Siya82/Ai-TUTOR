@@ -60,3 +60,10 @@ def test_voice_ssml_escapes_and_names_the_brand():
 
     out = ssml("x < 5 & ask THUTOra", "en-ZA-LeahNeural")
     assert "x &lt; 5 &amp; ask" in out and "<sub alias=" in out and "xml:lang='en-ZA'" in out
+
+
+def test_polly_ssml_escapes_and_names_the_brand():
+    from scripts.topic_videos.voice import polly_ssml
+
+    out = polly_ssml("x < 5 & ask THUTOra")
+    assert out.startswith("<speak><prosody") and "x &lt; 5 &amp; ask" in out and '<sub alias="' in out

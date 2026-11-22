@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # scripts/topic_videos/voice.py on a developer machine (never by the API)
     azure_speech_key: str = ""
     azure_speech_region: str = ""
+    # ... or Amazon Polly (same: developer machine only, never the API)
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "us-east-1"
     retention_upload_days: int = 0
     retention_audit_days: int = 0
     environment: str = "development"
