@@ -1,6 +1,7 @@
 /*
- * NEW 20 Nov 2026 (ADR-049). THUTOra's one-minute "What is this topic?"
- * video: what, why, where, who, when and how, with a worked example.
+ * NEW 20 Nov 2026 (ADR-049); reworked 22 Nov 2026 as a topic induction:
+ * what it's about, what to expect, what it builds on from the previous
+ * grade, and two worked examples (basic, then exam style).
  * `compact` is the small link shown once a conversation has started; the
  * full card is shown on an empty chat, where a new learner lands.
  */
@@ -26,21 +27,24 @@ export default function TopicIntroVideo({ topic, compact = false }) {
   }, [open]);
 
   if (!topic?.intro_video_url) return null;
-  const label = `${topic.name} in a minute`;
+  const label = `${topic.name}: topic induction`;
 
   return (
     <>
       {compact ? (
         <button type="button" className="topic-video-link" onClick={() => setOpen(true)}>
           <PlayCircle size={16} aria-hidden="true" />
-          What's this topic about? <span>{length(topic.intro_video_seconds)}</span>
+          Topic induction <span>{length(topic.intro_video_seconds)}</span>
         </button>
       ) : (
         <button type="button" className="topic-video-card" onClick={() => setOpen(true)}>
           <PlayCircle size={40} aria-hidden="true" />
           <span>
-            <strong>New to {topic.name}?</strong>
-            <span>Watch what it's about, why it matters and an example · {length(topic.intro_video_seconds)}</span>
+            <strong>Starting {topic.name}?</strong>
+            <span>
+              Watch the induction: what to expect, what it builds on, and two worked examples ·{" "}
+              {length(topic.intro_video_seconds)}
+            </span>
           </span>
         </button>
       )}

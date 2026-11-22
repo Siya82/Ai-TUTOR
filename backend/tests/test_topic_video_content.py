@@ -15,19 +15,29 @@ def test_every_entry_is_a_real_seeded_topic():
 
 
 def test_entries_are_complete_and_maths_is_balanced():
-    for topics in CONTENT.values():
+    for (subject, grade), topics in CONTENT.items():
         for name, c in topics.items():
-            assert c["what"] and c["why"] and len(c["where"]) == 3 and c["who"], name
-            assert c["paper"] in ("Paper 1", "Paper 2"), name
-            assert c["how"]["q"] and c["how"]["steps"] and c["how"]["a"], name
-            texts = [c["what"], c["why"], *c["where"], c["how"]["q"], *c["how"]["steps"], c["how"]["a"]]
+            assert c["what"] and c["why"] and c["paper"] in ("Paper 1", "Paper 2"), name
+            assert 3 <= len(c["expect"]) <= 6, name
+            assert c["previous"] and all(p.startswith(f"Grade {grade - 1}") or "Grade" not in p for p in c["previous"]), name
+            assert len(c["examples"]) == 2, name
+            for x in c["expect"] + c["previous"]:
+                assert "$" not in x, f"{name}: keep 'expect' and 'previous' free of maths markup: {x!r}"
+            texts = [c["what"], c["why"]]
+            for ex in c["examples"]:
+                assert ex["q"] and ex["steps"] and ex["a"], name
+                assert len(ex["say"]["steps"]) == len(ex["steps"]), name
+                texts += [ex["q"], *ex["steps"], ex["a"]]
             for t in texts:
                 assert t.count("$") % 2 == 0, f"{name}: unbalanced $ in {t!r}"
             assert "isiZulu" not in name  # ADR-021: never invented isiZulu text
 
 
 def test_links_and_slugs():
-    assert topic_links("Pure Mathematics", 10, "Exponents") == (["Algebraic Expressions"], ["Number Patterns", "Finance, Growth and Decay"])
+    builds_on, leads_to = topic_links("Pure Mathematics", 10, "Exponents")
+    assert builds_on == ["Algebraic Expressions"]
+    assert leads_to[0] == "Exponents and Surds (Grade 11)"  # same topic one grade up comes first
+    assert "Number Patterns" in leads_to
     assert video_slug("Pure Mathematics", 10, "Finance, Growth and Decay") == "g10-pure-mathematics-finance-growth-and-decay"
     assert re.fullmatch(r"[a-z0-9-]+", video_slug("Physical Sciences", 11, "2D & 3D Wavefronts"))
 
@@ -43,7 +53,6 @@ def test_narration_is_speakable_and_matches_the_scenes():
             assert len(lines) == len(frames_for(subject, grade, name, c)), name
             for line in lines:
                 assert "$" not in line and "\\" not in line, f"{name}: {line!r}"
-            assert len(c["say"].get("steps", [])) in (0, len(c["how"]["steps"])), name
 
 
 def test_voice_ssml_escapes_and_names_the_brand():

@@ -1,4 +1,4 @@
-# ADR-049 — One-minute topic overview videos
+# ADR-049 — Topic induction videos
 
 **Date:** 20 Nov 2026 · **Status:** Accepted (pilot: Grade 10 Mathematics)
 
@@ -66,6 +66,32 @@ for each W, in this order:
 
 **isiZulu HL** topics get no video until a fluent speaker writes or checks the
 text (ADR-021).
+
+## Reworked as topic inductions (22 Nov 2026)
+
+Siya asked for each video to be an **induction** to a topic the learner is
+about to start. It now has seven scenes and runs 77–94 s:
+
+| Scene | Content |
+|---|---|
+| Welcome | Topic, grade, subject, exam paper. |
+| What it's about | The big idea, the key formula, and one line on why it matters. |
+| What to expect | The 4–6 things the topic covers (CAPS sub-topics). |
+| Where it comes from | The previous grade's work it builds on, what it uses in this grade, and what it leads to. |
+| Example 1 | A basic warm-up, revealed step by step. |
+| Example 2 | An exam-style question, revealed step by step. |
+| Ready? | Pointer to ask THUTOra. |
+
+How the "where it comes from" scene is filled:
+- **Previous grade.** It comes from `previous` in `content.py`. For Grade 10
+  that's CAPS Senior Phase (Grade 9) work, which THUTOra doesn't hold as
+  topics. For Grades 11–12 it will name the previous grade's THUTOra topic.
+- **Leads to.** It puts the same topic one grade up first, e.g.
+  "Trigonometry (Grade 11)", followed by this grade's topics that build on it.
+
+Where/Who were dropped to keep the focus on the induction. Narration follows
+the same seven scenes, with one sentence per "expect" item so it doesn't run
+together.
 
 ## Narration (added 20 Nov 2026)
 

@@ -65,7 +65,7 @@ async def register(base_url: str = "") -> None:
                 added += 1
             else:
                 updated += 1
-            row.title = f"{m['topic']} in a minute"
+            row.title = f"{m['topic']}: topic induction"
             row.url = f"{base_url.rstrip('/')}/{filename}" if base_url else f"/media/topic-videos/{filename}"
             row.duration_seconds = m["seconds"]
             row.duration_minutes = max(1, round(m["seconds"] / 60))

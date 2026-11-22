@@ -3247,3 +3247,19 @@ Checked:
 - desktop and phone runs (plays, seeks, Esc closes);
 - the API serves byte ranges with public caching.
 
+## 22 Nov 2026 — Topic videos reworked as inductions (ADR-049)
+
+Each video now has seven scenes:
+- welcome;
+- what it's about (and why it matters);
+- what to expect (CAPS sub-topics);
+- where it comes from (Grade 9 work, links in this grade, and the same
+  topic in Grade 11);
+- example 1 (warm-up);
+- example 2 (exam style);
+- ready.
+
+The 12 Grade 10 Maths videos are re-rendered: 77–94 s, about 0.6 MB each.
+The narration script follows the new scenes. In LEARN the card says
+"Starting <topic>?" and the link says "Topic induction".
+

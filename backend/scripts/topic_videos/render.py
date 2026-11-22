@@ -30,7 +30,7 @@ W, H = 1280, 720
 FPS = 30
 BG = "#0F1D3D"
 GREEN = "#22C55E"
-WS = ["WHAT", "WHY", "WHERE", "WHO", "WHEN", "HOW"]
+WS = ["ABOUT", "EXPECT", "BUILDS ON", "EXAMPLE 1", "EXAMPLE 2"]
 SUBJECT_LABEL = {"Pure Mathematics": "Mathematics"}
 
 
@@ -48,9 +48,13 @@ def topic_links(subject: str, grade: int, topic: str) -> tuple[list[str], list[s
     prereq = dict(spec["topics"])
     builds_on = [prereq[topic]] if prereq.get(topic) else []
     leads_to = [name for name, pre in spec["topics"] if pre == topic]
-    if not leads_to:  # look one grade up, same subject
-        nxt = next((s for s in SUBJECTS if s["name"] == subject and s["grade"] == grade + 1), None)
-        if nxt:
+    nxt = next((s for s in SUBJECTS if s["name"] == subject and s["grade"] == grade + 1), None)
+    if nxt:  # the same topic one grade up is its most direct next step
+        names = [name for name, _ in nxt["topics"]]
+        same = [n for n in names if n == topic or n.startswith(topic + ":") or topic in n]
+        if same:
+            leads_to = [f"{same[0]} (Grade {grade + 1})"] + leads_to
+        elif not leads_to:
             leads_to = [f"{name} (Grade {grade + 1})" for name, pre in nxt["topics"] if pre == topic]
     return builds_on, leads_to[:3]
 
@@ -127,6 +131,16 @@ ol li.new:before{{background:{GREEN};color:{BG}}}
 .brand{{position:absolute;bottom:26px;right:48px;font-size:18px;font-weight:700;color:#7F8FB0;letter-spacing:.04em}}
 .brand span{{color:{GREEN}}}
 .katex{{font-size:1.02em}}
+.why{{margin-top:30px;font-size:26px;line-height:1.45;color:#C9D3E8;max-width:1060px}}
+.why b{{color:{GREEN}}}
+.h1s{{font-size:36px;margin-bottom:22px}}
+ul.ticks{{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:14px 34px}}
+ul.ticks li{{font-size:25px;line-height:1.4;color:#DCE4F4;padding-left:42px;position:relative}}
+ul.ticks li:before{{content:"✓";position:absolute;left:0;top:0;width:30px;height:30px;border-radius:9px;background:{GREEN};color:{BG};font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center}}
+ul.plain{{list-style:none}}
+ul.plain li{{margin-bottom:12px;font-size:22px;line-height:1.35}}
+.also{{margin-top:16px;font-size:19px;color:#C9D3E8;line-height:1.35}}
+.also b{{color:#fff;font-weight:600}}
 """
 )
 
@@ -141,8 +155,28 @@ def page(body: str) -> str:
 </body></html>"""
 
 
+def example_frames(chrome, label: str, ex: dict, fade_in: bool, fade_out: bool) -> list[tuple[str, float, str]]:
+    """A worked example revealed one line at a time: question, each step, answer."""
+    out = []
+    steps = ex["steps"]
+    last = len(steps) + 1
+    for k in range(last + 1):
+        shown = steps[: max(0, k)]
+        lis = "".join(f'<li class="{"new" if i == k - 1 else ""}">{esc(s)}</li>' for i, s in enumerate(shown))
+        ans = f'<div class="ans">{esc(ex["a"])}</div>' if k == last else ""
+        secs = (hold(words(ex["q"]), lo=4.0, hi=8) if k == 0
+                else hold(words(steps[k - 1]), base=1.5, rate=2.8, lo=3.0, hi=7) if k < last
+                else 4.5)
+        fade = ("in" if fade_in and k == 0 else "") + ("out" if fade_out and k == last else "")
+        fade = {"inout": "both"}.get(fade, fade)
+        out.append((page(chrome + f"""<div class="stage"><div class="q">{label}</div>
+            <div class="problem">{esc(ex['q'])}</div><ol>{lis}</ol>{ans}</div>"""), secs, fade))
+    return out
+
+
 def frames_for(subject: str, grade: int, topic: str, c: dict) -> list[tuple[str, float, str]]:
-    """[(html, seconds, fade)] -- fade is 'in', 'out', 'both' or ''."""
+    """[(html, seconds, fade)] -- fade is 'in', 'out', 'both' or ''. The order
+    must match narration.narration()."""
     label = SUBJECT_LABEL.get(subject, subject)
     logo = (FRONTEND / "public/thutora-learn-logo.png").as_uri()
 
@@ -154,53 +188,42 @@ def frames_for(subject: str, grade: int, topic: str, c: dict) -> list[tuple[str,
                 f'<b>{esc(topic)}</b></div><div class="ws">{ws}</div></div>')
 
     out = []
-    out.append((page(f"""<div class="center"><div class="kicker">WHAT'S THIS TOPIC ABOUT?</div>
+    out.append((page(f"""<div class="center"><div class="kicker">TOPIC INDUCTION</div>
         <div class="big">{esc(topic)}</div><div class="sub">Grade {grade} · {label} · {c['paper']}</div></div>"""), 4.0, "both"))
 
     visual = f'<div class="card visual">$$ {c["visual"]} $$</div>' if c.get("visual") else ""
-    # a long formula goes under the text, so the text keeps a readable width
     layout = "stack" if len(c.get("visual", "")) > 45 else "row"
-    out.append((page(chrome(0) + f"""<div class="stage"><div class="q">WHAT IS IT?</div>
-        <div class="{layout}"><div class="body">{esc(c['what'])}</div>{visual}</div></div>"""),
-        hold(words(c["what"]) + 4), "both"))
+    out.append((page(chrome(0) + f"""<div class="stage"><div class="q">WHAT IT'S ABOUT</div>
+        <div class="{layout}"><div class="body">{esc(c['what'])}</div>{visual}</div>
+        <div class="why"><b>Why it matters:</b> {esc(c['why'])}</div></div>"""),
+        hold(words(c["what"]) + words(c["why"]) + 4, hi=14), "both"))
 
-    out.append((page(chrome(1) + f"""<div class="stage"><div class="q">WHY DOES IT MATTER?</div>
-        <h1>{esc(c['why'])}</h1></div>"""), hold(words(c["why"])), "both"))
-
-    cards = "".join(f'<div class="card"><div class="num">{i + 1}</div><div>{esc(p)}</div></div>'
-                    for i, p in enumerate(c["where"]))
-    out.append((page(chrome(2) + f"""<div class="stage"><div class="q">WHERE DO YOU SEE IT?</div>
-        <div class="places">{cards}</div></div>"""), hold(sum(words(p) for p in c["where"])), "both"))
-
-    chips = "".join(f"<span>{esc(w)}</span>" for w in c["who"])
-    out.append((page(chrome(3) + f"""<div class="stage"><div class="q">WHO USES IT?</div>
-        <div class="chips">{chips}</div></div>"""), 4.5, "both"))
+    items = "".join(f"<li>{esc(x)}</li>" for x in c["expect"])
+    out.append((page(chrome(1) + f"""<div class="stage"><div class="q">WHAT TO EXPECT</div>
+        <h1 class="h1s">In this topic you'll learn:</h1><ul class="ticks">{items}</ul></div>"""),
+        hold(sum(words(x) for x in c["expect"]) + 4, hi=14), "both"))
 
     builds_on, leads_to = topic_links(subject, grade, topic)
-    before = "<br>".join(map(esc, builds_on)) or "Nothing new: a good place to start"
-    after = "<br>".join(map(esc, leads_to)) or "Harder problems in later grades"
-    out.append((page(chrome(4) + f"""<div class="stage"><div class="q">WHEN DO YOU NEED IT?</div>
-        <div class="flow"><div class="card"><div class="lab">BUILDS ON</div>{before}</div><div class="arrow">→</div>
-        <div class="card me"><div class="lab">YOU ARE HERE</div><b>{esc(topic)}</b></div><div class="arrow">→</div>
+    prev = "".join(f"<li>{esc(re.sub(rf'^Grade {grade - 1} ', '', x))}</li>" for x in c["previous"])
+    also = (f'<div class="also">In Grade {grade} it also uses<br><b>{"<br>".join(map(esc, builds_on))}</b></div>'
+            if builds_on else "")
+    after = ('<ul class="plain">' + "".join(f"<li>{esc(t)}</li>" for t in leads_to) + "</ul>"
+             if leads_to else "Harder problems in later grades")
+    out.append((page(chrome(2) + f"""<div class="stage"><div class="q">WHERE IT COMES FROM</div>
+        <div class="flow"><div class="card"><div class="lab">FROM GRADE {grade - 1}</div><ul class="plain">{prev}</ul></div>
+        <div class="arrow">→</div>
+        <div class="card me"><div class="lab">YOU ARE HERE</div><b>{esc(topic)}</b>{also}</div><div class="arrow">→</div>
         <div class="card"><div class="lab">LEADS TO</div>{after}</div></div>
-        <div class="paper">In your final exam it's in <b>{c['paper']}</b>.</div></div>"""), 6.5, "both"))
+        <div class="paper">In your final exam it's in <b>{c['paper']}</b>.</div></div>"""),
+        hold(sum(words(x) for x in c["previous"]) + 12, hi=12), "both"))
 
-    how = c["how"]
-    steps = how["steps"]
-    for k in range(len(steps) + 2):  # question, each step, answer
-        shown = steps[: max(0, k)]
-        lis = "".join(f'<li class="{"new" if i == k - 1 else ""}">{esc(s)}</li>' for i, s in enumerate(shown))
-        ans = f'<div class="ans">{esc(how["a"])}</div>' if k == len(steps) + 1 else ""
-        secs = (hold(words(how["q"]), lo=3.5, hi=7) if k == 0
-                else hold(words(steps[k - 1]), base=1.5, rate=2.8, lo=3.0, hi=7) if k <= len(steps)
-                else 4.5)
-        fade = "in" if k == 0 else "out" if k == len(steps) + 1 else ""
-        out.append((page(chrome(5) + f"""<div class="stage"><div class="q">HOW DOES IT WORK? AN EXAMPLE</div>
-            <div class="problem">{esc(how['q'])}</div><ol>{lis}</ol>{ans}</div>"""), secs, fade))
+    ex1, ex2 = c["examples"]
+    out += example_frames(chrome(3), "EXAMPLE 1 · WARM-UP", ex1, True, True)
+    out += example_frames(chrome(4), "EXAMPLE 2 · EXAM STYLE", ex2, True, True)
 
-    out.append((page(f"""<div class="center"><div class="kicker">NOW YOU TRY</div>
-        <div class="big" style="font-size:52px">Ask THUTOra about<br>{esc(topic)}</div>
-        <div class="sub">Open the topic in LEARN and ask your first question.</div></div>"""), 4.0, "both"))
+    out.append((page(f"""<div class="center"><div class="kicker">READY?</div>
+        <div class="big" style="font-size:50px">You're set to start<br>{esc(topic)}</div>
+        <div class="sub">Stuck on anything? Ask THUTOra in LEARN: it explains step by step.</div></div>"""), 4.5, "both"))
     return out
 
 
