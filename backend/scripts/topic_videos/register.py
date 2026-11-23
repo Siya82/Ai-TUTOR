@@ -17,18 +17,17 @@ Curriculum content, so it runs in every environment, like the seed.
 import argparse
 import asyncio
 import json
-from pathlib import Path
 
 from sqlalchemy import select
 
-from app.core.config import settings
+from app.core.config import topic_video_path
 from app.core.database import async_session_factory
 from app.models import Subject, Topic, VideoResource
 from app.routers.topics import THUTORA_VIDEO_SOURCE
 
 
 async def register(base_url: str = "") -> None:
-    folder = Path(settings.topic_video_dir)
+    folder = topic_video_path()
     manifest_path = folder / "manifest.json"
     if not manifest_path.exists():
         print(f"No {manifest_path} -- render the videos first (python -m scripts.topic_videos.render).")

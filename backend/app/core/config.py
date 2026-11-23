@@ -9,11 +9,17 @@ docs/ADR-010-deepseek-to-anthropic-migration.md
 recovered code.
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# backend/ -- so .env and relative folders resolve the same whether a command
+# is run from backend/ or from the project root (sweep 23 Nov 2026)
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8")
 
     database_url: str
     anthropic_api_key: str
@@ -91,3 +97,12 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def topic_video_path() -> Path:
+    """ADR-049: the topic video folder. A relative setting is taken from the
+    backend folder, not from wherever the server happens to be started --
+    otherwise starting it from the project root silently 404s every video."""
+    p = Path(settings.topic_video_dir)
+    return p if p.is_absolute() else BACKEND_DIR / p
+

@@ -3276,3 +3276,31 @@ Browser checks:
 - the player's own unmute updates it;
 - axe is clean.
 
+## 23 Nov 2026 — Sweep after the deep-scan fixes and topic videos
+
+Checked, all clean:
+- 337 backend tests, 22 frontend tests, lint, build;
+- pip-audit and npm audit;
+- migrations: one head (0024), up/down tested;
+- all 108 endpoints called with no login: 94 refuse, and the 14 that answer
+  are the public ones (login, school search, registration, sign-up, invite
+  redemption, crash reports, health);
+- all 24 worked examples in the topic videos checked by computation;
+- every screen in LEARN, TEACH, ADMIN, CONNECT and INSIGHTS: axe and browser
+  console, with no errors.
+
+Fixed:
+- ADMIN Learners and INSIGHTS circuit chips claimed role="tablist" without
+  tabs: now role="group" with aria-pressed;
+- INSIGHTS "Concern" badge contrast was 4.3:1, now 6.4:1;
+- Subject.name was declared unique on its own, but the database (rightly)
+  makes it unique per grade: model corrected;
+- .env and the topic video folder now resolve from backend/ wherever a
+  command is started (from the project root, videos used to 404);
+- CI's test JWT key was under 32 characters, so PyJWT warned.
+
+Found, needs Siya:
+- the GitHub repository is still public;
+- the Polly voice is blocked until the AWS account is on the Paid plan;
+- the topic video text has no teacher review yet.
+

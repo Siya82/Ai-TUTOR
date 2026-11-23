@@ -9,7 +9,6 @@ were added after this snapshot — not reflected below. See REBUILD_SPEC.md.
 import logging
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import anthropic
 from fastapi import FastAPI, Request
@@ -21,7 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from app.core.config import settings
+from app.core.config import settings, topic_video_path
 from app.core.database import get_db
 from app.routers import tutor as tutor_router
 from app.routers import dashboard as dashboard_router
@@ -175,7 +174,7 @@ app.include_router(client_errors_router.router, tags=["ops"])
 # no login is needed and browsers may cache them. Starlette serves byte
 # ranges, so the video player can seek. In production they move to a
 # Cloud Storage bucket (docs/RUNBOOK.md).
-_videos = Path(settings.topic_video_dir)
+_videos = topic_video_path()
 _videos.mkdir(parents=True, exist_ok=True)
 app.mount("/media/topic-videos", StaticFiles(directory=_videos), name="topic-videos")
 

@@ -204,12 +204,13 @@ export default function InsightsScreen({ auth, onLogout }) {
         ) : (
           <>
             {scope && scope.circuits.length > 1 && (
-              <div className="progress-filter" role="tablist" aria-label="Circuit">
+              <div className="progress-filter" role="group" aria-label="Circuit">
                 {[{ id: "", name: "All circuits" }, ...scope.circuits].map((c) => (
                   <button
                     key={c.id || "all"}
                     type="button"
                     className={`progress-filter__chip${circuitId === c.id ? " progress-filter__chip--active" : ""}`}
+                    aria-pressed={circuitId === c.id}
                     onClick={() => setCircuitId(c.id)}
                   >
                     {c.name}

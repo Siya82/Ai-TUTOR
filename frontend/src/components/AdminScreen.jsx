@@ -143,7 +143,7 @@ function LearnersPanel({ token, onLogout, me, students, loading, error, reload }
   const [view, setView] = useState("list");
   return (
     <>
-      <div className="progress-filter" role="tablist" aria-label="Learner tools">
+      <div className="progress-filter" role="group" aria-label="Learner tools">
         {[
           ["list", "All learners", Users],
           ["add", "Add a learner", UserPlus],
@@ -153,6 +153,7 @@ function LearnersPanel({ token, onLogout, me, students, loading, error, reload }
             key={id}
             type="button"
             className={`progress-filter__chip${view === id ? " progress-filter__chip--active" : ""}`}
+            aria-pressed={view === id}
             onClick={() => setView(id)}
           >
             <Icon size={ICON_BUTTON} aria-hidden="true" />

@@ -2388,7 +2388,8 @@ button.consent-badge {
 }
 .insights-band--concern {
   background: var(--color-danger-tint);
-  color: var(--color-danger);
+  /* the danger red on its own tint was 4.3:1 at this small size; this is 6.4:1 */
+  color: #fca5a5;
 }
 .insights-bar {
   display: inline-block;

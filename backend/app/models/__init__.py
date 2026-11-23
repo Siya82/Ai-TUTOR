@@ -63,7 +63,7 @@ class Subject(Base):
     __tablename__ = "subjects"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)  # unique per grade: see uq_subject_grade
     grade: Mapped[int] = mapped_column(Integer, nullable=False)  # e.g. 10
 
     topics: Mapped[list["Topic"]] = relationship(back_populates="subject")
