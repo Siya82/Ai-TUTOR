@@ -3325,3 +3325,17 @@ Found, needs Siya:
   the colleague's ticket. Learner and parent views checked; axe clean on
   every Help view.
 
+
+## 23 Nov 2026 — ADMIN by role; THUTOra Console planned (ADR-051)
+
+- No separate app for school admins. ADMIN opens on Learners for a school
+  admin (with the office tabs first) and on Overview for a principal or
+  deputy. The landing tab waits for /school/me, so nothing flashes.
+- Tabs carry aria-current.
+- 3 new vitest cases (25 in total).
+- Browser check: a new school admin lands on Learners; the principal still
+  lands on Overview.
+- Decided: support stays inside each product for customers. THUTOra Console,
+  an internal Zynora tool, will replace the support scripts before the first
+  pilot. It covers tickets, registrations, principal and official roles, and
+  an audit log.

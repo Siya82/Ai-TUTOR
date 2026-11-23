@@ -17,3 +17,23 @@ export function defaultWorkspace(me, stored) {
   if (stored === "teach" || stored === "admin") return stored;
   return me.allocations.length > 0 ? "teach" : "admin";
 }
+
+// ADR-051: ADMIN opens where each role's daily work is. Principals and
+// deputies run the school, so they land on the Overview. A school admin
+// (with no principal or deputy role) does the office work -- learners,
+// classes, staff records -- so they land on Learners, with those tabs first.
+// Every tab stays available to every manager; the server rules are unchanged.
+export const ADMIN_TAB_ORDER = {
+  leader: ["overview", "learners", "classes", "staff", "notices", "settings", "activity"],
+  office: ["learners", "classes", "staff", "notices", "overview", "settings", "activity"],
+};
+
+export function adminFocus(me) {
+  const roles = new Set((me?.roles ?? []).map((r) => r.role));
+  if (roles.has("principal") || roles.has("deputy_principal")) return "leader";
+  return roles.has("school_admin") ? "office" : "leader";
+}
+
+export function adminLandingTab(me) {
+  return ADMIN_TAB_ORDER[adminFocus(me)][0];
+}

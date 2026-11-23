@@ -6,7 +6,7 @@ is the shared doc:
 [THUTOra — Roles and Responsibilities](https://claude.ai/artifact/6AwgF92m4MrDG5g6TFVvNh).
 Keep that doc and this summary in step when access rules change. The code is
 the final word: `app/services/school_scope.py` (staff), ADR-031 (school roles),
-ADR-039 (officials), ADR-043 (families), ADR-050 (support).*
+ADR-039 (officials), ADR-043 (families), ADR-050 (support), ADR-051 (ADMIN by role; THUTOra Console).*
 
 **Rules everywhere:**
 - Your own school only, and below your own role. Nobody changes their own role.
@@ -35,3 +35,7 @@ ADR-039 (officials), ADR-043 (families), ADR-050 (support).*
 - there's no tool to remove an official or a principal role;
 - the support "never" rules are policy, so they need to be in contracts;
 - support is one person with every tool.
+
+The last three are planned for **THUTOra Console**, Zynora's internal tool
+(ADR-051), due before the first pilot school goes live. A school admin uses
+ADMIN like the principal, but it opens on Learners.

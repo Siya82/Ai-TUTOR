@@ -19,3 +19,19 @@ describe("defaultWorkspace (ADR-044)", () => {
     expect(defaultWorkspace(me({ can_manage_school: true }), null)).toBe("admin");
   });
 });
+
+import { adminLandingTab } from "../utils/staff";
+
+describe("adminLandingTab (ADR-051)", () => {
+  const r = (...roles) => me({ can_manage_school: true, roles: roles.map((role) => ({ role })) });
+  it("principals and deputies land on the Overview", () => {
+    expect(adminLandingTab(r("principal"))).toBe("overview");
+    expect(adminLandingTab(r("deputy_principal", "school_admin"))).toBe("overview");
+  });
+  it("a school admin lands on Learners", () => {
+    expect(adminLandingTab(r("school_admin"))).toBe("learners");
+  });
+  it("falls back to the Overview before /school/me loads", () => {
+    expect(adminLandingTab(null)).toBe("overview");
+  });
+});

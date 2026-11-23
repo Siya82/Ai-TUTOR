@@ -22,7 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import { fetchAdminStudents, fetchSchoolMe, fetchSchoolOverview } from "../api";
-import { roleSummary } from "../utils/staff";
+import { ADMIN_TAB_ORDER, adminFocus, roleSummary } from "../utils/staff";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import NoticesSection from "./NoticesSection";
 import ActivityLog from "./ActivityLog";
@@ -42,6 +42,11 @@ const TABS = [
   { id: "settings", label: "School settings", icon: Settings },
   { id: "activity", label: "Activity", icon: History }, // code review 19 Nov #11
 ];
+
+// ADR-051: tab order (and so the landing tab) follows the person's role.
+function tabsFor(me) {
+  return ADMIN_TAB_ORDER[adminFocus(me)].map((id) => TABS.find((t) => t.id === id));
+}
 
 function StatTile({ label, value, sub }) {
   return (
@@ -180,7 +185,7 @@ function LearnersPanel({ token, onLogout, me, students, loading, error, reload }
 }
 
 export default function AdminScreen({ auth, onLogout, switcher }) {
-  const [tab, setTab] = useState("overview");
+  const [chosenTab, setTab] = useState(null); // null until the person picks one
   const [me, setMe] = useState(null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -211,6 +216,11 @@ export default function AdminScreen({ auth, onLogout, switcher }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const tabs = tabsFor(me);
+  // Wait for /school/me before choosing the landing tab, so a school admin
+  // doesn't see the Overview flash up and then jump to Learners.
+  const tab = chosenTab ?? (me ? tabs[0].id : null);
+
   return (
     <div className="admin-screen" data-product="admin">
       <header className="chat-screen__header">
@@ -233,10 +243,11 @@ export default function AdminScreen({ auth, onLogout, switcher }) {
       </header>
 
       <nav className="admin-screen__tabs">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
+            aria-current={tab === t.id ? "page" : undefined}
             className={`admin-screen__tab${tab === t.id ? " admin-screen__tab--active" : ""}`}
             onClick={() => setTab(t.id)}
           >
@@ -249,6 +260,7 @@ export default function AdminScreen({ auth, onLogout, switcher }) {
       </nav>
 
       <main className="admin-screen__body admin-screen__body--wide">
+        {!tab && (error ? <div className="admin-screen__error">{error}</div> : <p className="admin-screen__muted">Loading…</p>)}
         {tab === "overview" && (
           <OverviewPanel token={auth.token} school={{ name: schoolName }} onGo={setTab} />
         )}
