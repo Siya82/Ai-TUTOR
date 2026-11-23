@@ -359,7 +359,9 @@ async def school_audit(
                 "at": e.created_at.isoformat(),
                 "action": e.action,
                 "label": LABELS.get(e.action, e.action),
-                "by": names.get(str(e.actor_user_id), "THUTOra") if e.actor_user_id else "THUTOra",
+                "by": names.get(str(e.actor_user_id), "THUTOra")
+                if e.actor_user_id
+                else ("THUTOra support" if e.console_staff_id else "THUTOra"),
                 "target": target,
                 "details": e.details or {},
             }

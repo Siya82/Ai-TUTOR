@@ -9,11 +9,27 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## THUTOra Console (ADR-051)
+
+Run `start-thutora.ps1` (it opens a third window for the Console), or `cd console; npm install; npm run dev`.
+
+- [ ] `python -m scripts.console_staff create --email <you> --name "<you>" --role director`, then open http://localhost:5174
+- [ ] First sign-in: scan the QR code with your authenticator app, type the code, choose a new password (12+ characters)
+- [ ] Sign out and in again: password, then a fresh code. An old code is refused
+- [ ] Tickets: log a ticket as a teacher in TEACH; it appears under "Waiting for Zynora"; reply; the teacher sees it in Help → My tickets
+- [ ] As the principal, ADMIN → Activity shows "THUTOra support · Answered a support ticket"
+- [ ] Registrations: submit "Register your school" from the login page; approve it in the Console; log in to the new school with the printed details
+- [ ] Schools: open the demo school; no learner names anywhere; make a staff member principal, then remove the role
+- [ ] Officials: add a circuit, place a school in it, add an official; log in as them in INSIGHTS; remove them; their login stops working
+- [ ] Console staff: add an agent; sign in as them in a private window: only Tickets and Schools show
+- [ ] Wait 30 minutes (or sign out): you're sent back to the sign-in screen
+- [ ] A school login can't open the Console, and a Console login can't open the school apps
+
 ## Support (ADR-050)
 
 - [ ] As a teacher: Help → Guides, search "password"; open a guide
 - [ ] Help → Contact support: log a "How do I…?" ticket; it appears under My tickets
-- [ ] `python -m scripts.support list`, then `reply <number> "test"`: the teacher sees the reply and "Waiting for you"
+- [ ] Reply in THUTOra Console (or `python -m scripts.support reply <number> "test"`): the teacher sees the reply and "Waiting for you"
 - [ ] The teacher replies: the ticket is back to "With THUTOra support"; Mark as resolved works
 - [ ] As the principal: My tickets shows the teacher's ticket as a colleague's
 - [ ] As a learner and as a parent: Help shows "ask your teacher / school", with no ticket form

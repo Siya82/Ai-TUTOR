@@ -33,6 +33,16 @@ LABELS = {
     "parent.link": "Linked a parent",
     "parent.unlink": "Unlinked a parent",
     "learners.promote": "Promoted learners to the next grade",
+    # ADR-051: done by THUTOra support from the Console
+    "school.create": "Set up the school on THUTOra",
+    "registration.approve": "Approved the school's registration",
+    "principal.add": "Added a principal",
+    "principal.remove": "Removed a principal role",
+    "school.circuit": "Placed the school in a circuit",
+    "ticket.reply": "Answered a support ticket",
+    "ticket.resolve": "Answered and resolved a support ticket",
+    "ticket.priority": "Changed a ticket's priority",
+    "ticket.status": "Changed a ticket's status",
 }
 
 

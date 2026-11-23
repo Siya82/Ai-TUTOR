@@ -28,6 +28,12 @@ def problems(settings) -> list[str]:
         out.append("CORS_ORIGINS must use https://")
     if (settings.sms_provider or "").lower() == "console":
         out.append("SMS_PROVIDER=console writes codes to the log; use a real provider or leave it empty")
+    if getattr(settings, "console_enabled", False):  # ADR-051
+        origins = getattr(settings, "console_origins", [])
+        if not origins or any(not o.startswith("https://") or "localhost" in o for o in origins):
+            out.append("CONSOLE_ORIGINS must list the Console's https:// address (or set CONSOLE_ENABLED=false)")
+        if set(origins) & set(settings.cors_origins):
+            out.append("CONSOLE_ORIGINS must not include a school app address")
     if not settings.anthropic_api_key:
         out.append("ANTHROPIC_API_KEY is missing")
     return out

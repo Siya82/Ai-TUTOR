@@ -13,6 +13,9 @@ Usage (from backend/):
     python -m scripts.manage_registrations reject  <reference>
 
 <reference> is the 8-character code the form showed (the start of the id).
+
+ADR-051: the THUTOra Console does the same from Registrations (and logs it);
+prefer the Console once it's live.
 """
 
 import argparse
@@ -20,10 +23,9 @@ import asyncio
 
 from sqlalchemy import cast, select, String
 
-from app.core.clock import utcnow_naive
 from app.core.database import async_session_factory
-from app.models import School, SchoolRegistration, StaffRole
-from app.services.auth import provision_teacher
+from app.models import SchoolRegistration
+from app.services.onboarding import OnboardingError, approve_registration, reject_registration
 
 
 async def _find(session, ref: str) -> SchoolRegistration:
@@ -58,30 +60,19 @@ async def main(args) -> None:
         if args.cmd == "show":
             print(_describe(reg))
             return
-        if reg.status != "pending":
-            raise SystemExit(f"This request is already {reg.status}.")
         if args.cmd == "reject":
-            reg.status = "rejected"
-            reg.decided_at = utcnow_naive()
+            try:
+                reject_registration(reg)
+            except OnboardingError as e:
+                raise SystemExit(str(e))
             await session.commit()
             print(f"Rejected {reg.school_name}. Let {reg.contact_name} know on {reg.contact_cellphone}.")
             return
 
-        school = School(
-            name=reg.school_name,
-            emis_number=reg.emis_number,
-            province=reg.province,
-            phone=None,
-            email=reg.contact_email,
-        )
-        session.add(school)
-        await session.flush()
-        user, temp_password = await provision_teacher(session, school=school, staff_number=args.staff_number)
-        user.display_name = reg.contact_name
-        session.add(StaffRole(user_id=user.id, school_id=school.id, role=args.as_role))
-        reg.status = "approved"
-        reg.school_id = school.id
-        reg.decided_at = utcnow_naive()
+        try:
+            school, user, temp_password = await approve_registration(session, reg, args.as_role, args.staff_number)
+        except OnboardingError as e:
+            raise SystemExit(str(e))
         await session.commit()
         print(f"School:         {school.name}  (id {school.id})")
         print(f"First login:    {user.display_name} as {args.as_role}")

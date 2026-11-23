@@ -33,6 +33,7 @@ from app.core.clock import utcnow_naive
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -853,6 +854,8 @@ class AuditEvent(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     school_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("schools.id"), nullable=True, index=True)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # ADR-051: set when THUTOra support did it from the Console (actor_user_id is then NULL)
+    console_staff_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("console_staff.id"), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     target_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -951,5 +954,33 @@ class SupportMessage(Base):
     ticket_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("support_tickets.id"), nullable=False, index=True)
     author_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     from_zynora: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # ADR-051: which Zynora staff member answered from the Console
+    console_staff_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("console_staff.id"), nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow_naive)
+
+
+# ---------------------------------------------------------------------------
+# NEW 23 Nov 2026 (ADR-051, THUTOra Console). Zynora's own staff. Kept apart
+# from `users` on purpose: a Console login can't open a school app and a
+# school login can't open the Console (separate tokens, see services/console_auth.py).
+# ---------------------------------------------------------------------------
+
+
+class ConsoleStaff(Base):
+    __tablename__ = "console_staff"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    email: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)  # stored lower-case
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)  # agent | lead | director
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    # Authenticator-app secret (base32). Confirmed once the first code works.
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # a code works only once
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow_naive)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -24,8 +24,8 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.database import async_session_factory
-from app.models import Circuit, District, OfficialAssignment, School, User
-from app.services.auth import _generate_unique_login_number, generate_temp_password, hash_password
+from app.models import Circuit, District, School
+from app.services.onboarding import add_official
 
 
 async def _one(session, model, name, label):
@@ -59,39 +59,10 @@ async def main(args) -> None:
         elif args.cmd == "add-official":
             if bool(args.circuit) == bool(args.district):
                 raise SystemExit("Give exactly one of --circuit or --district")
-            if args.circuit:
-                level = await _one(session, Circuit, args.circuit, "circuit")
-                office_name = level.name if level.name.lower().endswith("circuit") else f"{level.name} Circuit"
-                office_name += " Office"
-            else:
-                level = await _one(session, District, args.district, "district")
-                office_name = level.name if level.name.lower().endswith("district") else f"{level.name} District"
-                office_name += " Office"
-            office = (
-                await session.execute(select(School).where(School.name == office_name, School.kind == "office"))
-            ).scalar_one_or_none()
-            if office is None:
-                office = School(name=office_name, kind="office")
-                session.add(office)
-                await session.flush()
-            temp = generate_temp_password()
-            user = User(
-                role="official",
-                school_id=office.id,
-                student_number=await _generate_unique_login_number(session, office),
-                display_name=args.name.strip(),
-                password_hash=hash_password(temp),
-                must_change_password=True,
-            )
-            session.add(user)
-            await session.flush()
-            session.add(
-                OfficialAssignment(
-                    user_id=user.id,
-                    circuit_id=level.id if args.circuit else None,
-                    district_id=level.id if args.district else None,
-                )
-            )
+            circuit = await _one(session, Circuit, args.circuit, "circuit") if args.circuit else None
+            district = await _one(session, District, args.district, "district") if args.district else None
+            user, office, temp = await add_official(session, args.name, circuit=circuit, district=district)
+            office_name = office.name
             await session.commit()
             print(f"Official {user.display_name} created.")
             print(f"  Log in by choosing:  {office_name}")

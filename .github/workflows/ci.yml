@@ -75,3 +75,23 @@ jobs:
       - run: npx eslint src
       - run: npm test
       - run: npx vite build
+
+  # ADR-051: THUTOra Console, Zynora's internal tool (separate site)
+  console:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm ci
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=moderate
+      - run: npx eslint src
+      - run: npm test
+      - run: npx vite build

@@ -3339,3 +3339,33 @@ Found, needs Siya:
   an internal Zynora tool, will replace the support scripts before the first
   pilot. It covers tickets, registrations, principal and official roles, and
   an audit log.
+
+## 23 Nov 2026 — THUTOra Console built (ADR-051)
+
+- **What:** Zynora's internal tool, a separate website (`console/`, port
+  5174) on the same API under `/console`. It covers:
+  - tickets: reply, resolve, priority, reopen;
+  - school lookup: counts and the management team, never learners;
+  - setting up a school;
+  - giving and removing the principal role;
+  - registrations: approve and reject;
+  - districts, circuits, placing schools, adding and removing officials;
+  - an audit log;
+  - Console staff (directors).
+- **Sign-in:** email + password, then an authenticator-app code (QR set-up
+  at first sign-in), then the person's own password. 30-minute sessions in
+  that browser tab only.
+- **Separation:** Console tokens have their own audience; neither token
+  type opens the other side. The API refuses Console calls from a school
+  app address, and in production from anywhere but `CONSOLE_ORIGINS`.
+- **Audit:** every action is logged with the staff member. School-facing
+  actions show in ADMIN → Activity as "THUTOra support".
+- **Code:** migration 0026; `services/onboarding.py` shared with the
+  scripts; `scripts/console_staff.py` for the first director and lock-outs.
+- **Production:** production checks for `CONSOLE_ORIGINS`; the Console's
+  own Firebase site config with a strict CSP and noindex; a CI job for
+  `console/`.
+- **Tests:** 17 new tests (365 backend in total) and 2 Console vitest cases.
+  Browser walk-through of the full loop: first sign-in with QR, ticket
+  reply seen by the teacher, school activity, registration approval,
+  officials, staff, audit, sign-out. axe clean on all 8 screens.

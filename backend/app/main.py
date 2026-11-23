@@ -42,6 +42,7 @@ from app.routers import family as family_router  # NEW 19 Nov 2026 (ADR-043)
 from app.routers import school_admin as school_admin_router  # NEW 19 Nov 2026 (ADR-044)
 from app.routers import client_errors as client_errors_router  # NEW 20 Nov 2026 (deep scan H4)
 from app.routers import support as support_router  # NEW 23 Nov 2026 (ADR-050)
+from app.routers import console as console_router  # NEW 23 Nov 2026 (ADR-051)
 
 IS_PRODUCTION = settings.environment.lower() in ("production", "prod")
 
@@ -136,7 +137,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)  # skips video/* and other
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    # ADR-051: the Console website is a separate origin; it can only use /console (console_guard)
+    allow_origins=settings.cors_origins + (settings.console_origins if settings.console_enabled else []),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -172,6 +174,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
 app.include_router(dashboard_router.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(client_errors_router.router, tags=["ops"])
 app.include_router(support_router.router)
+app.include_router(console_router.router)
 
 # ADR-049: topic overview videos. Curriculum content, not personal data, so
 # no login is needed and browsers may cache them. Starlette serves byte

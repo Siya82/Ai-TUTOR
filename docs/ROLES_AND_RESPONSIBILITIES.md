@@ -27,7 +27,7 @@ ADR-039 (officials), ADR-043 (families), ADR-050 (support), ADR-051 (ADMIN by ro
 | Principal | Whole school | Whole school | Whole school | Yes | Deputy, departmental head, school admin | School's | Zynora |
 | Circuit / district official | No names | Totals for their area (groups under 5 learners hidden) | No | No | No | Own | Zynora |
 | Province / national official (DoE head) | — | *Planned* | — | — | — | — | Zynora (planned) |
-| THUTOra support (Zynora) | Only when a ticket or legal duty requires it | Same | Schools, principals, officials | No (the school's decision) | Principal, officials | Answers them | Zynora directors |
+| THUTOra support (Zynora), in THUTOra Console | Never in the Console; only when a ticket or legal duty requires it | Same | Schools, principals, officials (lead) | No (the school's decision) | Principal, officials (lead) | Answers them (agent) | Console directors |
 
 **Open gaps** (detail in the shared doc):
 - province and national officials aren't built;
@@ -36,6 +36,11 @@ ADR-039 (officials), ADR-043 (families), ADR-050 (support), ADR-051 (ADMIN by ro
 - the support "never" rules are policy, so they need to be in contracts;
 - support is one person with every tool.
 
-The last three are planned for **THUTOra Console**, Zynora's internal tool
-(ADR-051), due before the first pilot school goes live. A school admin uses
+**THUTOra Console** (ADR-051, built 23 Nov 2026) closes three of these:
+- support actions are logged;
+- officials and principals can be removed;
+- support is split into agent, lead and director roles.
+
+The "never" rules are still policy, so they still need to be in contracts.
+Province and national officials are still to build. A school admin uses
 ADMIN like the principal, but it opens on Learners.

@@ -73,6 +73,9 @@ production data to a laptop.
 Hours: 06:00–18:00. Targets: P1 1 hour, P2 4 hours, P3 next working day,
 P4 weekly.
 
+Answer tickets in **THUTOra Console** (ADR-051) → Tickets. The scripts still
+work as a fallback when the Console is down:
+
 ```powershell
 python -m scripts.support list            # waiting for us, most urgent first
 python -m scripts.support show 42
@@ -87,9 +90,50 @@ python -m scripts.support reply 42 "..."  # add --resolve when it's done
 - Set `SMTP_*` in production so new tickets reach support@zynoratech.co.za.
   Without it, they only appear in the logs.
 
+## 4c. THUTOra Console (ADR-051)
+
+Zynora's internal tool: tickets, school registrations, setting up schools,
+principals, officials, an audit log, and Console staff. It's a separate
+website (`console/`) that uses the same API under `/console`.
+
+**First director** (once per environment), from `backend` with the venv active:
+
+```powershell
+python -m scripts.console_staff create --email siya@zynoratech.co.za --name "Siya Zondi" --role director
+```
+
+Sign in at the Console with the printed password, scan the QR code with an
+authenticator app, and choose your own password. Add everyone else in the
+Console under **Console staff**. Keep **two directors**, so one can reset
+the other.
+
+**Locked out** (lost phone, forgotten password, every director locked out):
+
+```powershell
+python -m scripts.console_staff reset-authenticator --email siya@zynoratech.co.za
+python -m scripts.console_staff reset-password --email siya@zynoratech.co.za
+```
+
+**Production:**
+- Host it as its own Firebase site (`console/firebase.json` names the site
+  `thutora-console`), e.g. `console.thutora.co.za`. Build it with
+  `console/.env.production` pointing at the API.
+- Set `CONSOLE_ORIGINS=["https://console.thutora.co.za"]` on the API. In
+  production `/console` answers only that address; the API won't start if
+  it's missing, is http, or is a school app address.
+- `CONSOLE_ENABLED=false` switches every `/console` endpoint off (for
+  example during an incident).
+- Optional, stronger: allow the Console address only from Zynora's office
+  IP (Cloud Armor or Firebase Hosting rules).
+
+Sessions last 30 minutes. Every action is in Console → Audit log, and
+actions on a school also show in that school's ADMIN → Activity as
+"THUTOra support".
+
 ## 5. Releasing
 
 1. CI green (tests, lint, build, `pip-audit`, `npm audit`).
 2. Cloud Run job: `alembic upgrade head`.
-3. Deploy the API image, then the frontend.
+3. Deploy the API image, then the frontend, then the Console
+   (`firebase deploy --only hosting:thutora-console` from `console/`).
 4. Log in as each role on staging before promoting to production.

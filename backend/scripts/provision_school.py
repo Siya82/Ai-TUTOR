@@ -18,11 +18,9 @@ import argparse
 import asyncio
 import uuid
 
-from sqlalchemy import select
-
 from app.core.database import async_session_factory
-from app.models import School, StaffRole, User
-from app.services.auth import provision_teacher
+from app.models import School
+from app.services.onboarding import OnboardingError, add_first_login
 
 
 async def main(args) -> None:
@@ -36,18 +34,10 @@ async def main(args) -> None:
             session.add(school)
             await session.flush()
 
-        if args.staff_number:
-            clash = (
-                await session.execute(
-                    select(User.id).where(User.school_id == school.id, User.student_number == args.staff_number)
-                )
-            ).first()
-            if clash:
-                raise SystemExit(f"Staff number {args.staff_number} is already used at {school.name}")
-
-        user, temp_password = await provision_teacher(session, school=school, staff_number=args.staff_number)
-        user.display_name = args.principal.strip()
-        session.add(StaffRole(user_id=user.id, school_id=school.id, role="principal"))
+        try:
+            user, temp_password = await add_first_login(session, school, args.principal, "principal", args.staff_number)
+        except OnboardingError as e:
+            raise SystemExit(str(e))
         await session.commit()
 
         print(f"School:            {school.name}  (id {school.id})")

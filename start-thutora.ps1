@@ -17,7 +17,9 @@
          `alembic upgrade head` (applies the new attachments migration
          if you haven't yet), then starts uvicorn on port 8000.
       3. Opens a second new window and runs `npm run dev` in frontend/.
-      4. Opens your default browser to the frontend once it's likely up.
+      4. Opens a third window for THUTOra Console (console/, port 5174;
+         ADR-051), installing its packages the first time.
+      5. Opens your default browser to the frontend once it's likely up.
 
     Stopping: close the two new windows (or Ctrl+C inside each), then
     `docker compose down` in the project root if you want to stop
@@ -82,13 +84,25 @@ npm run dev
 Write-Host "==> Opening frontend window..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCommand
 
-# 4. Open the browser once things have had a moment to come up ---------
+# 4. THUTOra Console (Zynora's internal tool, ADR-051) in its own window --
+$consoleCommand = @"
+Set-Location '$ProjectRoot\console'
+if (-not (Test-Path 'node_modules')) { Write-Host '==> First run: installing Console packages...' -ForegroundColor Cyan; npm install }
+Write-Host '==> Starting THUTOra Console on http://localhost:5174 ...' -ForegroundColor Cyan
+npm run dev
+"@
+
+Write-Host "==> Opening Console window..." -ForegroundColor Cyan
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $consoleCommand
+
+# 5. Open the browser once things have had a moment to come up ---------
 Write-Host "==> Giving uvicorn/vite a few seconds to start..." -ForegroundColor Cyan
 Start-Sleep -Seconds 6
 Start-Process "http://localhost:5173"
 
 Write-Host ""
-Write-Host "THUTOra should be starting up in two new windows (backend + frontend)." -ForegroundColor Green
+Write-Host "THUTOra should be starting up in three new windows (backend, frontend, Console)." -ForegroundColor Green
 Write-Host "Backend:  http://localhost:8000/health" -ForegroundColor Green
 Write-Host "Frontend: http://localhost:5173" -ForegroundColor Green
+Write-Host "Console:  http://localhost:5174  (Zynora staff only)" -ForegroundColor Green
 Write-Host "If the frontend shows a backend-connection error, give uvicorn a few more seconds and refresh." -ForegroundColor Yellow

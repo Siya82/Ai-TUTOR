@@ -77,6 +77,13 @@ class Settings(BaseSettings):
     retention_upload_days: int = 0
     retention_audit_days: int = 0
     retention_support_days: int = 0  # resolved support tickets (ADR-050)
+    # NEW 23 Nov 2026 (ADR-051): THUTOra Console, Zynora's internal tool.
+    # CONSOLE_ENABLED=false turns every /console endpoint off (404).
+    # CONSOLE_ORIGINS: the Console website's address(es); in production
+    # /console accepts calls only from these.
+    console_enabled: bool = True
+    console_origins: list[str] = ["http://localhost:5174"]
+    console_session_minutes: int = 30
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
 
