@@ -36,6 +36,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     Numeric,
@@ -914,3 +915,41 @@ class QuestionReport(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open", server_default="open")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# NEW 23 Nov 2026 (ADR-050, support). Staff and officials ask Zynora for
+# help; Zynora answers from scripts/support.py. Learners and parents go to
+# their school first (POPIA: the school is the responsible party).
+# ---------------------------------------------------------------------------
+
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    # short number people can quote on WhatsApp or email ("ticket 42")
+    number: Mapped[int] = mapped_column(Integer, Identity(), unique=True, nullable=False)
+    school_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schools.id"), nullable=False, index=True)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    product: Mapped[str] = mapped_column(String(20), nullable=False)  # teach | admin | insights
+    category: Mapped[str] = mapped_column(String(30), nullable=False)
+    priority: Mapped[str] = mapped_column(String(2), nullable=False)  # p1 (urgent) .. p4 (idea)
+    subject: Mapped[str] = mapped_column(String(150), nullable=False)
+    # open | waiting_on_school | resolved
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open", server_default="open", index=True)
+    context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # screen, app version -- never learner data
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow_naive)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class SupportMessage(Base):
+    __tablename__ = "support_messages"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    ticket_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("support_tickets.id"), nullable=False, index=True)
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    from_zynora: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow_naive)

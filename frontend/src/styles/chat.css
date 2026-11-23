@@ -3216,3 +3216,41 @@ textarea {
 .topic-video-dialog__voice[aria-pressed="true"] { background: rgba(34, 197, 94, 0.25); }
 .topic-video-dialog__head button:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
 .topic-video-dialog video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #0f1d3d; }
+
+/* ADR-050: Help Centre */
+.help-centre { width: min(720px, 100%); max-height: 88vh; overflow-y: auto; text-align: left; }
+.help-centre__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.help-centre__head h2 { margin: 0; font-size: 1.25rem; }
+.help-centre__head button { display: inline-flex; padding: 6px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.help-centre__head button:focus-visible { outline: 2px solid var(--color-accent); }
+.help-search { width: 100%; margin: 12px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--color-border); background: transparent; color: inherit; font: inherit; }
+.help-guides { list-style: none; padding: 0; margin: 0; }
+.help-guides > li { border-bottom: 1px solid var(--color-border); }
+.help-guides__title { width: 100%; padding: 12px 4px; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.help-guides__title:focus-visible { outline: 2px solid var(--color-accent); }
+.help-guides__steps { margin: 0 0 14px; padding-left: 22px; line-height: 1.5; }
+.help-guides__steps li { margin-bottom: 6px; }
+.help-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.help-form label { display: flex; flex-direction: column; gap: 6px; }
+.help-form input, .help-form select, .help-form textarea { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-surface); color: inherit; font: inherit; }
+.help-form .help-check { flex-direction: row; align-items: center; }
+.help-form__row { display: flex; gap: 12px; align-items: center; }
+.help-urgent { padding: 10px 14px; border-radius: 10px; background: var(--color-warning-tint); color: var(--color-warning); line-height: 1.45; }
+.help-done { padding: 10px 14px; border-radius: 10px; background: var(--color-accent-tint); }
+.help-contact ul { list-style: none; padding: 0; line-height: 1.7; }
+.help-contact a, .help-simple a { color: var(--color-accent); }
+.help-simple p { line-height: 1.5; }
+.help-tickets { list-style: none; padding: 0; margin: 12px 0 0; }
+.help-tickets button { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.help-tickets button:focus-visible { outline: 2px solid var(--color-accent); }
+.help-status { align-self: flex-start; padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; background: var(--color-surface-2); }
+.help-status--waiting_on_school { background: var(--color-warning-tint); color: var(--color-warning); }
+.help-status--resolved { background: var(--color-accent-tint); color: var(--color-accent); }
+.help-thread__meta { color: var(--color-text-muted); font-size: 0.9rem; }
+.help-thread__messages { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.help-msg { padding: 10px 14px; border-radius: 12px; background: var(--color-surface-2); }
+.help-msg--zynora { background: var(--color-accent-tint); }
+.help-msg__who { font-size: 0.8rem; color: var(--color-text-muted); }
+.help-msg p { margin: 4px 0 0; white-space: pre-wrap; }
+.login-help { margin-top: 18px; font-size: 0.85rem; color: var(--color-text-muted); text-align: center; line-height: 1.5; }
+.login-help a { color: var(--color-accent); }

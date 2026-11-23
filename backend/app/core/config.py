@@ -63,8 +63,20 @@ class Settings(BaseSettings):
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     aws_region: str = "us-east-1"
+
+    # ADR-050 support. Shown in the Help Centre and on the login page.
+    support_email: str = "support@zynoratech.co.za"
+    support_whatsapp: str = "+27 67 590 1165"
+    support_hours: str = "06:00-18:00 (SAST)"
+    # Email alerts for new tickets and replies. Empty SMTP_HOST = log only.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""  # e.g. "THUTOra Support <support@zynoratech.co.za>"
     retention_upload_days: int = 0
     retention_audit_days: int = 0
+    retention_support_days: int = 0  # resolved support tickets (ADR-050)
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
 

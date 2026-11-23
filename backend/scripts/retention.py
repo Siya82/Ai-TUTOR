@@ -12,6 +12,7 @@ Cleaned only when a period is set in .env (0 = keep):
   RETENTION_CONVERSATION_DAYS  tutor conversations (and their uploads)
   RETENTION_UPLOAD_DAYS        uploaded files not used in a conversation
   RETENTION_AUDIT_DAYS         audit trail entries
+  RETENTION_SUPPORT_DAYS       resolved support tickets
 """
 
 import argparse
@@ -24,7 +25,17 @@ from sqlalchemy import delete, func, select, update
 from app.core.clock import utcnow_naive
 from app.core.config import settings
 from app.core.database import async_session_factory
-from app.models import Attachment, AuditEvent, RateEvent, SignupCode, TutorMessage, TutorSession, ViewerInvite
+from app.models import (
+    Attachment,
+    AuditEvent,
+    RateEvent,
+    SignupCode,
+    SupportMessage,
+    SupportTicket,
+    TutorMessage,
+    TutorSession,
+    ViewerInvite,
+)
 from app.services.privacy import remove_files
 
 log = logging.getLogger("thutora.retention")
@@ -85,6 +96,18 @@ async def run(dry_run: bool) -> dict:
             if not dry_run and loose:
                 await db.execute(delete(Attachment).where(Attachment.id.in_([a.id for a in loose])))
             counts["unused uploads"] = len(loose)
+
+        if settings.retention_support_days > 0:  # ADR-050: resolved tickets only
+            cutoff = now - timedelta(days=settings.retention_support_days)
+            old = (
+                await db.execute(
+                    select(SupportTicket.id).where(SupportTicket.status == "resolved", SupportTicket.resolved_at < cutoff)
+                )
+            ).scalars().all()
+            if old and not dry_run:
+                await db.execute(delete(SupportMessage).where(SupportMessage.ticket_id.in_(old)))
+                await db.execute(delete(SupportTicket).where(SupportTicket.id.in_(old)))
+            counts["support tickets"] = len(old)
 
         if settings.retention_audit_days > 0:
             await wipe("audit entries", AuditEvent, AuditEvent.created_at < now - timedelta(days=settings.retention_audit_days))

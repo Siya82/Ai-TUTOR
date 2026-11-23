@@ -31,6 +31,7 @@ import SchoolSettings from "./SchoolSettings";
 import { AddStudentPanel, BulkUploadPanel, RosterPanel } from "./TeacherAdminScreen";
 import Wordmark from "./Wordmark";
 import ChangePassword from "./ChangePassword";
+import HelpCentre from "./HelpCentre"; // ADR-050
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -221,6 +222,7 @@ export default function AdminScreen({ auth, onLogout, switcher }) {
               {me?.display_name ? `${me.display_name} · ` : ""}
               {roleSummary(me)} — {schoolName}
             </span>
+            <HelpCentre token={auth.token} product="admin" />
             <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />

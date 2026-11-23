@@ -3304,3 +3304,24 @@ Found, needs Siya:
 - the Polly voice is blocked until the AWS account is on the Paid plan;
 - the topic video text has no teacher review yet.
 
+## 23 Nov 2026 — Support: Help Centre and tickets (ADR-050)
+
+- A Help button in every product.
+- Staff get searchable guides, Contact support (tickets with automatic
+  priority) and My tickets with the conversation; school managers see the
+  school's tickets.
+- Learners are told to ask their teacher, with Childline 116 and police
+  10111.
+- Parents are told to contact the school, with Zynora's contacts for privacy
+  concerns.
+- The login page shows support@zynoratech.co.za, WhatsApp +27 67 590 1165,
+  and 06:00-18:00.
+- Zynora's side: scripts/support.py (list, show, reply, priority), SMTP
+  alerts (log-only until SMTP is set), urgent tickets logged at ERROR, a
+  start-up count of waiting tickets, and retention.
+- Migration 0025.
+- 7 integration tests. Browser check of the full loop: a teacher logs a
+  ticket, Zynora replies by script, the teacher sees it, the principal sees
+  the colleague's ticket. Learner and parent views checked; axe clean on
+  every Help view.
+

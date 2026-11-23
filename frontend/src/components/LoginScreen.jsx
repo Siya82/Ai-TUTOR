@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  fetchSupportContact,
   changePassword,
   fetchSignupAvailable,
   login,
@@ -34,6 +35,12 @@ import PrivacyNotice from "./PrivacyNotice";
 import Wordmark from "./Wordmark";
 
 export default function LoginScreen({ onLogin, notice }) {
+  const [support, setSupport] = useState(null); // ADR-050
+  useEffect(() => {
+    fetchSupportContact()
+      .then(setSupport)
+      .catch(() => {});
+  }, []);
   const [showPrivacy, setShowPrivacy] = useState(false); // ADR-037
   // code review 19 Nov #12: search for the school; remember it on this device
   const [school, setSchool] = useState(recalledSchool);
@@ -301,6 +308,26 @@ export default function LoginScreen({ onLogin, notice }) {
             Privacy notice
           </button>
         </div>
+        {/* ADR-050: who to ask. Learners and parents go to their school. */}
+        <p className="login-help">
+          Can't log in? Learners: ask your teacher. Parents: contact your child's school.
+          {support && (
+            <>
+              <br />
+              Schools and staff: <a href={`mailto:${support.email}`}>{support.email}</a>
+              {support.whatsapp && (
+                <>
+                  {" "}
+                  · WhatsApp{" "}
+                  <a href={support.whatsapp_link} target="_blank" rel="noreferrer">
+                    {support.whatsapp}
+                  </a>
+                </>
+              )}{" "}
+              · {support.hours}
+            </>
+          )}
+        </p>
       </div>
       {showPrivacy && <PrivacyNotice onClose={() => setShowPrivacy(false)} />}
     </div>

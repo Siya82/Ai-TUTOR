@@ -68,6 +68,25 @@ production data to a laptop.
 | A wrong question or model answer | Teachers report it from the answer review. `python -m scripts.question_reports list`, then `hide <id>` / `fixed <id>`. |
 | Suspected data breach | POPIA s22: tell the Information Regulator and the affected schools as soon as reasonably possible. `audit_events` shows who did what. |
 
+## 4b. Support (ADR-050)
+
+Hours: 06:00–18:00. Targets: P1 1 hour, P2 4 hours, P3 next working day,
+P4 weekly.
+
+```powershell
+python -m scripts.support list            # waiting for us, most urgent first
+python -m scripts.support show 42
+python -m scripts.support reply 42 "..."  # add --resolve when it's done
+```
+
+- A **safeguarding** ticket: check that the school has followed its own
+  process, then reply the same day. THUTOra never contacts a learner or
+  parent directly.
+- A **data/privacy** ticket may be a POPIA breach: follow section 4
+  ("Suspected data breach").
+- Set `SMTP_*` in production so new tickets reach support@zynoratech.co.za.
+  Without it, they only appear in the logs.
+
 ## 5. Releasing
 
 1. CI green (tests, lint, build, `pip-audit`, `npm audit`).

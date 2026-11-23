@@ -19,6 +19,7 @@ import { ICON_BUTTON, ICON_NAV } from "./icons";
 import PrivacyNotice from "./PrivacyNotice";
 import Wordmark from "./Wordmark";
 import ChangePassword from "./ChangePassword";
+import HelpCentre from "./HelpCentre"; // ADR-050
 import FamilyAccess from "./FamilyAccess";
 
 const LANG_KEY = "thutora_parent_language";
@@ -130,6 +131,7 @@ export default function ParentScreen({ auth, onLogout }) {
         <div className="chat-screen__header-right">
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">{auth.school?.name}</span>
+            <HelpCentre token={auth.token} product="connect" />
             <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />

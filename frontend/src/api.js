@@ -949,6 +949,28 @@ export function fetchAuditTrail(token) {
   return getJson("/school/audit", token);
 }
 
+// --- ADR-050: support ---------------------------------------------------------
+export async function fetchSupportContact() {
+  const res = await fetch(`${API_BASE_URL}/support/contact`);
+  if (!res.ok) throw new Error("Couldn't load support details");
+  return res.json();
+}
+export function createSupportTicket(token, ticket) {
+  return sendJson("POST", "/support/tickets", token, ticket);
+}
+export function fetchSupportTickets(token) {
+  return getJson("/support/tickets", token);
+}
+export function fetchSupportTicket(token, id) {
+  return getJson(`/support/tickets/${id}`, token);
+}
+export function replySupportTicket(token, id, body) {
+  return sendJson("POST", `/support/tickets/${id}/messages`, token, { body });
+}
+export function resolveSupportTicket(token, id) {
+  return sendJson("POST", `/support/tickets/${id}/resolve`, token);
+}
+
 // deep scan H4: send a screen crash to the server log. Never throws.
 export function reportClientError(error, componentStack) {
   try {

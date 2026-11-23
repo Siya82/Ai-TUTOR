@@ -74,6 +74,7 @@ import { nextSlot, toTutorText } from "../utils/mathInput";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import Wordmark from "./Wordmark";
 import ChangePassword from "./ChangePassword";
+import HelpCentre from "./HelpCentre"; // ADR-050
 
 function topicNameById(topics, id) {
   const topic = topics.find((t) => t.id === id);
@@ -729,6 +730,7 @@ export default function ChatScreen({ auth, onLogout, onLearnerChange }) {
           <div className="chat-screen__profile">
             <span className="chat-screen__profile-name">{auth.learner.display_name}</span>
             <LearnerSettings token={auth.token} learner={auth.learner} onLearnerChange={onLearnerChange} />
+            <HelpCentre token={auth.token} product="learn" />
             <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />

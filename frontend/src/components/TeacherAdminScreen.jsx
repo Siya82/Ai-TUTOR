@@ -26,6 +26,7 @@ import ParentAccessPanel from "./ParentAccessPanel";
 import { ICON_BUTTON, ICON_NAV } from "./icons";
 import Wordmark from "./Wordmark";
 import ChangePassword from "./ChangePassword";
+import HelpCentre from "./HelpCentre"; // ADR-050
 import EditPerson from "./EditPerson";
 import AssignmentsPanel from "./AssignmentsPanel"; // deep scan L4: own file
 import { roleSummary } from "../utils/staff";
@@ -116,6 +117,7 @@ export default function TeacherAdminScreen({ auth, onLogout, switcher }) {
               {me?.display_name ? `${me.display_name} · ` : ""}
               {roleSummary(me)} — {auth.school.name}
             </span>
+            <HelpCentre token={auth.token} product="teach" />
             <ChangePassword token={auth.token} />
             <button type="button" className="chat-screen__logout" onClick={onLogout}>
               <LogOut size={ICON_BUTTON} aria-hidden="true" />

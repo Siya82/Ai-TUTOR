@@ -9,6 +9,16 @@ Consolidated, in priority order, from everything flagged as "not yet live-tested
 - [ ] Student app: green LEARN badge, green icons in tinted circles, dark navy background
 - [ ] Teacher app: purple TEACH badge; Progress and School icons blue; Progress page uses blue
 
+## Support (ADR-050)
+
+- [ ] As a teacher: Help → Guides, search "password"; open a guide
+- [ ] Help → Contact support: log a "How do I…?" ticket; it appears under My tickets
+- [ ] `python -m scripts.support list`, then `reply <number> "test"`: the teacher sees the reply and "Waiting for you"
+- [ ] The teacher replies: the ticket is back to "With THUTOra support"; Mark as resolved works
+- [ ] As the principal: My tickets shows the teacher's ticket as a colleague's
+- [ ] As a learner and as a parent: Help shows "ask your teacher / school", with no ticket form
+- [ ] The login page shows support@zynoratech.co.za and the WhatsApp link (it opens WhatsApp)
+
 ## Topic overview videos (ADR-049)
 
 - [ ] Watch all 12 Grade 10 Maths videos: is every fact and worked example right? Note fixes against `backend/scripts/topic_videos/content.py`

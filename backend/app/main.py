@@ -41,6 +41,7 @@ from app.routers import insights as insights_router  # NEW 19 Nov 2026 (ADR-039)
 from app.routers import family as family_router  # NEW 19 Nov 2026 (ADR-043)
 from app.routers import school_admin as school_admin_router  # NEW 19 Nov 2026 (ADR-044)
 from app.routers import client_errors as client_errors_router  # NEW 20 Nov 2026 (deep scan H4)
+from app.routers import support as support_router  # NEW 23 Nov 2026 (ADR-050)
 
 IS_PRODUCTION = settings.environment.lower() in ("production", "prod")
 
@@ -53,6 +54,7 @@ check_production_settings(settings)
 async def lifespan(_app):
     # (FastAPI's lifespan replaces the deprecated @app.on_event("startup"))
     await _report_pending_registrations()
+    await _report_open_tickets()
     yield
 
 
@@ -169,6 +171,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
 
 app.include_router(dashboard_router.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(client_errors_router.router, tags=["ops"])
+app.include_router(support_router.router)
 
 # ADR-049: topic overview videos. Curriculum content, not personal data, so
 # no login is needed and browsers may cache them. Starlette serves byte
@@ -200,3 +203,23 @@ async def _report_pending_registrations() -> None:
             )
     except Exception as exc:  # noqa: BLE001 -- never block start-up for a reminder
         log.info("Couldn't check school registrations at start-up: %s", exc)
+
+
+async def _report_open_tickets() -> None:
+    """ADR-050: say at every start-up if schools are waiting on support."""
+    try:
+        from sqlalchemy import func, select
+
+        from app.core.database import async_session_factory
+        from app.models import SupportTicket
+
+        async with async_session_factory() as db:
+            waiting = (
+                await db.execute(
+                    select(func.count()).select_from(SupportTicket).where(SupportTicket.status == "open")
+                )
+            ).scalar_one()
+        if waiting:
+            log.warning("%d support ticket(s) waiting for Zynora. List them with: python -m scripts.support list", waiting)
+    except Exception as exc:  # noqa: BLE001 -- never block start-up for a reminder
+        log.info("Couldn't check support tickets at start-up: %s", exc)
