@@ -167,3 +167,6 @@ and it was impossible before classes existed. Two changes:
 Single-allocation `POST /school/allocations` keeps working (with an optional
 `class_id`). Duplicate checks treat "whole grade" as its own target, because
 Postgres unique constraints don't compare NULLs.
+
+
+> **23 Nov 2026:** the current, complete picture of every role (learners to officials, and Zynora support) is in `docs/ROLES_AND_RESPONSIBILITIES.md`. This ADR records how school roles were decided.
